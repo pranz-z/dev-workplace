@@ -1,26 +1,1092 @@
+@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
+/* ==========================================================================
+   DEVELOPER WORKPLACE — "creative desk" design system
+   --------------------------------------------------------------------------
+   Two paper families share one token vocabulary:
+
+     LIGHT PAPER = warm cream / soft beige   + deep warm charcoal type
+     DARK  PAPER = warm charcoal / soft brown + warm cream type
+
+   The page is a DESK (warm cream by day, warm near-black at night).
+   Cream surfaces (hero, stat cards) and dark paper cards (projects, today
+   notes) coexist in BOTH themes, so switching themes never changes identity.
+
+   Key mechanic: ink tokens are SURFACE-SCOPED. A cream surface re-declares
+   --ink / --muted to deep warm charcoal; a dark paper surface re-declares
+   them to warm cream. Any descendant reading var(--ink) therefore always
+   lands on the correct contrast tier for the surface it sits on.
+   ========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ---- desk (page environment) ------------------------------------------ */
+  --bg-desk: #f4ede3;
+  --bg-desk-2: #f8f2e9;
+  --desk-lamp-a: rgba(247, 201, 191, 0.4);
+  --desk-lamp-b: rgba(223, 238, 252, 0.44);
+  --texture-dot: rgba(116, 99, 89, 0.07);
+  --texture-grid: rgba(104, 91, 82, 0.03);
+
+  /* ---- surfaces: LIGHT PAPER (hero, stat cards, panels) ------------------ */
+  --surface-cream: #fffaf3;
+  --surface-cream-2: #f8efe1;
+  --surface-cream-hi: #fffdf8;
+  --surface-cream-inset: rgba(255, 255, 255, 0.68);
+  --surface-cream-sunk: rgba(120, 100, 84, 0.07);
+  --edge-cream: rgba(94, 74, 62, 0.18);
+  --edge-cream-soft: rgba(94, 74, 62, 0.11);
+  --shadow-cream: 0 12px 26px rgba(93, 70, 54, 0.1), 0 2px 0 rgba(84, 68, 60, 0.05);
+  --shadow-cream-lift: 0 18px 34px rgba(93, 70, 54, 0.14), 0 2px 0 rgba(84, 68, 60, 0.06);
+
+  /* ---- surfaces: DARK PAPER (project cards, today notes, inner panels) --- */
+  --surface-dark: #2a2624;
+  --surface-dark-2: #322d2a;
+  --surface-dark-inset: rgba(241, 236, 228, 0.055);
+  --surface-dark-chip: rgba(241, 236, 228, 0.09);
+  --surface-dark-track: rgba(241, 236, 228, 0.11);
+  --edge-dark: rgba(241, 236, 228, 0.13);
+  --edge-dark-soft: rgba(241, 236, 228, 0.08);
+  --shadow-dark: 0 12px 24px rgba(41, 30, 24, 0.16), inset 0 1px 0 rgba(241, 236, 228, 0.05);
+  --shadow-dark-lift: 0 18px 32px rgba(41, 30, 24, 0.22), inset 0 1px 0 rgba(241, 236, 228, 0.07);
+
+  /* ---- ink tiers -------------------------------------------------------- */
+  /* on DARK paper */
+  --text-light: #f1ece4;
+  --text-light-muted: #c8c0b6;
+  --text-light-soft: #a59d94;
+  /* on CREAM paper */
+  --text-dark: #2d261f;
+  --text-dark-muted: #6e6055;
+  --text-dark-soft: #8a7b6e;
+  /* on DESK */
+  --text-desk: #2d261f;
+  --text-desk-muted: #6e6055;
+
+  /* ---- pastel accents (paper-friendly, never neon) ---------------------- */
+  --accent-lavender: #e3dcff;
+  --accent-blue: #dcebfa;
+  --accent-green: #ddf1dd;
+  --accent-peach: #f9ddd1;
+  --accent-yellow: #f9e7b0;
+  --accent-pink: #f8dfe8;
+  --accent-coral: #f7c9bf;
+
+  --ink-lavender: #3a2f55;
+  --ink-blue: #2a4157;
+  --ink-green: #27462d;
+  --ink-peach: #59382c;
+  --ink-yellow: #52421f;
+  --ink-pink: #58323f;
+  --ink-neutral: #4b4034;
+
+  /* accents as small solid marks (dots, rails, focus rings) */
+  --accent-lavender-solid: #a99ce0;
+  --accent-blue-solid: #8fb6d6;
+  --accent-green-solid: #86ab8e;
+  --accent-peach-solid: #e0a684;
+  --accent-yellow-solid: #dbb768;
+  --accent-pink-solid: #dda2bb;
+
+  /* ---- status badge pills: light pastel bg + dark warm ink in both themes - */
+  --badge-development-bg: #f9e7b0;
+  --badge-development-ink: #52421f;
+  --badge-development-edge: #e6cf8c;
+  --badge-research-bg: #e3dcff;
+  --badge-research-ink: #3a2f55;
+  --badge-research-edge: #cdc2f2;
+  --badge-planning-bg: #dcebfa;
+  --badge-planning-ink: #2a4157;
+  --badge-planning-edge: #bcd7ee;
+  --badge-completed-bg: #ddf1dd;
+  --badge-completed-ink: #27462d;
+  --badge-completed-edge: #b7d8b5;
+  --badge-testing-bg: #f9ddd1;
+  --badge-testing-ink: #59382c;
+  --badge-testing-edge: #f1bca3;
+  --badge-blocked-bg: #f7d8d8;
+  --badge-blocked-ink: #5a3636;
+  --badge-blocked-edge: #e9b5b5;
+  --badge-neutral-bg: #efe8df;
+  --badge-neutral-ink: #50443a;
+  --badge-neutral-edge: #d8c7b5;
+
+  /* ---- progress bar: peach -> lavender -> green, controlled saturation --- */
+  --progress-a: #d9a98d;
+  --progress-b: #c7c7f5;
+  --progress-c: #b8dfc3;
+
+  /* ---- navigation (sidebar / header) ------------------------------------ */
+  --sidebar: rgba(255, 250, 243, 0.9);
+  --header: rgba(246, 239, 230, 0.86);
+  --nav-label: #8a7b6e;
+  --nav-item: #5c5047;
+  --nav-item-hover: rgba(120, 100, 84, 0.08);
+  --nav-active-bg: #e7dffb;
+  --nav-active-ink: #3a2f55;
+  --nav-active-edge: rgba(122, 100, 168, 0.28);
+
+  /* ---- legacy aliases: untouched pages stay coherent ------------------- */
+  --background: var(--bg-desk);
+  --paper: var(--surface-cream);
+  --paper-strong: var(--surface-cream-2);
+  --paper-soft: var(--bg-desk-2);
+  --card: var(--surface-cream);
+  --surface: var(--surface-cream);
+  --surface-strong: var(--surface-cream-hi);
+  --surface-alt: var(--surface-cream-2);
+  --panel: var(--surface-dark);
+  --panel-strong: var(--surface-dark-2);
+  --ink: var(--text-desk);
+  --muted: var(--text-desk-muted);
+  --line: var(--edge-cream);
+  --scrim: rgba(54, 40, 34, 0.5);
+  --lavender: var(--accent-lavender);
+  --shadow: rgba(93, 70, 54, 0.12);
+  --button-text: #f7f1ea;
+  --public-card: var(--surface-cream);
+  --public-border: var(--edge-cream);
+  --page-glow: rgba(247, 201, 191, 0.22);
 }
 
+/* ============================== WARM NIGHT =============================== *
+ * Same paper families, same accents, same proportions — the desk turns to
+ * warm charcoal and the cream paper takes a deeper, lamp-lit tone.
+ * ========================================================================== */
+html[data-theme="dark"] {
+  --bg-desk: #171514;
+  --bg-desk-2: #1c1a18;
+  --desk-lamp-a: rgba(214, 164, 120, 0.075);
+  --desk-lamp-b: rgba(150, 142, 190, 0.06);
+  --texture-dot: rgba(226, 213, 200, 0.05);
+  --texture-grid: rgba(226, 213, 200, 0.025);
+
+  /* cream paper reads as warm paper under a lamp, never as glaring white */
+  --surface-cream: #e8e0d2;
+  --surface-cream-2: #e2dacd;
+  --surface-cream-hi: #efe7da;
+  --surface-cream-inset: rgba(255, 252, 245, 0.5);
+  --surface-cream-sunk: rgba(58, 50, 42, 0.09);
+  --edge-cream: rgba(64, 54, 46, 0.22);
+  --edge-cream-soft: rgba(64, 54, 46, 0.14);
+  --shadow-cream: 0 14px 28px rgba(0, 0, 0, 0.34), 0 2px 0 rgba(255, 248, 238, 0.06);
+  --shadow-cream-lift: 0 20px 38px rgba(0, 0, 0, 0.42), 0 2px 0 rgba(255, 248, 238, 0.08);
+
+  /* dark paper lifts one step above the night desk */
+  --surface-dark: #2e2a27;
+  --surface-dark-2: #35312e;
+  --surface-dark-inset: rgba(241, 236, 228, 0.05);
+  --surface-dark-chip: rgba(241, 236, 228, 0.085);
+  --surface-dark-track: rgba(241, 236, 228, 0.1);
+  --edge-dark: rgba(241, 236, 228, 0.14);
+  --edge-dark-soft: rgba(241, 236, 228, 0.09);
+  --shadow-dark: 0 14px 26px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(241, 236, 228, 0.06);
+  --shadow-dark-lift: 0 20px 34px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(241, 236, 228, 0.08);
+
+  /* type on cream deepens slightly so it stays crisp against the warm paper */
+  --text-dark: #332c26;
+  --text-dark-muted: #6e6055;
+  --text-dark-soft: #7b6c60;
+  --text-desk: #f1ece4;
+  --text-desk-muted: #a59d94;
+
+  /* pastels stay light and readable; saturation eased slightly for night */
+  --accent-lavender: #d6cdf5;
+  --accent-blue: #cfe3f4;
+  --accent-green: #cfe7d3;
+  --accent-peach: #f2d6c8;
+  --accent-yellow: #f2e2ac;
+  --accent-pink: #f0d6e1;
+  --accent-coral: #f0c8bd;
+
+  --badge-development-bg: #efdda2;
+  --badge-development-ink: #4c3d1c;
+  --badge-development-edge: rgba(76, 61, 28, 0.2);
+  --badge-research-bg: #cfc6ee;
+  --badge-research-ink: #332b4b;
+  --badge-research-edge: rgba(51, 43, 75, 0.2);
+  --badge-planning-bg: #c9deef;
+  --badge-planning-ink: #263f55;
+  --badge-planning-edge: rgba(38, 63, 85, 0.2);
+  --badge-completed-bg: #cbe4cd;
+  --badge-completed-ink: #24422a;
+  --badge-completed-edge: rgba(36, 66, 42, 0.2);
+  --badge-testing-bg: #f0d1c2;
+  --badge-testing-ink: #553729;
+  --badge-testing-edge: rgba(85, 55, 41, 0.2);
+  --badge-blocked-bg: #eecaca;
+  --badge-blocked-ink: #553232;
+  --badge-blocked-edge: rgba(85, 50, 50, 0.2);
+  --badge-neutral-bg: #dcd2c4;
+  --badge-neutral-ink: #463c31;
+  --badge-neutral-edge: rgba(70, 60, 49, 0.2);
+
+  --progress-a: #e0ac84;
+  --progress-b: #c0bcef;
+  --progress-c: #add9b8;
+
+  --sidebar: #1e1b19;
+  --header: rgba(28, 25, 24, 0.88);
+  --nav-label: #8c8177;
+  --nav-item: #b7ada3;
+  --nav-item-hover: rgba(241, 236, 228, 0.06);
+  --nav-active-bg: rgba(198, 186, 240, 0.16);
+  --nav-active-ink: #f1ece4;
+  --nav-active-edge: rgba(226, 216, 247, 0.2);
+
+  --shadow: rgba(0, 0, 0, 0.34);
+  --scrim: rgba(12, 8, 7, 0.72);
+  --lavender: var(--accent-lavender);
+  --button-text: #f7f1ea;
+  --public-card: var(--surface-dark);
+  --public-border: var(--edge-dark);
+  --page-glow: rgba(214, 164, 120, 0.07);
+}
+
+/* ==========================================================================
+   COLD-UTILITY WARMING BRIDGE
+   Legacy blue-gray utilities are re-pointed at warm tokens so nothing in the
+   app can leak "code editor dark" styling. Because these reference tokens,
+   they resolve per theme at the use site — no !important patchwork needed.
+   ========================================================================== */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg-desk);
+  --color-foreground: var(--text-desk);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* slate -> warm charcoal paper / warm cream ink */
+  --color-slate-950: var(--surface-dark-2);
+  --color-slate-900: var(--surface-dark);
+  --color-slate-800: var(--surface-dark-track);
+  --color-slate-700: var(--surface-dark-chip);
+  --color-slate-600: var(--text-light-soft);
+  --color-slate-500: var(--text-light-muted);
+  --color-slate-400: var(--text-light-muted);
+  --color-slate-300: var(--text-light-muted);
+  --color-slate-200: var(--text-light);
+  --color-slate-100: var(--text-light);
+  --color-slate-50: var(--text-light);
+
+  /* white -> warm off-white (edges/pills on dark paper read warm, not cold) */
+  --color-white: var(--text-light);
+
+  /* saturated defaults -> muted sage / dusty blue / clay / lavender / ochre */
+  --color-emerald-50: #eaf3e7;
+  --color-emerald-100: #dbebd8;
+  --color-emerald-200: #c6ddc4;
+  --color-emerald-300: #a9cbaa;
+  --color-emerald-400: #8fb693;
+  --color-emerald-500: #7fa885;
+  --color-emerald-600: #6b9372;
+  --color-emerald-700: #4f7358;
+  --color-emerald-800: #3d5a45;
+  --color-emerald-900: #2d4434;
+  --color-emerald-950: #1e3323;
+  --color-cyan-300: #b6cfe2;
+  --color-cyan-400: #9dbdd6;
+  --color-cyan-500: #7fa5c2;
+  --color-rose-300: #e7c3be;
+  --color-rose-400: #d89a93;
+  --color-rose-500: #c47f78;
+  --color-violet-300: #c8bfee;
+  --color-violet-400: #b3a7e0;
+  --color-amber-300: #e6cb90;
+  --color-amber-400: #dbb768;
+  --color-amber-500: #c9a254;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ==========================================================================
+   BASE — the desk
+   ========================================================================== */
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, var(--desk-lamp-a), transparent 22%),
+    radial-gradient(circle at bottom right, var(--desk-lamp-b), transparent 26%),
+    linear-gradient(180deg, var(--bg-desk-2) 0%, var(--bg-desk) 100%);
+  background-attachment: fixed;
+  color: var(--text-desk);
+  font-family: "Manrope", Arial, Helvetica, sans-serif;
+  transition: background-color 220ms ease, color 220ms ease;
 }
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent-lavender-solid) 38%, transparent);
+  color: var(--text-dark);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-peach-solid);
+  outline-offset: 2px;
+}
+
+/* faint sketchbook grid + dot texture — extremely restrained */
+.app-shell {
+  position: relative;
+  background-image: linear-gradient(var(--texture-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--texture-grid) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(var(--texture-dot) 0.7px, transparent 0.7px);
+  background-size: 18px 18px;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* ==========================================================================
+   SURFACE PRIMITIVES — LIGHT PAPER + DARK PAPER
+   Each family re-scopes the ink tokens so descendant text (including the
+   arbitrary `text-[var(--ink)]` / `text-[var(--muted)]` utilities and the
+   handwritten .section-title) is always correct for the surface it sits on.
+   ========================================================================== */
+.paper,
+.paper-card,
+.hero-paper,
+.stat-card,
+.sticky-note,
+.note-card {
+  --ink: var(--text-dark);
+  --muted: var(--text-dark-muted);
+  --ink-soft: var(--text-dark-soft);
+  --edge: var(--edge-cream);
+  --pill-bg: var(--surface-cream-inset);
+  --pill-ink: var(--text-dark-muted);
+  --pill-edge: var(--edge-cream-soft);
+  --inset-bg: var(--surface-cream-sunk);
+  --inset-edge: var(--edge-cream-soft);
+  color: var(--text-dark);
+}
+
+.dark-paper,
+.dark-panel,
+[data-surface="dark"] {
+  --ink: var(--text-light);
+  --muted: var(--text-light-muted);
+  --ink-soft: var(--text-light-soft);
+  --edge: var(--edge-dark);
+  --pill-bg: var(--surface-dark-chip);
+  --pill-ink: var(--text-light-muted);
+  --pill-edge: var(--edge-dark-soft);
+  --inset-bg: var(--surface-dark-inset);
+  --inset-edge: var(--edge-dark-soft);
+  color: var(--text-light);
+}
+
+/* a sheet of paper that was set down slightly crooked */
+.tilt-left { transform: rotate(-0.3deg); }
+.tilt-right { transform: rotate(0.35deg); }
+.tilt-left:hover,
+.tilt-right:hover { transform: rotate(0deg); }
+
+/* ---- LIGHT PAPER --------------------------------------------------------- */
+.paper,
+.paper-card,
+.note-card,
+.sticky-note {
+  position: relative;
+  border: 1.5px solid var(--edge-cream);
+  border-radius: 26px;
+  background-color: var(--surface-cream);
+  background-image: linear-gradient(180deg, var(--surface-cream-hi) 0%, var(--surface-cream) 62%);
+  box-shadow: var(--shadow-cream);
+}
+
+/* the greeting sheet — the largest piece of paper on the desk */
+.hero-paper {
+  position: relative;
+  border: 1.5px solid var(--edge-cream);
+  border-radius: 30px;
+  background-color: var(--surface-cream);
+  background-image: linear-gradient(165deg, var(--surface-cream-hi) 0%, var(--surface-cream) 48%, var(--surface-cream-2) 100%);
+  box-shadow: var(--shadow-cream-lift);
+}
+
+/* pressed-paper edge highlight — sits on the border, never over the type */
+.paper,
+.paper-card,
+.hero-paper,
+.stat-card {
+  box-shadow: var(--shadow-cream), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+}
+.hero-paper,
+.stat-card {
+  box-shadow: var(--shadow-cream-lift), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+}
+html[data-theme="dark"] .paper,
+html[data-theme="dark"] .paper-card,
+html[data-theme="dark"] .hero-paper,
+html[data-theme="dark"] .stat-card {
+  box-shadow: var(--shadow-cream), inset 0 1px 0 rgba(255, 250, 240, 0.5);
+}
+html[data-theme="dark"] .hero-paper,
+html[data-theme="dark"] .stat-card {
+  box-shadow: var(--shadow-cream-lift), inset 0 1px 0 rgba(255, 250, 240, 0.5);
+}
+
+/* ---- DARK PAPER ---------------------------------------------------------- */
+.dark-paper {
+  position: relative;
+  border: 1.5px solid var(--edge-dark);
+  border-radius: 24px;
+  background-color: var(--surface-dark);
+  background-image: linear-gradient(180deg, rgba(241, 236, 228, 0.04) 0%, rgba(241, 236, 228, 0) 55%);
+  box-shadow: var(--shadow-dark);
+}
+
+/* large dark sheet used as an inner container (details pages, tables) */
+.dark-panel {
+  position: relative;
+  border: 1.5px solid var(--edge-dark);
+  border-radius: 26px;
+  background-color: var(--surface-dark);
+  background-image: linear-gradient(180deg, rgba(241, 236, 228, 0.035) 0%, rgba(241, 236, 228, 0) 60%);
+  box-shadow: var(--shadow-dark);
+}
+
+/* rows / nested notes that sit ON a dark paper sheet */
+.dark-inset {
+  border: 1px solid var(--edge-dark-soft);
+  border-radius: 18px;
+  background-color: var(--surface-dark-inset);
+}
+
+/* small pill / chip surface on dark paper */
+.dark-chip {
+  border: 1px solid var(--edge-dark-soft);
+  border-radius: 9999px;
+  background-color: var(--surface-dark-chip);
+  color: var(--text-light-muted);
+}
+
+/* subtle recessed row that works on either paper family */
+.inset-soft {
+  border: 1px solid var(--inset-edge);
+  border-radius: 18px;
+  background-color: var(--inset-bg);
+}
+
+/* ---- MOOD ACCENTS (muted, per-project colour) --------------------------- */
+.mood-lavender { --mood: var(--accent-lavender-solid); --mood-soft: var(--accent-lavender); --mood-ink: var(--ink-lavender); }
+.mood-blue     { --mood: var(--accent-blue-solid);      --mood-soft: var(--accent-blue);     --mood-ink: var(--ink-blue); }
+.mood-peach    { --mood: var(--accent-peach-solid);     --mood-soft: var(--accent-peach);    --mood-ink: var(--ink-peach); }
+.mood-green    { --mood: var(--accent-green-solid);     --mood-soft: var(--accent-green);    --mood-ink: var(--ink-green); }
+.mood-pink     { --mood: var(--accent-pink-solid);      --mood-soft: var(--accent-pink);     --mood-ink: var(--ink-pink); }
+.mood-neutral  { --mood: var(--edge-cream);             --mood-soft: var(--surface-cream-2); --mood-ink: var(--ink-neutral); }
+
+/* mood washes — dark paper stays dark, the accent only tints the top-left */
+.dark-paper.mood-lavender,
+.dark-panel.mood-lavender,
+.project-card.mood-lavender {
+  background-image: linear-gradient(155deg, color-mix(in srgb, var(--mood) 26%, transparent) 0%, transparent 52%),
+    linear-gradient(180deg, rgba(241, 236, 228, 0.04) 0%, rgba(241, 236, 228, 0) 55%);
+}
+.dark-paper.mood-blue,
+.dark-panel.mood-blue,
+.project-card.mood-blue {
+  background-image: linear-gradient(155deg, color-mix(in srgb, var(--mood) 26%, transparent) 0%, transparent 52%),
+    linear-gradient(180deg, rgba(241, 236, 228, 0.04) 0%, rgba(241, 236, 228, 0) 55%);
+}
+.dark-paper.mood-peach,
+.dark-panel.mood-peach,
+.project-card.mood-peach {
+  background-image: linear-gradient(155deg, color-mix(in srgb, var(--mood) 28%, transparent) 0%, transparent 52%),
+    linear-gradient(180deg, rgba(241, 236, 228, 0.04) 0%, rgba(241, 236, 228, 0) 55%);
+}
+.dark-paper.mood-green,
+.dark-panel.mood-green,
+.project-card.mood-green {
+  background-image: linear-gradient(155deg, color-mix(in srgb, var(--mood) 26%, transparent) 0%, transparent 52%),
+    linear-gradient(180deg, rgba(241, 236, 228, 0.04) 0%, rgba(241, 236, 228, 0) 55%);
+}
+.dark-paper.mood-pink,
+.dark-panel.mood-pink,
+.project-card.mood-pink {
+  background-image: linear-gradient(155deg, color-mix(in srgb, var(--mood) 26%, transparent) 0%, transparent 52%),
+    linear-gradient(180deg, rgba(241, 236, 228, 0.04) 0%, rgba(241, 236, 228, 0) 55%);
+}
+
+/* a pastel wash for the same mood when it lands on cream paper */
+.paper.mood-lavender,
+.paper-card.mood-lavender,
+.sticky-note.mood-lavender,
+.note-card.mood-lavender {
+  background-image: linear-gradient(180deg, var(--accent-lavender) 0%, var(--surface-cream) 46%);
+}
+.paper.mood-blue,
+.paper-card.mood-blue,
+.sticky-note.mood-blue,
+.note-card.mood-blue {
+  background-image: linear-gradient(180deg, var(--accent-blue) 0%, var(--surface-cream) 46%);
+}
+.paper.mood-peach,
+.paper-card.mood-peach,
+.sticky-note.mood-peach,
+.note-card.mood-peach {
+  background-image: linear-gradient(180deg, var(--accent-peach) 0%, var(--surface-cream) 46%);
+}
+.paper.mood-green,
+.paper-card.mood-green,
+.sticky-note.mood-green,
+.note-card.mood-green {
+  background-image: linear-gradient(180deg, var(--accent-green) 0%, var(--surface-cream) 46%);
+}
+.paper.mood-pink,
+.paper-card.mood-pink,
+.sticky-note.mood-pink,
+.note-card.mood-pink {
+  background-image: linear-gradient(180deg, var(--accent-pink) 0%, var(--surface-cream) 46%);
+}
+
+/* legacy aliases so older markup keeps its accent meaning */
+.pastel-lavender { --mood: var(--accent-lavender-solid); --mood-soft: var(--accent-lavender); --mood-ink: var(--ink-lavender); }
+.pastel-blue { --mood: var(--accent-blue-solid); --mood-soft: var(--accent-blue); --mood-ink: var(--ink-blue); }
+.pastel-peach { --mood: var(--accent-peach-solid); --mood-soft: var(--accent-peach); --mood-ink: var(--ink-peach); }
+.pastel-green { --mood: var(--accent-green-solid); --mood-soft: var(--accent-green); --mood-ink: var(--ink-green); }
+.pastel-pink { --mood: var(--accent-pink-solid); --mood-soft: var(--accent-pink); --mood-ink: var(--ink-pink); }
+
+/* ---- PROJECT CARD: dark paper with a strip of washi tape ---------------- */
+.project-card {
+  position: relative;
+  border: 1.5px solid var(--edge-dark);
+  border-radius: 24px;
+  background-color: var(--surface-dark);
+  background-image: linear-gradient(180deg, rgba(241, 236, 228, 0.04) 0%, rgba(241, 236, 228, 0) 55%);
+  box-shadow: var(--shadow-dark);
+  color: var(--text-light);
+  --ink: var(--text-light);
+  --muted: var(--text-light-muted);
+  --ink-soft: var(--text-light-soft);
+  --edge: var(--edge-dark);
+  --pill-bg: var(--surface-dark-chip);
+  --pill-ink: var(--text-light-muted);
+  --pill-edge: var(--edge-dark-soft);
+  --inset-bg: var(--surface-dark-inset);
+  --inset-edge: var(--edge-dark-soft);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.project-card::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 22px;
+  width: 54px;
+  height: 14px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--mood, var(--accent-lavender-solid)) 55%, transparent);
+  transform: rotate(-1.6deg);
+}
+
+.project-card:hover {
+  transform: translateY(-3px) rotate(-0.35deg);
+  box-shadow: var(--shadow-dark-lift);
+}
+
+/* selected = the sheet is pinned with its own accent colour, no neon ring */
+.project-card.is-selected {
+  border-color: color-mix(in srgb, var(--mood, var(--accent-lavender-solid)) 62%, transparent);
+  box-shadow: var(--shadow-dark-lift), inset 0 0 0 1px color-mix(in srgb, var(--mood, var(--accent-lavender-solid)) 30%, transparent);
+}
+
+/* ==========================================================================
+   TYPOGRAPHY — handwritten headings + warm body ink tiers
+   .section-title reads var(--ink), so it follows the surface it sits on:
+   deep warm charcoal on cream, warm off-white on dark paper.
+   ========================================================================== */
+.section-title {
+  font-family: "Caveat", cursive;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--ink, var(--text-desk));
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted, var(--text-desk-muted));
+}
+
+.hero-script {
+  font-family: "Caveat", cursive;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+/* explicit ink tiers (used where the surface class alone is ambiguous) */
+.t-paper { color: var(--text-dark); }
+.t-paper-muted { color: var(--text-dark-muted); }
+.t-paper-soft { color: var(--text-dark-soft); }
+.t-dark { color: var(--text-light); }
+.t-dark-muted { color: var(--text-light-muted); }
+.t-dark-soft { color: var(--text-light-soft); }
+.t-mood { color: var(--mood, var(--text-light-muted)); }
+.text-shadow-paper {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+html[data-theme="dark"] .text-shadow-paper {
+  text-shadow: 0 1px 0 rgba(58, 48, 40, 0.35);
+}
+
+/* ==========================================================================
+   STAT CARDS — cream sheets with deep warm numbers
+   ========================================================================== */
+.stat-card {
+  position: relative;
+  border: 1.5px solid var(--edge-cream);
+  border-radius: 22px;
+  background-color: var(--surface-cream);
+  background-image: linear-gradient(180deg, var(--surface-cream-hi) 0%, var(--surface-cream-2) 100%);
+  box-shadow: var(--shadow-cream);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-cream-lift);
+}
+.stat-value {
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-dark);
+}
+
+/* ==========================================================================
+   STATUS / PRIORITY BADGES — light pastel pill + dark warm ink, both themes
+   ========================================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.66rem;
+  border-radius: 9999px;
+  border: 1px solid var(--badge-neutral-edge);
+  background-color: var(--badge-neutral-bg);
+  color: var(--badge-neutral-ink);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.badge-development { background-color: var(--badge-development-bg); color: var(--badge-development-ink); border-color: var(--badge-development-edge); }
+.badge-research { background-color: var(--badge-research-bg); color: var(--badge-research-ink); border-color: var(--badge-research-edge); }
+.badge-planning { background-color: var(--badge-planning-bg); color: var(--badge-planning-ink); border-color: var(--badge-planning-edge); }
+.badge-completed { background-color: var(--badge-completed-bg); color: var(--badge-completed-ink); border-color: var(--badge-completed-edge); }
+.badge-testing { background-color: var(--badge-testing-bg); color: var(--badge-testing-ink); border-color: var(--badge-testing-edge); }
+.badge-blocked { background-color: var(--badge-blocked-bg); color: var(--badge-blocked-ink); border-color: var(--badge-blocked-edge); }
+
+.prio {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.55rem;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.prio-high { background-color: var(--badge-blocked-bg); color: var(--badge-blocked-ink); border-color: var(--badge-blocked-edge); }
+.prio-medium { background-color: var(--badge-development-bg); color: var(--badge-development-ink); border-color: var(--badge-development-edge); }
+.prio-low { background-color: var(--badge-completed-bg); color: var(--badge-completed-ink); border-color: var(--badge-completed-edge); }
+.prio-neutral { background-color: var(--badge-neutral-bg); color: var(--badge-neutral-ink); border-color: var(--badge-neutral-edge); }
+
+/* ==========================================================================
+   BUTTONS — dark "ink" buttons bridge the cream sheet and the dark desk
+   ========================================================================== */
+.ink-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 16px;
+  border: 1.5px solid var(--edge-cream);
+  background-color: var(--surface-cream-hi);
+  background-image: linear-gradient(180deg, var(--surface-cream-hi) 0%, var(--surface-cream-2) 100%);
+  color: var(--text-dark);
+  box-shadow: 0 3px 0 rgba(93, 70, 54, 0.1), 0 8px 16px rgba(93, 70, 54, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+.ink-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 rgba(93, 70, 54, 0.12), 0 12px 20px rgba(93, 70, 54, 0.1);
+}
+.ink-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 rgba(93, 70, 54, 0.12);
+}
+.ink-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* primary = deep charcoal button with warm white type, in BOTH themes */
+.ink-button.primary {
+  border-color: rgba(24, 20, 18, 0.55);
+  background-color: #241f1c;
+  background-image: linear-gradient(180deg, #332c28 0%, #1e1a18 100%);
+  color: var(--button-text);
+  box-shadow: 0 3px 0 rgba(24, 20, 18, 0.4), 0 10px 18px rgba(0, 0, 0, 0.18);
+}
+.ink-button.primary:hover {
+  box-shadow: 0 4px 0 rgba(24, 20, 18, 0.45), 0 14px 24px rgba(0, 0, 0, 0.24);
+}
+html[data-theme="dark"] .ink-button.primary {
+  border-color: rgba(241, 236, 228, 0.2);
+  background-color: #2c2724;
+  background-image: linear-gradient(180deg, #3a332e 0%, #252120 100%);
+  color: #f7f1ea;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.5), 0 12px 22px rgba(0, 0, 0, 0.4);
+}
+/* a dark button that lives ON dark paper flips to a cream button */
+.dark-paper .ink-button,
+.dark-panel .ink-button,
+[data-surface="dark"] .ink-button {
+  border-color: rgba(24, 20, 18, 0.5);
+  background-color: #241f1c;
+  background-image: linear-gradient(180deg, #332c28 0%, #1e1a18 100%);
+  color: var(--button-text);
+}
+.ink-button.soft {
+  background-color: var(--accent-lavender);
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--accent-lavender) 88%, #fff) 0%, var(--accent-lavender) 100%);
+  border-color: color-mix(in srgb, var(--ink-lavender) 24%, transparent);
+  color: var(--ink-lavender);
+}
+.ink-button.coral {
+  background-color: var(--accent-coral);
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--accent-coral) 88%, #fff) 0%, var(--accent-coral) 100%);
+  border-color: color-mix(in srgb, var(--ink-peach) 24%, transparent);
+  color: var(--ink-peach);
+}
+.ink-button.green {
+  background-color: var(--accent-green);
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--accent-green) 88%, #fff) 0%, var(--accent-green) 100%);
+  border-color: color-mix(in srgb, var(--ink-green) 24%, transparent);
+  color: var(--ink-green);
+}
+
+/* ==========================================================================
+   PROGRESS — peach -> lavender -> green, flat, no glow
+   ========================================================================== */
+.progress-track {
+  border-radius: 9999px;
+  overflow: hidden;
+  background-color: var(--surface-dark-track);
+  box-shadow: inset 0 0 0 1px var(--edge-dark-soft);
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background-color: var(--progress-a);
+  background-image: linear-gradient(90deg, var(--progress-a) 0%, var(--progress-b) 52%, var(--progress-c) 100%);
+}
+.paper .progress-track,
+.paper-card .progress-track,
+.hero-paper .progress-track,
+.stat-card .progress-track,
+.public-card .progress-track {
+  background-color: var(--surface-cream-sunk);
+  box-shadow: inset 0 0 0 1px var(--edge-cream-soft);
+}
+
+/* ==========================================================================
+   PILLS, TAGS, FORM FURNITURE
+   ========================================================================== */
+.soft-pill,
+.task-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid var(--pill-edge, var(--edge-cream-soft));
+  background-color: var(--pill-bg, var(--surface-cream-inset));
+  color: var(--pill-ink, var(--text-dark-muted));
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.task-tag {
+  padding: 0.3rem 0.6rem;
+}
+.soft-pill {
+  padding: 0.35rem 0.7rem;
+}
+.dot-badge {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent-green-solid);
+}
+input,
+select,
+textarea {
+  border-color: var(--edge-cream);
+}
+.dark-paper input,
+.dark-paper select,
+.dark-panel input,
+.dark-panel select,
+[data-surface="dark"] input,
+[data-surface="dark"] select {
+  border-color: var(--edge-dark);
+}
+
+/* ==========================================================================
+   DESK FURNITURE — sticky notes, punch cards, doodle dividers
+   ========================================================================== */
+.paper-card::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  right: 18px;
+  top: 16px;
+  background: color-mix(in srgb, var(--text-dark) 9%, transparent);
+  border-radius: 9999px;
+  transform: rotate(18deg);
+}
+
+.sticky-note {
+  transform: rotate(var(--tilt, 0deg));
+}
+.sticky-note::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 62px;
+  height: 16px;
+  transform: translateX(-50%) rotate(-1.2deg);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--mood, var(--accent-yellow-solid)) 45%, transparent);
+}
+
+.note-card {
+  border-radius: 24px;
+}
+
+.doodle-divider {
+  position: relative;
+  height: 0;
+  border-top: 2px dashed color-mix(in srgb, var(--text-dark) 26%, transparent);
+  margin: 18px 0;
+}
+.doodle-divider::before,
+.doodle-divider::after {
+  content: "";
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-dark) 14%, transparent);
+  top: -6px;
+}
+.doodle-divider::before { left: 10%; }
+.doodle-divider::after { right: 12%; }
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   SIDEBAR + HEADER — part of the same desk, not a generic app chrome
+   ========================================================================== */
+.app-shell {
+  --ink: var(--text-desk);
+  --muted: var(--text-desk-muted);
+}
+
+.workspace-sidebar {
+  background: var(--sidebar);
+  border-right: 1.5px solid var(--edge-cream);
+}
+html[data-theme="dark"] .workspace-sidebar {
+  border-right-color: var(--edge-dark);
+}
+
+.workspace-header {
+  background: var(--header);
+  border-bottom: 1.5px solid var(--edge-cream);
+  backdrop-filter: blur(8px);
+}
+html[data-theme="dark"] .workspace-header {
+  border-bottom-color: var(--edge-dark);
+}
+
+.nav-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--nav-label);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  color: var(--nav-item);
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.nav-item:hover {
+  background: var(--nav-item-hover);
+  color: var(--text-desk);
+}
+/* active = a small piece of pastel tape, never a neon selection box */
+.nav-item.active {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-ink);
+  border-color: var(--nav-active-edge);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   PUBLIC PORTFOLIO — the same paper sheets shown to visitors
+   ========================================================================== */
+.public-shell {
+  min-height: 100vh;
+  color: var(--text-desk);
+}
+
+.public-card,
+.public-hero {
+  --ink: var(--text-dark);
+  --muted: var(--text-dark-muted);
+  position: relative;
+  border: 1.5px solid var(--edge-cream);
+  border-radius: 26px;
+  background-color: var(--surface-cream);
+  background-image: linear-gradient(180deg, var(--surface-cream-hi) 0%, var(--surface-cream) 64%);
+  box-shadow: var(--shadow-cream);
+  color: var(--text-dark);
+}
+
+.public-hero {
+  border-radius: 30px;
+  background-image: linear-gradient(150deg,
+      color-mix(in srgb, var(--accent-lavender) 55%, var(--surface-cream)) 0%,
+      color-mix(in srgb, var(--accent-blue) 45%, var(--surface-cream)) 46%,
+      var(--surface-cream-2) 100%);
+  box-shadow: var(--shadow-cream-lift);
+}
+
+.public-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--edge-cream);
+  background-color: var(--surface-cream);
+  color: var(--text-dark);
+  padding: 0.7rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-cream);
+}
+
+.accountability-panel {
+  background-image: linear-gradient(145deg, color-mix(in srgb, var(--accent-peach) 15%, transparent), transparent 42%), linear-gradient(180deg, rgba(241, 236, 228, 0.04), transparent 60%);
+}
+.activity-heatmap {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 5px;
+}
+.activity-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  border: 1px solid var(--edge-dark-soft);
+  background: var(--surface-dark-track);
+}
+.activity-cell.level-1 { background: var(--accent-blue-solid); }
+.activity-cell.level-2 { background: var(--accent-peach-solid); }
+.activity-cell.level-3 { background: var(--accent-green-solid); }
+
+/* ==========================================================================
+   RESPONSIVE — the hierarchy survives the small screen
+   ========================================================================== */
+@media (max-width: 768px) {
+  .paper,
+  .paper-card,
+  .note-card,
+  .sticky-note,
+  .stat-card,
+  .dark-paper,
+  .dark-panel,
+  .project-card,
+  .public-card,
+  .public-hero {
+    border-radius: 20px;
+  }
+  .hero-paper {
+    border-radius: 24px;
+  }
+  .project-card::before {
+    left: 16px;
+    width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .project-card:hover,
+  .stat-card:hover,
+  .ink-button:hover {
+    transform: none;
+  }
+}
+
