@@ -29,28 +29,30 @@ select ok((select relrowsecurity from pg_class where oid = 'public.technologies'
 select ok((select relrowsecurity from pg_class where oid = 'public.project_technologies'::regclass), 'project_technologies has RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.github_installations'::regclass), 'github_installations has RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.github_repository_links'::regclass), 'github_repository_links has RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.accountability_snapshots'::regclass), 'accountability_snapshots has RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.accountability_goals'::regclass), 'accountability_goals has RLS enabled');
 
 select is(
   (select count(*)::int from pg_class c
    join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public'
-     and c.relname in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links')
+     and c.relname in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links', 'accountability_snapshots', 'accountability_goals')
      and c.relrowsecurity),
-  12, 'all twelve application tables have RLS enabled');
+  14, 'all fourteen tables covered by this RLS suite have RLS enabled');
 
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'public'
-     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links')
+     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links', 'accountability_snapshots', 'accountability_goals')
      and 'anon' = any(roles)),
   0, 'no policy on an application table grants access to anon');
 
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'public'
-     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links')
+     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links', 'accountability_snapshots', 'accountability_goals')
      and 'authenticated' = any(roles)),
-  12, 'every application table has an authenticated owner policy');
+  14, 'every application table has an authenticated owner policy');
 
 select is(
   (select count(*)::int from pg_policies
@@ -72,9 +74,13 @@ select ok(not has_table_privilege('anon', 'public.project_plan_items', 'select')
 select ok(not has_table_privilege('anon', 'public.profiles', 'select'), 'anon cannot select from profiles');
 select ok(not has_table_privilege('anon', 'public.github_installations', 'select'), 'anon cannot select GitHub installations');
 select ok(not has_table_privilege('anon', 'public.github_repository_links', 'select'), 'anon cannot select GitHub repository links');
+select ok(not has_table_privilege('anon', 'public.accountability_snapshots', 'select'), 'anon cannot select accountability snapshots');
+select ok(not has_table_privilege('anon', 'public.accountability_goals', 'select'), 'anon cannot select accountability goals');
 
 select ok(has_table_privilege('authenticated', 'public.projects', 'select'), 'authenticated can select from projects (RLS still filters rows)');
 select ok(has_table_privilege('authenticated', 'public.github_installations', 'select'), 'authenticated can read owned GitHub installation rows');
+select ok(has_table_privilege('authenticated', 'public.accountability_snapshots', 'select'), 'authenticated can read snapshots subject to RLS');
+select ok(has_table_privilege('authenticated', 'public.accountability_goals', 'select'), 'authenticated can read goals subject to RLS');
 select ok(not has_table_privilege('authenticated', 'public.github_installations', 'insert'), 'authenticated cannot insert GitHub installation rows directly');
 select ok(has_function_privilege('anon', 'public.public_project_list()', 'execute'), 'anon can execute the public portfolio list');
 select ok(has_function_privilege('anon', 'public.public_project_by_slug(text)', 'execute'), 'anon can execute the public share-link lookup');
@@ -131,6 +137,11 @@ values ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-0000000
 insert into public.notes (user_id, project_id, title, content)
 values ('bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000201', 'User B note', 'secret');
 
+insert into public.accountability_snapshots (user_id, project_id, snapshot_date, score, health, github_status)
+values ('bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000201', '2026-10-01', 60, 'Steady', 'not-connected');
+insert into public.accountability_goals (user_id, project_id, title, metric, target, period_start, period_end)
+values ('bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000201', 'User B goal', 'tasks_completed', 2, '2026-10-01', '2026-10-07');
+
 -- ---------------------------------------------------------------------------
 -- 3a. user A: own rows only, and no cross-account writes
 -- ---------------------------------------------------------------------------
@@ -142,6 +153,8 @@ select is((select count(*)::int from public.projects where id = 'bbbbbbbb-0000-4
 select is((select count(*)::int from public.tasks where user_id = 'bbbbbbbb-0000-4000-8000-000000000002'), 0, 'User A cannot read User B tasks');
 select is((select count(*)::int from public.notes where user_id = 'bbbbbbbb-0000-4000-8000-000000000002'), 0, 'User A cannot read User B notes');
 select is((select count(*)::int from public.tasks), 1, 'User A sees exactly their own task');
+select is((select count(*)::int from public.accountability_snapshots), 0, 'User A cannot read User B accountability snapshots');
+select is((select count(*)::int from public.accountability_goals), 0, 'User A cannot read User B accountability goals');
 
 select is(
   (with updated as (update public.projects set title = 'hacked' where id = 'bbbbbbbb-0000-4000-8000-000000000202' returning 1)
@@ -168,6 +181,16 @@ select throws_ok(
 select lives_ok(
   $$insert into public.tasks (user_id, project_id, title) values ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', 'A own task')$$,
   'User A can attach a task to their own project');
+
+select lives_ok(
+  $$insert into public.accountability_goals (user_id, project_id, title, metric, target, period_start, period_end) values ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', 'A goal', 'tasks_completed', 2, '2026-10-01', '2026-10-07')$$,
+  'User A can create a goal for their own project');
+select throws_ok(
+  $$insert into public.accountability_goals (user_id, project_id, title, metric, target, period_start, period_end) values ('aaaaaaaa-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000201', 'Cross-account goal', 'tasks_completed', 2, '2026-10-01', '2026-10-07')$$,
+  '42501', null, 'User A cannot create a goal for User B project');
+select throws_ok(
+  $$insert into public.accountability_snapshots (user_id, project_id, snapshot_date, health, github_status) values ('aaaaaaaa-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000201', '2026-10-02', 'Steady', 'not-connected')$$,
+  '42501', null, 'User A cannot create a snapshot for User B project');
 
 select is((select count(*)::int from public.github_installations), 1, 'User A sees their GitHub installation');
 select is((select count(*)::int from public.github_installations where id = 'cccccccc-0000-4000-8000-000000000002'), 0, 'User A cannot read User B installation linkage');
@@ -207,6 +230,8 @@ select is(
    select count(*)::int from updated),
   0, 'User B cannot update User A repository link');
 select is((select count(*)::int from public.milestones), 0, 'User B cannot read User A milestones');
+select is((select count(*)::int from public.accountability_snapshots), 1, 'User B sees only their own accountability snapshot');
+select is((select count(*)::int from public.accountability_goals), 1, 'User B sees only their own accountability goal');
 select is(
   (with updated as (update public.projects set visibility = 'Public' where id = 'aaaaaaaa-0000-4000-8000-000000000102' returning 1)
    select count(*)::int from updated),

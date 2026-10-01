@@ -17,3 +17,15 @@ export async function hasLinkedGithubRepository(projectId: string): Promise<bool
   }
   return Boolean(data);
 }
+
+/** Lists owned repository associations for private report loading. */
+export async function listLinkedGithubProjectIds(): Promise<string[]> {
+  const context = await getWorkspaceContext();
+  if (!context) throw new Error("GitHub report activity is unavailable.");
+  const { data, error } = await context.supabase.from("github_repository_links").select("project_id").eq("user_id", context.userId);
+  if (error) {
+    console.error("[data] GitHub report link lookup failed", { operation: "list_accountability_github_links", code: error.code });
+    throw new Error("GitHub report activity is unavailable.");
+  }
+  return (data ?? []).map((row) => (row as { project_id: string }).project_id);
+}

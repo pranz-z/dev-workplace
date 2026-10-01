@@ -18,6 +18,7 @@ export interface ProfileRow {
   avatar_url: string | null;
   bio: string | null;
   public_profile_enabled: boolean;
+  time_zone: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -182,6 +183,20 @@ export interface GithubRepositoryLinkRow {
   updated_at_github: string | null;
   connected_at: string;
   last_synced_at: string | null;
+}
+
+export interface AccountabilitySnapshotRow {
+  id: string; user_id: string; project_id: string; snapshot_date: string; captured_at: string;
+  score: number | null; health: string; factors: Array<{ key: string; score: number; available: boolean }>;
+  github_status: "not-connected" | "unavailable" | "available" | "not-relevant"; model_version: number;
+  created_at: string; updated_at: string;
+}
+
+export interface AccountabilityGoalRow {
+  id: string; user_id: string; project_id: string | null; title: string; description: string | null;
+  metric: "tasks_completed" | "milestones_completed" | "plan_items_completed" | "manual";
+  target: number; period_start: string; period_end: string; status: "active" | "completed" | "closed";
+  manual_progress: number; created_at: string; updated_at: string;
 }
 
 /** Row returned by public.public_project_list() / public.public_project_by_slug(). */

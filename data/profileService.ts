@@ -6,7 +6,7 @@ import { describeDatabaseError, SAVE_FAILED_MESSAGE, serviceFail, serviceOk, typ
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
-const PROFILE_COLUMNS = "id, display_name, username, github_username, avatar_url, bio, public_profile_enabled, created_at, updated_at";
+const PROFILE_COLUMNS = "id, display_name, username, github_username, avatar_url, bio, public_profile_enabled, time_zone, created_at, updated_at";
 
 function mapProfileRow(row: ProfileRow): Profile {
   return {
@@ -17,6 +17,7 @@ function mapProfileRow(row: ProfileRow): Profile {
     avatarUrl: row.avatar_url ?? undefined,
     bio: row.bio ?? undefined,
     publicProfileEnabled: row.public_profile_enabled,
+    timeZone: row.time_zone ?? undefined,
   };
 }
 
@@ -69,6 +70,7 @@ export interface ProfilePatch {
   avatarUrl?: string | null;
   bio?: string | null;
   publicProfileEnabled?: boolean;
+  timeZone?: string | null;
 }
 
 export async function updateProfile(patch: ProfilePatch): Promise<ServiceResult<Profile>> {
@@ -82,6 +84,7 @@ export async function updateProfile(patch: ProfilePatch): Promise<ServiceResult<
   if (patch.avatarUrl !== undefined) payload.avatar_url = patch.avatarUrl;
   if (patch.bio !== undefined) payload.bio = patch.bio;
   if (patch.publicProfileEnabled !== undefined) payload.public_profile_enabled = patch.publicProfileEnabled;
+  if (patch.timeZone !== undefined) payload.time_zone = patch.timeZone;
 
   if (Object.keys(payload).length === 0) {
     const current = await getCurrentProfile(context.userId);

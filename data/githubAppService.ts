@@ -274,6 +274,88 @@ export async function getRecentRepositoryActivity(token: string, repository: Git
   };
 }
 
+export interface GithubReportActivity {
+  activityDays: string[];
+  pullRequestDays: string[];
+  issueDays: string[];
+  releaseDays: string[];
+  complete: boolean;
+}
+
+/** Date-bounded, read-only summary for reports. Raw event payloads are discarded here. */
+export async function getBoundedRepositoryReportActivity(token: string, repository: GithubRepository, sinceDate: string, untilDate: string, timeZone: string): Promise<GithubReportActivity> {
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!datePattern.test(sinceDate) || !datePattern.test(untilDate) || sinceDate > untilDate || !timeZone || timeZone.length > 100) throw new GithubIntegrationError("Invalid report period.", 400);
+  try { new Intl.DateTimeFormat("en-US", { timeZone }).format(); } catch { throw new GithubIntegrationError("Invalid report timezone.", 400); }
+  const owner = encodeURIComponent(repository.owner.login);
+  const name = encodeURIComponent(repository.name);
+  const base = `/repos/${owner}/${name}`;
+  // Expand by one UTC day at both ends to include all IANA timezone offsets;
+  // final day classification uses the validated user's zone below.
+  const from = new Date(`${sinceDate}T00:00:00.000Z`); from.setUTCDate(from.getUTCDate() - 1);
+  const to = new Date(`${untilDate}T23:59:59.999Z`); to.setUTCDate(to.getUTCDate() + 1);
+  const since = encodeURIComponent(from.toISOString());
+  const until = encodeURIComponent(to.toISOString());
+  const toDay = (value: string | null | undefined) => {
+    if (!value) return null;
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+    const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+    const day = `${part("year")}-${part("month")}-${part("day")}`;
+    return day >= sinceDate && day <= untilDate ? day : null;
+  };
+  const days = new Set<string>();
+  const pullRequestDays: string[] = [], issueDays: string[] = [], releaseDays: string[] = [];
+  let complete = true;
+  let commitPage = 1;
+  while (commitPage <= 3) {
+    const batch = await githubRequest<GithubCommitResponse[]>(`${base}/commits?since=${since}&until=${until}&per_page=100&page=${commitPage}`, token);
+    for (const event of batch) {
+      const day = toDay(event.commit.author?.date ?? event.commit.committer?.date);
+      if (day && event.commit.message.split(/\r?\n/, 1)[0]?.trim() && event.commit.message.split(/\r?\n/, 1)[0].trim() !== "Commit") days.add(day);
+    }
+    if (batch.length < 100) break;
+    if (commitPage === 3) complete = false;
+    commitPage += 1;
+  }
+  let prPage = 1;
+  while (prPage <= 3) {
+    const batch = await githubRequest<GithubPullRequestResponse[]>(`${base}/pulls?state=all&sort=updated&direction=desc&per_page=100&page=${prPage}`, token);
+    for (const event of batch) {
+      const at = event.merged_at ?? event.updated_at;
+      const day = toDay(at);
+      if (day && !event.draft) { days.add(day); pullRequestDays.push(day); }
+    }
+    if (batch.length < 100 || (batch.length && batch.every((event) => event.updated_at < from.toISOString()))) break;
+    if (prPage === 3) complete = false;
+    prPage += 1;
+  }
+  let issuePage = 1;
+  while (issuePage <= 3) {
+    const batch = await githubRequest<GithubIssueResponse[]>(`${base}/issues?state=all&sort=updated&direction=desc&since=${since}&per_page=100&page=${issuePage}`, token);
+    for (const event of batch) {
+      if (event.pull_request) continue;
+      const at = event.closed_at ?? event.updated_at;
+      const day = toDay(at);
+      if (day && (event.closed_at || event.updated_at !== event.created_at)) { days.add(day); issueDays.push(day); }
+    }
+    if (batch.length < 100 || (batch.length && batch.every((event) => event.updated_at < from.toISOString()))) break;
+    if (issuePage === 3) complete = false;
+    issuePage += 1;
+  }
+  let releasePage = 1;
+  while (releasePage <= 3) {
+    const batch = await githubRequest<GithubReleaseResponse[]>(`${base}/releases?per_page=100&page=${releasePage}`, token);
+    for (const event of batch) {
+      const day = toDay(event.published_at);
+      if (day && !event.draft) { days.add(day); releaseDays.push(day); }
+    }
+    if (batch.length < 100 || (batch.length && batch.every((event) => (event.published_at ?? "") < from.toISOString()))) break;
+    if (releasePage === 3) complete = false;
+    releasePage += 1;
+  }
+  return { activityDays: [...days].sort(), pullRequestDays, issueDays, releaseDays, complete };
+}
+
 export function toSafeRepository(repository: GithubRepository) {
   return {
     id: repository.id,

@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createInstallationToken, getInstallationRepository, getRecentRepositoryActivity, GithubIntegrationError } from "@/data/githubAppService";
+import { createInstallationToken, getBoundedRepositoryReportActivity, getInstallationRepository, getRecentRepositoryActivity, GithubIntegrationError, type GithubReportActivity } from "@/data/githubAppService";
 import type { GithubRepositoryActivity } from "@/data/githubActivityTypes";
 import { requireGithubUser } from "@/lib/github/api";
 
 const ACTIVITY_CACHE_TTL = 60_000;
 const MAX_ACTIVITY_CACHE_ENTRIES = 100;
 const activityCache = new Map<string, { expiresAt: number; activity: GithubRepositoryActivity }>();
+const reportCache = new Map<string, { expiresAt: number; activity: GithubReportActivity }>();
 const privateNoStore = { "Cache-Control": "private, no-store" };
 
 function logDatabaseError(operation: string, error: unknown) {
@@ -62,8 +63,37 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   if (!installation) return jsonError("Reconnect the GitHub App installation to view repository activity.", 409);
 
-  const cacheKey = `${auth.user.id}:${link.installation_record_id}:${link.repository_id}`;
   const forceRefresh = request.nextUrl.searchParams.get("refresh") === "1";
+  const report = request.nextUrl.searchParams.get("report");
+  if (report === "1") {
+    const since = request.nextUrl.searchParams.get("since") ?? "";
+    const until = request.nextUrl.searchParams.get("until") ?? "";
+    const timeZone = request.nextUrl.searchParams.get("timeZone") ?? "";
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    const startTime = Date.parse(`${since}T00:00:00Z`), endTime = Date.parse(`${until}T00:00:00Z`);
+    if (!datePattern.test(since) || !datePattern.test(until) || !Number.isFinite(startTime) || !Number.isFinite(endTime) || since > until || endTime - startTime > 38 * 86400000 || endTime > Date.now() + 86400000 || !timeZone || timeZone.length > 100) return jsonError("A valid report date range and timezone are required.", 400);
+    try { new Intl.DateTimeFormat("en-US", { timeZone }).format(); } catch { return jsonError("A valid report timezone is required.", 400); }
+    const reportKey = `${auth.user.id}:${link.installation_record_id}:${link.repository_id}:${since}:${until}:${timeZone}`;
+    const cachedReport = reportCache.get(reportKey);
+    if (!forceRefresh && cachedReport && cachedReport.expiresAt > Date.now()) return NextResponse.json(cachedReport.activity, { headers: privateNoStore });
+    try {
+      const token = await createInstallationToken(installation.installation_id);
+      const repository = await getInstallationRepository(token, link.repository_id);
+      const activity = await getBoundedRepositoryReportActivity(token, repository, since, until, timeZone);
+      if (reportCache.size >= MAX_ACTIVITY_CACHE_ENTRIES) {
+        const oldestKey = reportCache.keys().next().value;
+        if (oldestKey) reportCache.delete(oldestKey);
+      }
+      reportCache.set(reportKey, { expiresAt: Date.now() + ACTIVITY_CACHE_TTL, activity });
+      return NextResponse.json(activity, { headers: privateNoStore });
+    } catch (error) {
+      if (error instanceof GithubIntegrationError) return jsonError(error.message, error.status);
+      console.error("[github] bounded report activity request failed", error instanceof Error ? error.message.slice(0, 300) : "Unknown error");
+      return jsonError("GitHub activity is temporarily unavailable. Try again shortly.", 502);
+    }
+  }
+
+  const cacheKey = `${auth.user.id}:${link.installation_record_id}:${link.repository_id}`;
   const cached = activityCache.get(cacheKey);
   if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(cached.activity, { headers: privateNoStore });

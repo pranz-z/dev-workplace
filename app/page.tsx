@@ -37,6 +37,7 @@ import { ProjectScreenshots } from "@/components/projects/project-screenshots";
 import { hasLinkedGithubRepository } from "@/data/githubRepositoryLinkService";
 import { buildSeedState } from "@/data/mockData";
 import { calculateProjectAccountability } from "@/data/accountabilityService";
+import { AccountabilityWorkspace } from "@/components/accountability/accountability-workspace";
 import { calculateProjectProgress } from "@/lib/projectProgress";
 import { loadWorkspaceData } from "@/data/workspaceService";
 import { completeTask, createTask, deleteTask, reopenTask, setTaskStatus, updateTask } from "@/data/taskService";
@@ -68,6 +69,7 @@ type ViewName =
   | "projects"
   | "tasks"
   | "plans"
+  | "accountability"
   | "calendar"
   | "notes"
   | "learning"
@@ -128,6 +130,7 @@ const navGroups = [
       { key: "projects", label: "Projects", icon: FolderKanban },
       { key: "tasks", label: "Tasks", icon: ListTodo },
       { key: "plans", label: "Plans", icon: Target },
+      { key: "accountability", label: "Accountability", icon: Activity },
       { key: "calendar", label: "Calendar", icon: CalendarDays },
     ],
   },
@@ -1323,6 +1326,8 @@ export default function Home() {
         </div>
       </section>}
 
+      {authStatus === "authenticated" && workspaceStatus === "ready" && <button type="button" onClick={() => setActiveView("accountability")} className="dark-panel flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left"><span><span className="block font-semibold t-dark">Weekly accountability</span><span className="mt-1 block text-sm t-dark-muted">Review progress, personal goals, and project history.</span></span><span className="dark-chip px-3 py-1.5 text-sm">Open reports</span></button>}
+
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
         <div className="space-y-7">
           {/* dark project sheets sit directly on the desk, heading handwritten above */}
@@ -2167,6 +2172,10 @@ export default function Home() {
         return renderTasksPage();
       case "plans":
         return renderPlansPage();
+      case "accountability":
+        return authStatus === "authenticated" && workspaceStatus === "ready"
+          ? <AccountabilityWorkspace projects={projects} tasks={tasks} milestones={milestones} plans={plans} />
+          : <section className="dark-panel p-5"><h1 className="text-xl font-semibold t-dark">Private accountability</h1><p className="mt-2 text-sm t-dark-muted">Sign in and load your Supabase workspace to view private reports and goals.</p></section>;
       case "github":
         return renderGitHubPage();
       case "applications":

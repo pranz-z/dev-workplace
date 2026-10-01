@@ -140,6 +140,7 @@ export interface Profile {
   avatarUrl?: string;
   bio?: string;
   publicProfileEnabled: boolean;
+  timeZone?: string;
 }
 
 export interface ProjectSettings {

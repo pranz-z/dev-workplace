@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:accountability": "node --test data/accountabilityService.test.mjs"
+    "test:accountability": "node --test data/accountabilityService.test.mjs data/accountabilityReports.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
