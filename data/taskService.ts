@@ -1,5 +1,5 @@
 import type { Priority, Task, TaskStatus } from "@/types";
-import { getWorkspaceContext } from "@/data/context";
+import { getWorkspaceContext, isUuid } from "@/data/context";
 import { mapTaskRow } from "@/data/mappers";
 import type { TaskRow } from "@/data/database.types";
 import {
@@ -36,6 +36,9 @@ export interface TaskInput {
 export async function createTask(input: TaskInput): Promise<ServiceResult<Task>> {
   const title = input.title.trim();
   if (title.length === 0) return serviceFail("Give the task a title first.");
+  if (!isUuid(input.projectId) || (input.milestoneId && !isUuid(input.milestoneId))) {
+    return serviceFail("That project or milestone is no longer available. Refresh and try again.");
+  }
 
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
@@ -63,14 +66,19 @@ export async function createTask(input: TaskInput): Promise<ServiceResult<Task>>
 }
 
 export interface TaskPatch {
+  projectId?: string;
   title?: string;
   description?: string;
   priority?: Priority;
+  status?: TaskStatus;
   dueDate?: string | null;
   milestoneId?: string | null;
 }
 
 export async function updateTask(taskId: string, patch: TaskPatch): Promise<ServiceResult<Task>> {
+  if (!isUuid(taskId) || (patch.projectId && !isUuid(patch.projectId)) || (patch.milestoneId && !isUuid(patch.milestoneId))) {
+    return serviceFail("That task or milestone is no longer available. Refresh and try again.");
+  }
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
@@ -80,8 +88,13 @@ export async function updateTask(taskId: string, patch: TaskPatch): Promise<Serv
     if (title.length === 0) return serviceFail("Give the task a title first.");
     payload.title = title;
   }
+  if (patch.projectId !== undefined) payload.project_id = patch.projectId;
   if (patch.description !== undefined) payload.description = patch.description;
   if (patch.priority !== undefined) payload.priority = patch.priority;
+  if (patch.status !== undefined) {
+    payload.status = patch.status;
+    payload.completed_at = patch.status === "Completed" ? new Date().toISOString() : null;
+  }
   if (patch.dueDate !== undefined) payload.due_date = patch.dueDate ?? null;
   if (patch.milestoneId !== undefined) payload.milestone_id = patch.milestoneId ?? null;
   if (Object.keys(payload).length === 0) return serviceFail(SAVE_FAILED_MESSAGE);
@@ -96,6 +109,7 @@ export async function updateTask(taskId: string, patch: TaskPatch): Promise<Serv
  * timestamp (the check constraint would reject anything else).
  */
 export async function setTaskStatus(taskId: string, status: TaskStatus): Promise<ServiceResult<Task>> {
+  if (!isUuid(taskId)) return serviceFail("That task is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
@@ -119,6 +133,7 @@ export async function reopenTask(taskId: string): Promise<ServiceResult<Task>> {
 }
 
 export async function deleteTask(taskId: string): Promise<ServiceResult<{ id: string }>> {
+  if (!isUuid(taskId)) return serviceFail("That task is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(DELETE_FAILED_MESSAGE);
 

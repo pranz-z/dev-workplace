@@ -1,5 +1,5 @@
 import type { Plan, PlanItem, PlanStatus } from "@/types";
-import { getWorkspaceContext } from "@/data/context";
+import { getWorkspaceContext, isUuid } from "@/data/context";
 import { mapPlanItemRow, mapPlanRow } from "@/data/mappers";
 import type { PlanItemRow, PlanRow } from "@/data/database.types";
 import {
@@ -49,6 +49,9 @@ export interface PlanInput {
 export async function createPlan(input: PlanInput): Promise<ServiceResult<Plan>> {
   const title = input.title.trim();
   if (title.length === 0) return serviceFail("Give the plan a title first.");
+  if ((input.items ?? []).some((item) => (item.projectId && !isUuid(item.projectId)) || (item.taskId && !isUuid(item.taskId)))) {
+    return serviceFail("That project or task is no longer available. Refresh and try again.");
+  }
 
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
@@ -97,6 +100,7 @@ export interface PlanPatch {
 }
 
 export async function updatePlan(planId: string, patch: PlanPatch): Promise<ServiceResult<Plan>> {
+  if (!isUuid(planId)) return serviceFail("That plan is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
@@ -130,6 +134,7 @@ export async function setPlanStatus(planId: string, status: PlanStatus): Promise
 }
 
 export async function deletePlan(planId: string): Promise<ServiceResult<{ id: string }>> {
+  if (!isUuid(planId)) return serviceFail("That plan is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(DELETE_FAILED_MESSAGE);
 

@@ -27,28 +27,30 @@ select ok((select relrowsecurity from pg_class where oid = 'public.project_plan_
 select ok((select relrowsecurity from pg_class where oid = 'public.notes'::regclass), 'notes has RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.technologies'::regclass), 'technologies has RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.project_technologies'::regclass), 'project_technologies has RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.github_installations'::regclass), 'github_installations has RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.github_repository_links'::regclass), 'github_repository_links has RLS enabled');
 
 select is(
   (select count(*)::int from pg_class c
    join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public'
-     and c.relname in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies')
+     and c.relname in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links')
      and c.relrowsecurity),
-  10, 'all ten application tables have RLS enabled');
+  12, 'all twelve application tables have RLS enabled');
 
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'public'
-     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies')
+     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links')
      and 'anon' = any(roles)),
   0, 'no policy on an application table grants access to anon');
 
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'public'
-     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies')
+     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links')
      and 'authenticated' = any(roles)),
-  10, 'every application table has an authenticated owner policy');
+  12, 'every application table has an authenticated owner policy');
 
 select is(
   (select count(*)::int from pg_policies
@@ -68,8 +70,12 @@ select ok(not has_table_privilege('anon', 'public.project_settings', 'select'), 
 select ok(not has_table_privilege('anon', 'public.project_technologies', 'select'), 'anon cannot select from project_technologies');
 select ok(not has_table_privilege('anon', 'public.project_plan_items', 'select'), 'anon cannot select from project_plan_items');
 select ok(not has_table_privilege('anon', 'public.profiles', 'select'), 'anon cannot select from profiles');
+select ok(not has_table_privilege('anon', 'public.github_installations', 'select'), 'anon cannot select GitHub installations');
+select ok(not has_table_privilege('anon', 'public.github_repository_links', 'select'), 'anon cannot select GitHub repository links');
 
 select ok(has_table_privilege('authenticated', 'public.projects', 'select'), 'authenticated can select from projects (RLS still filters rows)');
+select ok(has_table_privilege('authenticated', 'public.github_installations', 'select'), 'authenticated can read owned GitHub installation rows');
+select ok(not has_table_privilege('authenticated', 'public.github_installations', 'insert'), 'authenticated cannot insert GitHub installation rows directly');
 select ok(has_function_privilege('anon', 'public.public_project_list()', 'execute'), 'anon can execute the public portfolio list');
 select ok(has_function_privilege('anon', 'public.public_project_by_slug(text)', 'execute'), 'anon can execute the public share-link lookup');
 select ok(not has_function_privilege('anon', 'private.public_project_rows(text,boolean)', 'execute'), 'anon cannot call the private projection core directly');
@@ -101,6 +107,23 @@ values
   ('aaaaaaaa-0000-4000-8000-000000000103', 'aaaaaaaa-0000-4000-8000-000000000001', 'rls-user-a-unlisted', 'User A Unlisted', 'owned by A', 'Testing', 'testing', 'Unlisted'),
   ('bbbbbbbb-0000-4000-8000-000000000201', 'bbbbbbbb-0000-4000-8000-000000000002', 'rls-user-b-private', 'User B Private', 'owned by B', 'Planning', 'planning', 'Private'),
   ('bbbbbbbb-0000-4000-8000-000000000202', 'bbbbbbbb-0000-4000-8000-000000000002', 'rls-user-b-public', 'User B Public', 'owned by B', 'Planning', 'planning', 'Public');
+
+update public.projects set repository_url = 'https://github.com/owner/private-repository'
+where id = 'aaaaaaaa-0000-4000-8000-000000000101';
+insert into public.project_settings (project_id, show_repository)
+values ('aaaaaaaa-0000-4000-8000-000000000101', true);
+insert into public.github_installations (id, user_id, installation_id, account_login, account_type)
+values ('cccccccc-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000001', 50001, 'owner', 'User');
+insert into public.github_repository_links (project_id, user_id, installation_record_id, repository_id, owner, name, full_name, default_branch, html_url, is_private)
+values ('aaaaaaaa-0000-4000-8000-000000000101', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 60001, 'owner', 'private-repository', 'owner/private-repository', 'main', 'https://github.com/owner/private-repository', true);
+insert into public.project_settings (project_id, show_repository)
+values ('bbbbbbbb-0000-4000-8000-000000000202', true);
+insert into public.github_installations (id, user_id, installation_id, account_login, account_type)
+values ('cccccccc-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000002', 50001, 'owner', 'User');
+insert into public.github_repository_links (project_id, user_id, installation_record_id, repository_id, owner, name, full_name, default_branch, html_url, is_private)
+values ('bbbbbbbb-0000-4000-8000-000000000201', 'bbbbbbbb-0000-4000-8000-000000000002', 'cccccccc-0000-4000-8000-000000000002', 60001, 'owner', 'private-repository', 'owner/private-repository', 'main', 'https://github.com/owner/private-repository', true);
+insert into public.github_repository_links (project_id, user_id, installation_record_id, repository_id, owner, name, full_name, default_branch, html_url, is_private)
+values ('bbbbbbbb-0000-4000-8000-000000000202', 'bbbbbbbb-0000-4000-8000-000000000002', 'cccccccc-0000-4000-8000-000000000002', 60002, 'owner', 'public-repository', 'owner/public-repository', 'main', 'https://github.com/owner/public-repository', false);
 
 insert into public.tasks (user_id, project_id, title, status)
 values ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', 'User A task', 'Planned');
@@ -146,6 +169,23 @@ select lives_ok(
   $$insert into public.tasks (user_id, project_id, title) values ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', 'A own task')$$,
   'User A can attach a task to their own project');
 
+select is((select count(*)::int from public.github_installations), 1, 'User A sees their GitHub installation');
+select is((select count(*)::int from public.github_installations where id = 'cccccccc-0000-4000-8000-000000000002'), 0, 'User A cannot read User B installation linkage');
+select is((select count(*)::int from public.github_repository_links where project_id = 'bbbbbbbb-0000-4000-8000-000000000201'), 0, 'User A cannot read User B repository link');
+select throws_ok(
+  $$insert into public.github_installations (user_id, installation_id, account_login, account_type) values ('aaaaaaaa-0000-4000-8000-000000000001', 50003, 'owner', 'User')$$,
+  '42501', null, 'User A cannot forge a GitHub installation association');
+select throws_ok(
+  $$insert into public.github_repository_links (project_id, user_id, installation_record_id, repository_id, owner, name, full_name, default_branch, html_url, is_private) values ('bbbbbbbb-0000-4000-8000-000000000201', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 60002, 'owner', 'other', 'owner/other', 'main', 'https://github.com/owner/other', true)$$,
+  '42501', null, 'User A cannot link a repository to User B project');
+select is(
+  (with updated as (update public.github_repository_links set name = 'hacked' where project_id = 'bbbbbbbb-0000-4000-8000-000000000201' returning 1)
+   select count(*)::int from updated),
+  0, 'User A cannot mutate User B repository link');
+select throws_ok(
+  $$insert into public.github_repository_links (project_id, user_id, installation_record_id, repository_id, owner, name, full_name, default_branch, html_url, is_private) values ('aaaaaaaa-0000-4000-8000-000000000102', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 60001, 'owner', 'private-repository', 'owner/private-repository', 'main', 'https://github.com/owner/private-repository', true)$$,
+  '23505', null, 'the same user cannot link one repository to multiple projects');
+
 select throws_ok(
   $$insert into public.tasks (user_id, project_id, title) values ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', '')$$,
   '23514', null, 'blank task titles are rejected by the database');
@@ -159,6 +199,13 @@ set local request.jwt.claims = '{"sub":"bbbbbbbb-0000-4000-8000-000000000002","r
 
 select is((select count(*)::int from public.projects), 2, 'User B sees exactly their own two projects');
 select is((select count(*)::int from public.projects where id = 'aaaaaaaa-0000-4000-8000-000000000102'), 0, 'User B cannot read User A private project by uuid');
+select is((select count(*)::int from public.github_installations), 1, 'User B sees only their own GitHub installation');
+select is((select count(*)::int from public.github_repository_links where project_id = 'aaaaaaaa-0000-4000-8000-000000000101'), 0, 'User B cannot read User A repository links');
+select is((select count(*)::int from public.github_repository_links where repository_id = 60001), 1, 'User B can independently link the same repository as User A');
+select is(
+  (with updated as (update public.github_repository_links set name = 'hacked' where project_id = 'aaaaaaaa-0000-4000-8000-000000000101' returning 1)
+   select count(*)::int from updated),
+  0, 'User B cannot update User A repository link');
 select is((select count(*)::int from public.milestones), 0, 'User B cannot read User A milestones');
 select is(
   (with updated as (update public.projects set visibility = 'Public' where id = 'aaaaaaaa-0000-4000-8000-000000000102' returning 1)
@@ -189,6 +236,8 @@ select is((select count(*)::int from public.public_project_by_slug('rls-user-a')
 select is((select count(*)::int from public.public_project_by_slug('rls-user-a-private')), 0, 'a private project never resolves publicly');
 select is((select count(*)::int from public.public_project_by_slug('rls-user-b-private')), 0, 'another account private project never resolves publicly');
 select is((select count(*)::int from public.public_project_list() where technologies is null), 0, 'technologies is always an array, never null');
+select is((select repository_url from public.public_project_list() where slug = 'rls-user-a-public'), null, 'private GitHub repository details stay out of the public projection');
+select is((select repository_url from public.public_project_list() where slug = 'rls-user-b-public'), 'https://github.com/owner/public-repository', 'public repository URL appears only when repository display is enabled');
 select is((select progress from public.public_project_by_slug('rls-user-a-public') limit 1), 43, 'progress is derived deterministically from the workflow stage');
 select is(
   (select count(*)::int from public.public_project_by_slug('rls-user-a-unlisted')),

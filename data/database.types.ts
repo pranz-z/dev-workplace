@@ -148,6 +148,33 @@ export interface ProjectTechnologyRow {
   created_at: string;
 }
 
+export interface GithubInstallationRow {
+  id: string;
+  user_id: string;
+  installation_id: number;
+  account_login: string;
+  account_type: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GithubRepositoryLinkRow {
+  project_id: string;
+  user_id: string;
+  installation_record_id: string;
+  repository_id: number;
+  owner: string;
+  name: string;
+  full_name: string;
+  default_branch: string;
+  html_url: string;
+  is_private: boolean;
+  primary_language: string | null;
+  updated_at_github: string | null;
+  connected_at: string;
+  last_synced_at: string | null;
+}
+
 /** Row returned by public.public_project_list() / public.public_project_by_slug(). */
 export interface PublicProjectCardRow {
   id: string;

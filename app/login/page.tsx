@@ -59,7 +59,7 @@ function LoginPanel() {
           {loading ? <LoaderCircle size={16} className="animate-spin" /> : <FolderGit2 size={16} />}
           Continue with GitHub
         </button>
-        <p className="mx-auto mt-3 max-w-md text-xs leading-5 t-paper-muted">GitHub verifies your identity through Supabase Auth. Repository access is a separate step and is not enabled yet.</p>
+        <p className="mx-auto mt-3 max-w-md text-xs leading-5 t-paper-muted">GitHub verifies your identity through Supabase Auth. You can connect repository access separately from the workspace.</p>
         {errorMessage && (
           <p role="alert" className="mt-4 text-sm text-[var(--ink-peach)]">
             {errorMessage}

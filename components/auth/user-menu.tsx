@@ -170,7 +170,7 @@ export function UserMenu({ onOpenSettings }: UserMenuProps) {
               </div>
             </div>
             <p className="mt-4 text-xs leading-5 t-dark-muted">
-              Supabase Auth verifies this account. Repository access is a separate opt-in step and is not part of this phase.
+              Supabase Auth verifies this account. Repository access is connected separately with the GitHub App.
             </p>
             <div className="mt-5 flex justify-end">
               <button type="button" onClick={() => setProfileOpen(false)} className="ink-button primary px-3 py-2 text-sm">

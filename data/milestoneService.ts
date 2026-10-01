@@ -1,5 +1,5 @@
 import type { Milestone } from "@/types";
-import { getWorkspaceContext } from "@/data/context";
+import { getWorkspaceContext, isUuid } from "@/data/context";
 import { mapMilestoneRow } from "@/data/mappers";
 import type { MilestoneRow } from "@/data/database.types";
 import {
@@ -24,6 +24,7 @@ export async function listMilestones(): Promise<Milestone[]> {
 }
 
 export async function listProjectMilestones(projectId: string): Promise<Milestone[]> {
+  if (!isUuid(projectId)) return [];
   if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
@@ -45,6 +46,7 @@ export interface MilestoneInput {
 export async function createMilestone(input: MilestoneInput): Promise<ServiceResult<Milestone>> {
   const title = input.title.trim();
   if (title.length === 0) return serviceFail("Give the milestone a title first.");
+  if (!isUuid(input.projectId)) return serviceFail("That project is no longer available. Refresh and try again.");
 
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
@@ -84,6 +86,7 @@ export interface MilestonePatch {
 }
 
 export async function updateMilestone(milestoneId: string, patch: MilestonePatch): Promise<ServiceResult<Milestone>> {
+  if (!isUuid(milestoneId)) return serviceFail("That milestone is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
@@ -108,6 +111,7 @@ export async function updateMilestone(milestoneId: string, patch: MilestonePatch
 }
 
 export async function setMilestoneStatus(milestoneId: string, status: Milestone["status"]): Promise<ServiceResult<Milestone>> {
+  if (!isUuid(milestoneId)) return serviceFail("That milestone is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
@@ -127,6 +131,7 @@ export async function setMilestoneStatus(milestoneId: string, status: Milestone[
  * project, so the stored order is always the rendered order.
  */
 export async function moveMilestone(milestoneId: string, direction: "up" | "down"): Promise<ServiceResult<Milestone[]>> {
+  if (!isUuid(milestoneId)) return serviceFail("That milestone is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
@@ -168,6 +173,7 @@ export async function moveMilestone(milestoneId: string, direction: "up" | "down
 }
 
 export async function deleteMilestone(milestoneId: string): Promise<ServiceResult<{ id: string }>> {
+  if (!isUuid(milestoneId)) return serviceFail("That milestone is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(DELETE_FAILED_MESSAGE);
 

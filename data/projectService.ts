@@ -272,6 +272,7 @@ export async function restoreProject(projectId: string): Promise<ServiceResult<P
 }
 
 export async function deleteProject(projectId: string): Promise<ServiceResult<{ id: string }>> {
+  if (!isUuid(projectId)) return serviceFail("That project is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(DELETE_FAILED_MESSAGE);
 
@@ -349,6 +350,7 @@ export async function getPublicProjectBySlug(slug: string): Promise<PublicProjec
 }
 
 export async function getProjectSettings(projectId: string): Promise<ProjectSettings | null> {
+  if (!isUuid(projectId)) return null;
   if (!isSupabaseConfigured()) return null;
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
@@ -373,6 +375,7 @@ export interface ProjectSettingsPatch {
 
 /** One-to-one settings row: created on first write, updated afterwards. */
 export async function updateProjectSettings(projectId: string, patch: ProjectSettingsPatch): Promise<ServiceResult<ProjectSettings>> {
+  if (!isUuid(projectId)) return serviceFail("That project is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 

@@ -1,5 +1,5 @@
 import type { NoteItem } from "@/types";
-import { getWorkspaceContext } from "@/data/context";
+import { getWorkspaceContext, isUuid } from "@/data/context";
 import { mapNoteRow } from "@/data/mappers";
 import type { NoteRow } from "@/data/database.types";
 import {
@@ -32,6 +32,7 @@ export interface NoteInput {
 export async function createNote(input: NoteInput): Promise<ServiceResult<NoteItem>> {
   const title = input.title.trim();
   if (title.length === 0) return serviceFail("Give the note a title first.");
+  if (input.projectId && !isUuid(input.projectId)) return serviceFail("That project is no longer available. Refresh and try again.");
 
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
@@ -58,6 +59,9 @@ export interface NotePatch {
 }
 
 export async function updateNote(noteId: string, patch: NotePatch): Promise<ServiceResult<NoteItem>> {
+  if (!isUuid(noteId) || (patch.projectId && !isUuid(patch.projectId))) {
+    return serviceFail("That note or project is no longer available. Refresh and try again.");
+  }
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
@@ -83,6 +87,7 @@ export async function updateNote(noteId: string, patch: NotePatch): Promise<Serv
 }
 
 export async function deleteNote(noteId: string): Promise<ServiceResult<{ id: string }>> {
+  if (!isUuid(noteId)) return serviceFail("That note is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(DELETE_FAILED_MESSAGE);
 

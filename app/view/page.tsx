@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { calculateAccountabilityScore } from "@/data/githubAccountabilityService";
 import { mockGithubActivity, mockProjects } from "@/data/mockData";
 import { listPublicProjects, toProjectViewFromPublicProject } from "@/data/projectService";
-import type { Project } from "@/types";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -35,7 +35,8 @@ export default function PublicViewerPage() {
       return defaults;
     }
   });
-  const [projects, setProjects] = useState(mockProjects);
+  const [projects, setProjects] = useState(() => (isSupabaseConfigured() ? [] : mockProjects));
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -51,9 +52,10 @@ export default function PublicViewerPage() {
   }, [themeMode]);
 
   useEffect(() => {
+    if (!isSupabaseConfigured()) return;
     listPublicProjects().then((remoteProjects) => {
-      if (remoteProjects.length > 0) setProjects(remoteProjects.map(toProjectViewFromPublicProject));
-    }).catch(() => undefined);
+      setProjects(remoteProjects.map(toProjectViewFromPublicProject));
+    }).catch(() => setLoadError(true));
   }, []);
 
   const publicProjects = useMemo(
@@ -66,7 +68,7 @@ export default function PublicViewerPage() {
 
   const featuredProjects = publicProjects.filter((project) => project.featured);
   const otherProjects = publicProjects.filter((project) => !project.featured);
-  const publicActivity = mockGithubActivity.filter((event) => event.public);
+  const publicActivity = isSupabaseConfigured() ? [] : mockGithubActivity.filter((event) => event.public);
   const accountability = calculateAccountabilityScore(publicProjects, publicActivity, new Date("2026-09-30T18:00:00.000Z"));
 
   return (
@@ -98,6 +100,7 @@ export default function PublicViewerPage() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-8 px-4 pb-16">
+        {loadError && <p role="alert" className="public-card p-4 text-sm text-[var(--muted)]">Public projects could not be loaded right now.</p>}
         <section className="public-hero p-6 md:p-10">
           <div className="grid items-center gap-8 lg:grid-cols-[1.2fr_0.8fr]">
             <div>
@@ -110,7 +113,7 @@ export default function PublicViewerPage() {
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link href="#featured" className="public-link">Featured work</Link>
-                <Link href="/view/project/autocare" className="public-link">See AutoCare</Link>
+                {publicProjects[0] && <Link href={`/view/project/${publicProjects[0].slug}`} className="public-link">View a project</Link>}
               </div>
             </div>
 
@@ -172,6 +175,7 @@ export default function PublicViewerPage() {
                 </div>
               </Link>
             ))}
+            {featuredProjects.length === 0 && <p className="public-card p-5 text-sm text-[var(--muted)]">No featured public projects are available.</p>}
           </div>
         </section>
 
@@ -198,6 +202,7 @@ export default function PublicViewerPage() {
                 </div>
               </Link>
             ))}
+            {otherProjects.length === 0 && publicProjects.length > 0 && <p className="public-card p-5 text-sm text-[var(--muted)]">No other public projects are available.</p>}
           </div>
         </section>
 

@@ -1,5 +1,5 @@
 import type { TechnologyItem } from "@/types";
-import { getWorkspaceContext } from "@/data/context";
+import { getWorkspaceContext, isUuid } from "@/data/context";
 import { mapTechnologyRow } from "@/data/mappers";
 import type { ProjectRow, TechnologyRow } from "@/data/database.types";
 import {
@@ -106,6 +106,7 @@ export async function createTechnology(name: string): Promise<ServiceResult<Tech
 }
 
 export async function deleteTechnology(technologyId: string): Promise<ServiceResult<{ id: string }>> {
+  if (!isUuid(technologyId)) return serviceFail("That technology is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(DELETE_FAILED_MESSAGE);
 
@@ -119,6 +120,7 @@ export async function attachTechnology(
   projectId: string,
   technologyId: string,
 ): Promise<ServiceResult<{ projectId: string; technologyId: string }>> {
+  if (!isUuid(projectId) || !isUuid(technologyId)) return serviceFail("That project or technology is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
@@ -133,6 +135,7 @@ export async function detachTechnology(
   projectId: string,
   technologyId: string,
 ): Promise<ServiceResult<{ projectId: string; technologyId: string }>> {
+  if (!isUuid(projectId) || !isUuid(technologyId)) return serviceFail("That project or technology is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(DELETE_FAILED_MESSAGE);
 

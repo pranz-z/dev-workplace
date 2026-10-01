@@ -1,0 +1,157 @@
+import "server-only";
+import { createHash, createPrivateKey, createSign, randomBytes } from "node:crypto";
+
+export interface GithubAppInstallation {
+  id: number;
+  account: { login: string; type: string };
+}
+
+export interface GithubRepository {
+  id: number;
+  name: string;
+  full_name: string;
+  owner: { login: string };
+  description: string | null;
+  private: boolean;
+  html_url: string;
+  language: string | null;
+  default_branch: string;
+  updated_at: string;
+}
+
+export class GithubIntegrationError extends Error {
+  constructor(message: string, public readonly status = 502) {
+    super(message);
+    this.name = "GithubIntegrationError";
+  }
+}
+
+export function getGithubAppConfig() {
+  const appId = process.env.GITHUB_APP_ID?.trim();
+  const slug = process.env.GITHUB_APP_SLUG?.trim();
+  const clientId = process.env.GITHUB_APP_CLIENT_ID?.trim();
+  const clientSecret = process.env.GITHUB_APP_CLIENT_SECRET?.trim();
+  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n").trim();
+  const missing = [!appId && "GITHUB_APP_ID", !slug && "GITHUB_APP_SLUG", !clientId && "GITHUB_APP_CLIENT_ID", !clientSecret && "GITHUB_APP_CLIENT_SECRET", !privateKey && "GITHUB_APP_PRIVATE_KEY"].filter(Boolean);
+  if (missing.length) throw new GithubIntegrationError(`GitHub repository access is not configured (${missing.join(", ")}).`, 503);
+  if (!/^\d+$/.test(appId!)) throw new GithubIntegrationError("GITHUB_APP_ID must be the numeric GitHub App ID.", 503);
+  if (!/^[a-z0-9-]+$/i.test(slug!)) throw new GithubIntegrationError("GITHUB_APP_SLUG must match the app slug in its GitHub URL.", 503);
+  try {
+    createPrivateKey(privateKey!);
+  } catch {
+    throw new GithubIntegrationError("GITHUB_APP_PRIVATE_KEY must contain a valid PEM private key.", 503);
+  }
+  return { appId: appId!, slug: slug!, clientId: clientId!, clientSecret: clientSecret!, privateKey: privateKey! };
+}
+
+export function createGithubPkcePair() {
+  const verifier = randomBytes(32).toString("base64url");
+  return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") };
+}
+
+function createAppJwt() {
+  const { appId, privateKey } = getGithubAppConfig();
+  const now = Math.floor(Date.now() / 1000);
+  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const unsigned = `${encode({ alg: "RS256", typ: "JWT" })}.${encode({ iat: now - 30, exp: now + 8 * 60, iss: appId })}`;
+  const signer = createSign("RSA-SHA256");
+  signer.update(unsigned);
+  return `${unsigned}.${signer.sign(privateKey, "base64url")}`;
+}
+
+async function githubRequest<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`https://api.github.com${path}`, {
+    ...init,
+    cache: "no-store",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...init?.headers,
+    },
+  });
+  if (!response.ok) {
+    if (response.status === 404 || response.status === 403) {
+      const rateLimited = response.headers.get("x-ratelimit-remaining") === "0";
+      throw new GithubIntegrationError(rateLimited ? "GitHub rate limit reached. Try again later." : "GitHub could not access this installation or repository. Check its permissions and try reconnecting.", response.status);
+    }
+    throw new GithubIntegrationError(response.status >= 500 ? "GitHub is temporarily unavailable. Try again shortly." : "GitHub rejected the repository request.", response.status);
+  }
+  return response.json() as Promise<T>;
+}
+
+export async function getInstallation(installationId: number): Promise<GithubAppInstallation> {
+  return githubRequest(`/app/installations/${installationId}`, createAppJwt());
+}
+
+export async function exchangeGithubUserCode(code: string, redirectUri: string, codeVerifier: string): Promise<string> {
+  const { clientId, clientSecret } = getGithubAppConfig();
+  const response = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    cache: "no-store",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri, code_verifier: codeVerifier }),
+  });
+  if (!response.ok) throw new GithubIntegrationError("GitHub user authorization could not be completed. Please reconnect.", 502);
+  const result = await response.json() as { access_token?: string; error?: string };
+  if (!result.access_token || result.error) throw new GithubIntegrationError("GitHub user authorization could not be completed. Please reconnect.", 401);
+  return result.access_token;
+}
+
+export async function findUserAccessibleInstallation(userToken: string, installationId: number) {
+  const { appId } = getGithubAppConfig();
+  for (let page = 1; page <= 10; page += 1) {
+    const result = await githubRequest<{ installations: Array<GithubAppInstallation & { app_id: number }> }>(`/user/installations?per_page=100&page=${page}`, userToken);
+    const installation = result.installations.find((item) => item.id === installationId);
+    if (installation) {
+      if (String(installation.app_id) !== appId || !installation.account?.login) throw new GithubIntegrationError("This installation is not accessible through the configured GitHub App.", 403);
+      return installation;
+    }
+    if (result.installations.length < 100) break;
+  }
+  throw new GithubIntegrationError("The GitHub account authorizing this connection cannot access that installation. Please connect again with an account that can access it.", 403);
+}
+
+export async function createInstallationToken(installationId: number) {
+  const result = await githubRequest<{ token: string; expires_at: string }>(
+    `/app/installations/${installationId}/access_tokens`,
+    createAppJwt(),
+    { method: "POST", body: JSON.stringify({}) },
+  );
+  return result.token;
+}
+
+export async function listInstallationRepositories(token: string): Promise<GithubRepository[]> {
+  const repositories: GithubRepository[] = [];
+  for (let page = 1; page <= 10; page += 1) {
+    const result = await githubRequest<{ repositories: GithubRepository[]; total_count: number }>(
+      `/installation/repositories?per_page=100&page=${page}`, token,
+    );
+    repositories.push(...result.repositories);
+    if (repositories.length >= result.total_count || result.repositories.length < 100) break;
+  }
+  return repositories;
+}
+
+export async function getInstallationRepository(token: string, repositoryId: number): Promise<GithubRepository> {
+  const repositories = await listInstallationRepositories(token);
+  const repository = repositories.find((item) => item.id === repositoryId);
+  if (!repository) throw new GithubIntegrationError("This repository is no longer available to the connected GitHub installation.", 404);
+  return repository;
+}
+
+export function toSafeRepository(repository: GithubRepository) {
+  return {
+    id: repository.id,
+    name: repository.name,
+    fullName: repository.full_name,
+    owner: repository.owner.login,
+    description: repository.description,
+    private: repository.private,
+    url: repository.html_url,
+    language: repository.language,
+    defaultBranch: repository.default_branch,
+    updatedAt: repository.updated_at,
+  };
+}

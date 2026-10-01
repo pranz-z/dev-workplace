@@ -318,6 +318,44 @@ create trigger project_settings_set_updated_at before update on public.project_s
   for each row execute function private.set_updated_at();
 
 -- -----------------------------------------------------------------------------
+-- GitHub App repository authorization and project links (Phase 3A)
+-- -----------------------------------------------------------------------------
+create table if not exists public.github_installations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  installation_id bigint not null check (installation_id > 0),
+  account_login text not null,
+  account_type text not null check (account_type in ('User', 'Organization', 'Enterprise')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, installation_id)
+);
+
+create table if not exists public.github_repository_links (
+  project_id uuid primary key references public.projects(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  installation_record_id uuid not null references public.github_installations(id) on delete cascade,
+  repository_id bigint not null check (repository_id > 0),
+  owner text not null,
+  name text not null,
+  full_name text not null,
+  default_branch text not null,
+  html_url text not null check (html_url like 'https://github.com/%'),
+  is_private boolean not null,
+  primary_language text,
+  updated_at_github timestamptz,
+  connected_at timestamptz not null default now(),
+  last_synced_at timestamptz,
+  unique (user_id, repository_id)
+);
+
+create index if not exists github_repository_links_installation_idx on public.github_repository_links(installation_record_id);
+
+drop trigger if exists github_installations_set_updated_at on public.github_installations;
+create trigger github_installations_set_updated_at before update on public.github_installations
+  for each row execute function private.set_updated_at();
+
+-- -----------------------------------------------------------------------------
 -- milestones
 -- -----------------------------------------------------------------------------
 create table if not exists public.milestones (
@@ -631,6 +669,8 @@ alter table public.project_plan_items enable row level security;
 alter table public.notes enable row level security;
 alter table public.technologies enable row level security;
 alter table public.project_technologies enable row level security;
+alter table public.github_installations enable row level security;
+alter table public.github_repository_links enable row level security;
 
 -- Phase 1 policies that are replaced by the stricter Phase 2B model.
 -- `public projects are readable` allowed every role to read Public AND Unlisted
@@ -649,6 +689,9 @@ drop policy if exists "own project plan items" on public.project_plan_items;
 drop policy if exists "own notes" on public.notes;
 drop policy if exists "own technologies" on public.technologies;
 drop policy if exists "own project technologies" on public.project_technologies;
+drop policy if exists "own github installations" on public.github_installations;
+drop policy if exists "own project github links" on public.github_repository_links;
+drop policy if exists "read own github installations" on public.github_installations;
 
 -- Owner policies. `with check` mirrors `using`, so a row can never be moved to
 -- another account and a child row can never be attached to somebody else's
@@ -691,6 +734,17 @@ create policy "own project technologies" on public.project_technologies for all 
     private.owns_project(project_id)
     and exists (select 1 from public.technologies t where t.id = technology_id and t.user_id = auth.uid())
   );
+
+create policy "read own github installations" on public.github_installations for select to authenticated
+  using (user_id = auth.uid());
+
+create policy "own project github links" on public.github_repository_links for all to authenticated
+  using (user_id = auth.uid() and private.owns_project(project_id) and exists (
+    select 1 from public.github_installations i where i.id = installation_record_id and i.user_id = auth.uid()
+  ))
+  with check (user_id = auth.uid() and private.owns_project(project_id) and exists (
+    select 1 from public.github_installations i where i.id = installation_record_id and i.user_id = auth.uid()
+  ));
 
 -- -----------------------------------------------------------------------------
 -- Public portfolio projection
@@ -771,7 +825,11 @@ as $$
       p.id, p.slug, p.title, p.description, p.project_type, p.status, p.workflow_stage, p.role, p.team_size,
       p.start_date, p.target_date, p.is_featured, p.visibility,
       p.public_summary, p.public_problem, p.public_solution, p.public_result,
-      p.repository_url, p.demo_url, p.docs_url,
+      case when coalesce(s.show_repository, false)
+        and not coalesce((select l.is_private from public.github_repository_links l where l.project_id = p.id), false)
+        then coalesce((select l.html_url from public.github_repository_links l where l.project_id = p.id and not l.is_private), p.repository_url)
+        else null end as repository_url,
+      p.demo_url, p.docs_url,
       p.health_documentation, p.health_screenshots, p.health_testing, p.health_deployment,
       p.updated_at,
       coalesce(ts.total, 0) as total_tasks,
@@ -888,6 +946,8 @@ revoke all on public.project_plan_items from anon;
 revoke all on public.notes from anon;
 revoke all on public.technologies from anon;
 revoke all on public.project_technologies from anon;
+revoke all on public.github_installations from anon;
+revoke all on public.github_repository_links from anon;
 
 grant select, insert, update, delete on public.profiles to authenticated;
 grant select, insert, update, delete on public.projects to authenticated;
@@ -899,6 +959,10 @@ grant select, insert, update, delete on public.project_plan_items to authenticat
 grant select, insert, update, delete on public.notes to authenticated;
 grant select, insert, update, delete on public.technologies to authenticated;
 grant select, insert, update, delete on public.project_technologies to authenticated;
+revoke all on public.github_installations from authenticated;
+grant select on public.github_installations to authenticated;
+grant select, insert, update, delete on public.github_repository_links to authenticated;
+grant all on public.github_installations to service_role;
 
 -- -----------------------------------------------------------------------------
 -- Indexes (only what the application actually queries)

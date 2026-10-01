@@ -6,6 +6,8 @@ import { ArrowLeft, ArrowUpRight, FolderGit2, Moon, Sparkles, Sun } from "lucide
 import { useEffect, useState } from "react";
 import { mockProjects } from "@/data/mockData";
 import { getPublicProjectBySlug, toProjectViewFromPublicProject } from "@/data/projectService";
+import { isValidSlug } from "@/lib/slug";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -22,12 +24,14 @@ const getResolvedTheme = (mode: ThemeMode) => {
 export default function PublicProjectPage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug ?? "autocare";
+  const invalidSlug = isSupabaseConfigured() && !isValidSlug(slug);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "system";
     const saved = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
     return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
   });
-  const [project, setProject] = useState(() => mockProjects.find((item) => item.slug === slug) ?? mockProjects[0]);
+  const [project, setProject] = useState(() => (isSupabaseConfigured() ? null : mockProjects.find((item) => item.slug === slug) ?? null));
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -43,10 +47,30 @@ export default function PublicProjectPage() {
   }, [themeMode]);
 
   useEffect(() => {
+    if (!isSupabaseConfigured() || !isValidSlug(slug)) return;
     getPublicProjectBySlug(slug).then((remoteProject) => {
-      if (remoteProject) setProject(toProjectViewFromPublicProject(remoteProject));
-    }).catch(() => undefined);
+      setProject(remoteProject ? toProjectViewFromPublicProject(remoteProject) : null);
+      setLoadError(false);
+    }).catch((error: unknown) => {
+      console.error("[public-project] public_project_by_slug lookup failed", error);
+      setProject(null);
+      setLoadError(true);
+    });
   }, [slug]);
+
+  if (!project || invalidSlug) {
+    return (
+      <div className="public-shell min-h-screen">
+        <main className="mx-auto max-w-3xl px-4 py-16">
+          <section className="public-card p-6">
+            <h1 className="text-2xl font-black text-[var(--ink)]">{invalidSlug ? "Invalid project link" : loadError ? "Project unavailable" : "Project not found"}</h1>
+            <p className="mt-3 text-sm text-[var(--muted)]">{invalidSlug ? "This project link is not valid." : loadError ? "The public project could not be loaded right now." : "This project is not available as a public view."}</p>
+            <Link href="/view" className="public-link mt-5">Back to portfolio</Link>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   const featureCards = [
     { label: "Role", value: project.role },
