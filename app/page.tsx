@@ -35,6 +35,7 @@ import { UserMenu } from "@/components/auth/user-menu";
 import { GithubRepositoryBrowser } from "@/components/github/repository-browser";
 import { ProjectScreenshots } from "@/components/projects/project-screenshots";
 import { ProjectKanbanBoard } from "@/components/projects/ProjectKanbanBoard";
+import { WorkspaceCalendar } from "@/components/calendar/WorkspaceCalendar";
 import { SortableList } from "@/components/dnd/SortableList";
 import { TaskKanbanBoard } from "@/components/tasks/TaskKanbanBoard";
 import { PublicAccountabilitySettings } from "@/components/projects/public-accountability-settings";
@@ -44,6 +45,7 @@ import { buildSeedState } from "@/data/mockData";
 import { calculateProjectAccountability } from "@/data/accountabilityService";
 import { AccountabilityWorkspace } from "@/components/accountability/accountability-workspace";
 import { calculateProjectProgress } from "@/lib/projectProgress";
+import { calendarDatePatch, formatCalendarDate, taskCalendarDate, type WorkspaceCalendarEvent } from "@/data/workspaceCalendar";
 import { loadWorkspaceData } from "@/data/workspaceService";
 import { completeTask, createTask, deleteTask, listTasks, reopenTask, reorderProjectTasks, setTaskStatus, updateTask } from "@/data/taskService";
 import { createPlan, deletePlan, listPlans, setPlanStatus, updatePlan } from "@/data/planService";
@@ -173,7 +175,7 @@ const navGroups = [
 
 const workflowStages = ["Planning", "Research", "Development", "Testing", "Deployment", "Maintenance", "Completed"] as const;
 
-const unavailableViews = new Set<ViewName>(["calendar", "resume", "portfolio"]);
+const unavailableViews = new Set<ViewName>(["resume", "portfolio"]);
 
 /* Status + priority pills are token-driven (.badge / .prio) so they keep the
  * same pastel identity and dark-ink-on-pastel contrast in light AND dark. */
@@ -260,6 +262,8 @@ const getWorkspaceSnapshot = () => {
 
 const formatDisplayDate = (value?: string) => {
   if (!value) return "No date";
+  const dateOnly = taskCalendarDate(value, Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  if (dateOnly) return formatCalendarDate(dateOnly, { month: "short", day: "numeric" });
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
@@ -267,6 +271,8 @@ const formatDisplayDate = (value?: string) => {
 
 const formatLongDate = (value?: string) => {
   if (!value) return "No date";
+  const dateOnly = taskCalendarDate(value, Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  if (dateOnly) return formatCalendarDate(dateOnly, { weekday: "short", month: "short", day: "numeric" });
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("en-US", {
@@ -319,6 +325,8 @@ export default function Home() {
   const [taskBoardProjectId, setTaskBoardProjectId] = useState("");
   const [isPersistingOrder, setIsPersistingOrder] = useState(false);
   const orderWriteLock = useRef(false);
+  const [isCalendarRescheduling, setIsCalendarRescheduling] = useState(false);
+  const calendarWriteLock = useRef(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [githubImportOpen, setGithubImportOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -911,14 +919,14 @@ export default function Home() {
     } : project));
   };
 
-  const handleCreateTask = () => {
-    const projectId = selectedProject?.id ?? projects[0]?.id;
+  const handleCreateTask = (dueDate = "", preferredProjectId?: string) => {
+    const projectId = preferredProjectId ?? selectedProject?.id ?? projects[0]?.id;
     if (!projectId) {
       setWorkspaceError("Create a project before adding a task.");
       return;
     }
     setWorkspaceError("");
-    setTaskEditor({ title: "", description: "", projectId, status: "Backlog", priority: "Medium", dueDate: "" });
+    setTaskEditor({ title: "", description: "", projectId, status: "Backlog", priority: "Medium", dueDate });
   };
 
   const handleCreateTestingTask = () => {
@@ -1419,7 +1427,7 @@ export default function Home() {
             <button type="button" onClick={handleCreateProject} className="ink-button primary px-3 py-2 text-sm font-semibold">
               <span className="inline-flex items-center gap-2"><Plus size={15} /> New Project</span>
             </button>
-            <button type="button" onClick={handleCreateTask} className="ink-button soft px-3 py-2 text-sm font-semibold">
+            <button type="button" onClick={() => handleCreateTask()} className="ink-button soft px-3 py-2 text-sm font-semibold">
               <span className="inline-flex items-center gap-2"><Plus size={15} /> New Task</span>
             </button>
             <button type="button" onClick={handleCreatePlan} className="ink-button px-3 py-2 text-sm font-semibold">
@@ -1674,6 +1682,83 @@ export default function Home() {
     setActiveView("projects");
   };
 
+  const openCalendarEvent = (event: WorkspaceCalendarEvent) => {
+    if (event.entityType === "task") {
+      const task = tasks.find((item) => item.id === event.entityId);
+      if (task) handleEditTask(task);
+      return;
+    }
+    if (event.entityType === "milestone") {
+      const milestone = milestones.find((item) => item.id === event.entityId);
+      if (!milestone) return;
+      setSelectedProjectId(milestone.projectId);
+      setProjectTab("Milestones");
+      setActiveView("projects");
+      handleEditMilestone(milestone);
+      return;
+    }
+    const project = projects.find((item) => item.id === event.entityId);
+    if (project) openProjectDetail(project);
+  };
+
+  const rescheduleCalendarEvent = (event: WorkspaceCalendarEvent, date: string | null) => {
+    if (calendarWriteLock.current || authStatus !== "authenticated" || workspaceStatus !== "ready") return;
+    const datePatch = calendarDatePatch(event.entityType, date);
+    const previousProjects = projects;
+    const previousTasks = tasks;
+    const previousMilestones = milestones;
+    if (event.entityType === "task") {
+      setTasks((current) => current.map((task) => task.id === event.entityId ? { ...task, dueDate: date ?? undefined } : task));
+    } else if (event.entityType === "milestone") {
+      setMilestones((current) => current.map((milestone) => milestone.id === event.entityId ? { ...milestone, targetDate: date ?? undefined } : milestone));
+    } else {
+      setProjects((current) => current.map((project) => project.id === event.entityId ? { ...project, targetDate: date ?? "" } : project));
+    }
+
+    calendarWriteLock.current = true;
+    setIsCalendarRescheduling(true);
+    void (async () => {
+      let failure = "";
+      try {
+        if (event.entityType === "task") {
+          const result = await updateTask(event.entityId, { dueDate: datePatch.dueDate });
+          if (!result.ok) failure = result.error;
+          else setTasks((current) => current.map((item) => item.id === result.data.id ? result.data : item));
+        } else if (event.entityType === "milestone") {
+          const result = await updateMilestone(event.entityId, { targetDate: datePatch.targetDate });
+          if (!result.ok) failure = result.error;
+          else setMilestones((current) => current.map((item) => item.id === result.data.id ? result.data : item));
+        } else {
+          const result = await updateProject(event.entityId, datePatch);
+          if (!result.ok) failure = result.error;
+          else setProjects((current) => current.map((item) => item.id === result.data.id ? result.data : item));
+        }
+      } catch {
+        failure = "Couldn't save the new date. Your workspace was refreshed.";
+      }
+
+      if (failure) {
+        try {
+          const remote = await loadWorkspaceData();
+          if (!remote) throw new Error("Workspace unavailable");
+          setProjects(remote.projects);
+          setTasks(remote.tasks);
+          setMilestones(remote.milestones);
+        } catch {
+          setProjects(previousProjects);
+          setTasks(previousTasks);
+          setMilestones(previousMilestones);
+        }
+        setWorkspaceError(failure);
+      } else {
+        setWorkspaceError("");
+      }
+
+      calendarWriteLock.current = false;
+      setIsCalendarRescheduling(false);
+    })();
+  };
+
   const renderProjectDetail = () => {
     if (!selectedProject) return null;
 
@@ -1895,7 +1980,7 @@ export default function Home() {
                   <h3 className="text-lg font-semibold t-dark">{projectTaskFilter === "testing" ? "Testing tasks" : "Project tasks"}</h3>
                   <div className="flex flex-wrap gap-2">
                     {projectTaskFilter === "testing" && <button type="button" onClick={() => setProjectTaskFilter("all")} className="dark-chip px-3 py-2 text-sm">Show all tasks</button>}
-                    <button type="button" onClick={projectTaskFilter === "testing" ? handleCreateTestingTask : handleCreateTask} className="ink-button primary px-3 py-2 text-sm">{projectTaskFilter === "testing" ? "Add testing task" : "Add task"}</button>
+                    <button type="button" onClick={projectTaskFilter === "testing" ? handleCreateTestingTask : () => handleCreateTask()} className="ink-button primary px-3 py-2 text-sm">{projectTaskFilter === "testing" ? "Add testing task" : "Add task"}</button>
                   </div>
                 </div>
                 {visibleProjectTasks.length > 0 ? visibleProjectTasks.map((task) => (
@@ -2054,7 +2139,7 @@ export default function Home() {
             <h2 className="mt-2 text-2xl font-semibold t-dark">Task management</h2>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={handleCreateTask} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New task</button>
+            <button type="button" onClick={() => handleCreateTask()} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New task</button>
             {(["list", "kanban", "today", "upcoming"] as const).map((view) => (
               <button
                 key={view}
@@ -2316,6 +2401,18 @@ export default function Home() {
 
   const renderPage = () => {
     switch (activeView) {
+      case "calendar":
+        return authStatus === "authenticated" && workspaceStatus === "ready"
+          ? <WorkspaceCalendar
+              projects={projects}
+              tasks={tasks}
+              milestones={milestones}
+              busy={isCalendarRescheduling || isPersistingOrder || isSavingEditor}
+              onCreateTask={handleCreateTask}
+              onOpenEvent={openCalendarEvent}
+              onReschedule={rescheduleCalendarEvent}
+            />
+          : <section className="dark-panel p-5"><h1 className="text-xl font-semibold t-dark">Private workspace calendar</h1><p className="mt-2 text-sm t-dark-muted">Sign in and load your Supabase workspace to plan tasks, milestones, and project targets.</p></section>;
       case "today":
         return renderTodayPage();
       case "projects":

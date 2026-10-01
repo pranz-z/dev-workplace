@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:accountability": "node --test data/accountabilityService.test.mjs data/accountabilityReports.test.mjs"
+    "test:accountability": "node --test data/accountabilityService.test.mjs data/accountabilityReports.test.mjs",
+    "test:calendar": "node --test data/workspaceCalendar.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",
