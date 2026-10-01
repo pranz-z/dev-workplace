@@ -1,9 +1,10 @@
 -- =============================================================================
 -- Developer Workplace - canonical database schema (Phase 2B: real workspace data)
 --
--- This file is the single source of truth. Migrations include it (`\ir ../schema.sql`)
--- and it is re-runnable: every statement is idempotent, so applying it twice is safe
--- and it can also be pasted into the Supabase SQL editor for a hosted project.
+-- This file is a canonical reference / documentation artifact. It is intentionally
+-- kept runnable as a standalone schema file, but the migration files in
+-- supabase/migrations/ are self-contained SQL and do not use psql include commands
+-- such as \ir or \i. Supabase migration runners execute raw SQL only.
 --
 -- FRONTEND MODEL -> TABLE MAPPING
 --   Project              -> public.projects          (+ public.project_settings        1:1)
