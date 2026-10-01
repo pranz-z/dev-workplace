@@ -173,6 +173,8 @@ export function mapProjectSettingsRow(row: ProjectSettingsRow) {
     showCommitCount: row.show_commit_count,
     showStreak: row.show_streak,
     showAccountability: row.show_accountability,
+    showPublicAccountability: row.show_public_accountability,
+    showPublicAccountabilityScore: row.show_public_accountability_score,
     showLiveDemo: row.show_live_demo,
     showRepository: row.show_repository,
   };
@@ -211,6 +213,8 @@ export function mapPublicProjectRow(row: PublicProjectCardRow): PublicProject {
     showCommitCount: row.show_commit_count,
     showStreak: row.show_streak,
     showAccountability: row.show_accountability,
+    accountabilityHealth: row.public_accountability_health as PublicProject["accountabilityHealth"],
+    accountabilityScore: row.public_accountability_score,
     showLiveDemo: row.show_live_demo,
     showRepository: row.show_repository,
     technologies: row.technologies ?? [],

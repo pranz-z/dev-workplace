@@ -16,7 +16,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 const PROJECT_SETTINGS_COLUMNS =
-  "id, project_id, custom_color, custom_icon, show_github_activity, show_commit_count, show_streak, show_accountability, show_live_demo, show_repository, created_at, updated_at";
+  "id, project_id, custom_color, custom_icon, show_github_activity, show_commit_count, show_streak, show_accountability, show_public_accountability, show_public_accountability_score, show_live_demo, show_repository, created_at, updated_at";
 
 export async function listProjectRows(): Promise<ProjectRow[]> {
   if (!isSupabaseConfigured()) return [];
@@ -369,6 +369,8 @@ export interface ProjectSettingsPatch {
   showCommitCount?: boolean;
   showStreak?: boolean;
   showAccountability?: boolean;
+  showPublicAccountability?: boolean;
+  showPublicAccountabilityScore?: boolean;
   showLiveDemo?: boolean;
   showRepository?: boolean;
 }
@@ -386,6 +388,8 @@ export async function updateProjectSettings(projectId: string, patch: ProjectSet
   if (patch.showCommitCount !== undefined) payload.show_commit_count = patch.showCommitCount;
   if (patch.showStreak !== undefined) payload.show_streak = patch.showStreak;
   if (patch.showAccountability !== undefined) payload.show_accountability = patch.showAccountability;
+  if (patch.showPublicAccountability !== undefined) payload.show_public_accountability = patch.showPublicAccountability;
+  if (patch.showPublicAccountabilityScore !== undefined) payload.show_public_accountability_score = patch.showPublicAccountabilityScore;
   if (patch.showLiveDemo !== undefined) payload.show_live_demo = patch.showLiveDemo;
   if (patch.showRepository !== undefined) payload.show_repository = patch.showRepository;
 

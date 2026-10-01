@@ -5,9 +5,11 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, FolderGit2, Moon, Sparkles, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { mockProjects } from "@/data/mockData";
+import { PublicAccountabilityCard } from "@/components/accountability/public-accountability-card";
 import { getPublicProjectBySlug, toProjectViewFromPublicProject } from "@/data/projectService";
 import { isValidSlug } from "@/lib/slug";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import type { PublicAccountabilityHealth } from "@/types";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -31,6 +33,8 @@ export default function PublicProjectPage() {
     return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
   });
   const [project, setProject] = useState(() => (isSupabaseConfigured() ? null : mockProjects.find((item) => item.slug === slug) ?? null));
+  const [resolvedSlug, setResolvedSlug] = useState<string | null>(() => (isSupabaseConfigured() ? null : slug));
+  const [accountability, setAccountability] = useState<{ health: PublicAccountabilityHealth; score: number | null } | null>(null);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
@@ -48,17 +52,35 @@ export default function PublicProjectPage() {
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !isValidSlug(slug)) return;
+    let current = true;
     getPublicProjectBySlug(slug).then((remoteProject) => {
+      if (!current) return;
       setProject(remoteProject ? toProjectViewFromPublicProject(remoteProject) : null);
+      setAccountability(remoteProject?.accountabilityHealth
+        ? { health: remoteProject.accountabilityHealth, score: remoteProject.accountabilityScore }
+        : null);
       setLoadError(false);
+      setResolvedSlug(slug);
     }).catch((error: unknown) => {
+      if (!current) return;
       console.error("[public-project] public_project_by_slug lookup failed", error);
       setProject(null);
+      setAccountability(null);
       setLoadError(true);
+      setResolvedSlug(slug);
     });
+    return () => { current = false; };
   }, [slug]);
 
-  if (!project || invalidSlug) {
+  const displayProject = isSupabaseConfigured()
+    ? (resolvedSlug === slug ? project : null)
+    : mockProjects.find((item) => item.slug === slug) ?? null;
+
+  if (isSupabaseConfigured() && !invalidSlug && resolvedSlug !== slug) {
+    return <div className="public-shell min-h-screen"><main className="mx-auto max-w-3xl px-4 py-16"><section className="public-card p-6"><p className="text-sm text-[var(--muted)]">Loading project…</p></section></main></div>;
+  }
+
+  if (!displayProject || invalidSlug) {
     return (
       <div className="public-shell min-h-screen">
         <main className="mx-auto max-w-3xl px-4 py-16">
@@ -73,10 +95,10 @@ export default function PublicProjectPage() {
   }
 
   const featureCards = [
-    { label: "Role", value: project.role },
-    { label: "Project type", value: project.type },
-    { label: "Progress", value: `${project.progress}%` },
-    { label: "Status", value: project.status },
+    { label: "Role", value: displayProject.role },
+    { label: "Project type", value: displayProject.type },
+    { label: "Progress", value: `${displayProject.progress}%` },
+    { label: "Status", value: displayProject.status },
   ];
 
   return (
@@ -108,17 +130,17 @@ export default function PublicProjectPage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Project case study</p>
-              <h1 className="mt-4 text-4xl font-black tracking-tight text-[var(--ink)] md:text-5xl">{project.name}</h1>
-              <p className="mt-4 text-lg leading-8 text-[var(--muted)]">{project.publicSummary ?? project.description}</p>
+              <h1 className="mt-4 text-4xl font-black tracking-tight text-[var(--ink)] md:text-5xl">{displayProject.name}</h1>
+              <p className="mt-4 text-lg leading-8 text-[var(--muted)]">{displayProject.publicSummary ?? displayProject.description}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {project.links.live && (
-                <a href={project.links.live} target="_blank" rel="noreferrer" className="public-link">
+              {displayProject.links.live && (
+                <a href={displayProject.links.live} target="_blank" rel="noreferrer" className="public-link">
                   Live demo <ArrowUpRight size={15} />
                 </a>
               )}
-              {project.links.github && (
-                <a href={project.links.github} target="_blank" rel="noreferrer" className="public-link">
+              {displayProject.links.github && (
+                <a href={displayProject.links.github} target="_blank" rel="noreferrer" className="public-link">
                   GitHub <FolderGit2 size={15} />
                 </a>
               )}
@@ -135,17 +157,19 @@ export default function PublicProjectPage() {
           ))}
         </section>
 
+        {accountability && <PublicAccountabilityCard health={accountability.health} score={accountability.score} />}
+
         <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="public-card p-6">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Overview</p>
             <h2 className="mt-3 text-3xl font-black text-[var(--ink)]">What this project is.</h2>
-            <p className="mt-4 text-base leading-7 text-[var(--muted)]">{project.objective}</p>
+            <p className="mt-4 text-base leading-7 text-[var(--muted)]">{displayProject.objective}</p>
           </div>
 
           <div className="public-card p-6">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Tech stack</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {project.technologies.map((tech) => (
+              {displayProject.technologies.map((tech) => (
                 <span key={tech} className="rounded-full border border-[var(--public-border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] text-[var(--ink)]">{tech}</span>
               ))}
             </div>
@@ -155,15 +179,15 @@ export default function PublicProjectPage() {
         <section className="grid gap-6 md:grid-cols-3">
           <div className="public-card p-5">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Problem</p>
-            <p className="mt-4 text-base leading-7 text-[var(--muted)]">{project.publicProblem ?? project.description}</p>
+            <p className="mt-4 text-base leading-7 text-[var(--muted)]">{displayProject.publicProblem ?? displayProject.description}</p>
           </div>
           <div className="public-card p-5">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Solution</p>
-            <p className="mt-4 text-base leading-7 text-[var(--muted)]">{project.publicSolution ?? project.objective}</p>
+            <p className="mt-4 text-base leading-7 text-[var(--muted)]">{displayProject.publicSolution ?? displayProject.objective}</p>
           </div>
           <div className="public-card p-5">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Result</p>
-            <p className="mt-4 text-base leading-7 text-[var(--muted)]">{project.publicResult ?? project.nextAction}</p>
+            <p className="mt-4 text-base leading-7 text-[var(--muted)]">{displayProject.publicResult ?? displayProject.nextAction}</p>
           </div>
         </section>
 
@@ -185,13 +209,13 @@ export default function PublicProjectPage() {
         <section className="public-card p-6">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Project links</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            {project.links.github && (
-              <a href={project.links.github} target="_blank" rel="noreferrer" className="public-link">
+            {displayProject.links.github && (
+              <a href={displayProject.links.github} target="_blank" rel="noreferrer" className="public-link">
                 GitHub <FolderGit2 size={15} />
               </a>
             )}
-            {project.links.live && (
-              <a href={project.links.live} target="_blank" rel="noreferrer" className="public-link">
+            {displayProject.links.live && (
+              <a href={displayProject.links.live} target="_blank" rel="noreferrer" className="public-link">
                 Live demo <ArrowUpRight size={15} />
               </a>
             )}

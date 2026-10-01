@@ -96,7 +96,7 @@ select is(
 select is(
   (select count(*)::int from pg_attribute
    where attrelid = 'public.public_project_card'::regclass and attnum > 0 and not attisdropped),
-  37, 'the public project card keeps its documented 37 safe columns');
+  39, 'the public project card keeps its documented 39 safe columns');
 
 -- ---------------------------------------------------------------------------
 -- 3. behavioural fixtures (rolled back at the end of the file)
@@ -118,6 +118,13 @@ update public.projects set repository_url = 'https://github.com/owner/private-re
 where id = 'aaaaaaaa-0000-4000-8000-000000000101';
 insert into public.project_settings (project_id, show_repository)
 values ('aaaaaaaa-0000-4000-8000-000000000101', true);
+update public.project_settings
+set show_public_accountability = true
+where project_id = 'aaaaaaaa-0000-4000-8000-000000000101';
+insert into public.project_settings (project_id, show_public_accountability, show_public_accountability_score)
+values
+  ('aaaaaaaa-0000-4000-8000-000000000102', true, true),
+  ('aaaaaaaa-0000-4000-8000-000000000103', true, false);
 insert into public.github_installations (id, user_id, installation_id, account_login, account_type)
 values ('cccccccc-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000001', 50001, 'owner', 'User');
 insert into public.github_repository_links (project_id, user_id, installation_record_id, repository_id, owner, name, full_name, default_branch, html_url, is_private)
@@ -138,7 +145,12 @@ insert into public.notes (user_id, project_id, title, content)
 values ('bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000201', 'User B note', 'secret');
 
 insert into public.accountability_snapshots (user_id, project_id, snapshot_date, score, health, github_status)
-values ('bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000201', '2026-10-01', 60, 'Steady', 'not-connected');
+values
+  ('bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000201', '2026-10-01', 60, 'Steady', 'not-connected'),
+  ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000101', '2026-10-01', 43, 'Steady', 'unavailable'),
+  ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000101', '2026-10-02', 77, 'Active', 'unavailable'),
+  ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', '2026-10-02', 90, 'Steady', 'not-connected'),
+  ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000103', '2026-10-02', null, 'Building Baseline', 'not-connected');
 insert into public.accountability_goals (user_id, project_id, title, metric, target, period_start, period_end)
 values ('bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000201', 'User B goal', 'tasks_completed', 2, '2026-10-01', '2026-10-07');
 
@@ -264,9 +276,51 @@ select is((select count(*)::int from public.public_project_list() where technolo
 select is((select repository_url from public.public_project_list() where slug = 'rls-user-a-public'), null, 'private GitHub repository details stay out of the public projection');
 select is((select repository_url from public.public_project_list() where slug = 'rls-user-b-public'), 'https://github.com/owner/public-repository', 'public repository URL appears only when repository display is enabled');
 select is((select progress from public.public_project_by_slug('rls-user-a-public') limit 1), 43, 'progress is derived deterministically from the workflow stage');
+select is((select public_accountability_health from public.public_project_list() where slug = 'rls-user-a-public'), null, 'the public project list omits accountability data even when sharing is enabled');
+select is((select public_accountability_health from public.public_project_by_slug('rls-user-a-public')), 'Active', 'an opted-in public project returns only its latest health label');
+select is((select public_accountability_score from public.public_project_by_slug('rls-user-a-public')), null, 'numeric score remains hidden until separately enabled');
+select is((select repository_url from public.public_project_by_slug('rls-user-a-public')), null, 'private GitHub repository details stay hidden from the accountability projection');
+select is((select public_accountability_health from public.public_project_by_slug('rls-user-b-public')), null, 'new projects default to private accountability');
+select is((select public_accountability_health from public.public_project_by_slug('rls-user-a-unlisted')), 'Building Baseline', 'an opted-in unlisted project gets a baseline label only through its exact link');
+select is((select public_accountability_score from public.public_project_by_slug('rls-user-a-unlisted')), null, 'baseline state never exposes a zero score');
+select is((select count(*)::int from public.public_project_by_slug('rls-user-a-private')), 0, 'sharing does not make a private project publicly resolvable');
+select is((select count(*)::int from pg_attribute where attrelid = 'public.public_project_card'::regclass and attname in ('factors', 'goals', 'reports', 'snapshots', 'github_status')), 0, 'the public result contains no private factors, goals, reports, snapshots, or GitHub status');
 select is(
   (select count(*)::int from public.public_project_by_slug('rls-user-a-unlisted')),
   least(current_setting('test.unlisted_projects')::int, 1), 'exactly one unlisted row is reachable through its slug');
+
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
+update public.project_settings set show_public_accountability_score = true where project_id = 'aaaaaaaa-0000-4000-8000-000000000101';
+reset role;
+set local role anon;
+set local request.jwt.claims = '{}';
+select is((select public_accountability_score from public.public_project_by_slug('rls-user-a-public')), 77, 'numeric score appears only after the owner separately enables it');
+
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
+update public.project_settings set show_public_accountability = false where project_id = 'aaaaaaaa-0000-4000-8000-000000000101';
+reset role;
+set local role anon;
+set local request.jwt.claims = '{}';
+select is((select visibility from public.public_project_by_slug('rls-user-a-public')), 'Public', 'disabling accountability sharing leaves the project public');
+select is((select public_accountability_health from public.public_project_by_slug('rls-user-a-public')), null, 'disabling sharing removes the health summary from the next projection request');
+select is((select public_accountability_score from public.public_project_by_slug('rls-user-a-public')), null, 'disabling sharing removes the score from the next projection request');
+
+reset role;
+update public.projects set status = 'Completed' where id = 'aaaaaaaa-0000-4000-8000-000000000101';
+update public.project_settings set show_public_accountability = true, show_public_accountability_score = true where project_id = 'aaaaaaaa-0000-4000-8000-000000000101';
+set local role anon;
+set local request.jwt.claims = '{}';
+select is((select public_accountability_health from public.public_project_by_slug('rls-user-a-public')), 'Completed', 'current completed status takes precedence over stale snapshot health');
+select is((select public_accountability_score from public.public_project_by_slug('rls-user-a-public')), null, 'completed projects do not expose a stale active score');
+reset role;
+update public.projects set visibility = 'Private' where id = 'aaaaaaaa-0000-4000-8000-000000000101';
+set local role anon;
+set local request.jwt.claims = '{}';
+select is((select count(*)::int from public.public_project_by_slug('rls-user-a-public')), 0, 'making a shared project private removes the whole public route');
 
 reset role;
 

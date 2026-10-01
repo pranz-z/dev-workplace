@@ -68,6 +68,8 @@ export interface ProjectSettingsRow {
   show_commit_count: boolean;
   show_streak: boolean;
   show_accountability: boolean;
+  show_public_accountability: boolean;
+  show_public_accountability_score: boolean;
   show_live_demo: boolean;
   show_repository: boolean;
   created_at: string;
@@ -238,6 +240,8 @@ export interface PublicProjectCardRow {
   completed_milestones: number;
   progress: number;
   updated_at: string;
+  public_accountability_health: string | null;
+  public_accountability_score: number | null;
 }
 
 /** Columns selected for workspace reads (explicit, never `*`). */
@@ -247,10 +251,10 @@ export const PROJECT_COLUMNS =
 /**
  * Public projection columns. Kept in sync with the composite type
  * public.public_project_card in supabase/schema.sql; tests/rls.sql asserts the
- * type still has exactly these 37 attributes.
+ * type still has exactly these 39 attributes.
  */
 export const PUBLIC_PROJECT_COLUMNS =
-  "id, slug, title, description, project_type, status, workflow_stage, role, team_size, start_date, target_date, is_featured, visibility, public_summary, public_problem, public_solution, public_result, repository_url, demo_url, docs_url, health_documentation, health_screenshots, health_testing, health_deployment, show_github_activity, show_commit_count, show_streak, show_accountability, show_live_demo, show_repository, technologies, total_tasks, completed_tasks, total_milestones, completed_milestones, progress, updated_at";
+  "id, slug, title, description, project_type, status, workflow_stage, role, team_size, start_date, target_date, is_featured, visibility, public_summary, public_problem, public_solution, public_result, repository_url, demo_url, docs_url, health_documentation, health_screenshots, health_testing, health_deployment, show_github_activity, show_commit_count, show_streak, show_accountability, show_live_demo, show_repository, technologies, total_tasks, completed_tasks, total_milestones, completed_milestones, progress, updated_at, public_accountability_health, public_accountability_score";
 
 /** Maps the lowercase database vocabulary to the UI's uppercase workflow stage. */
 export function toWorkflowPhase(stage: string): WorkflowPhase {

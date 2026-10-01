@@ -34,6 +34,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { UserMenu } from "@/components/auth/user-menu";
 import { GithubRepositoryBrowser } from "@/components/github/repository-browser";
 import { ProjectScreenshots } from "@/components/projects/project-screenshots";
+import { PublicAccountabilitySettings } from "@/components/projects/public-accountability-settings";
 import { hasLinkedGithubRepository } from "@/data/githubRepositoryLinkService";
 import { buildSeedState } from "@/data/mockData";
 import { calculateProjectAccountability } from "@/data/accountabilityService";
@@ -1596,6 +1597,9 @@ export default function Home() {
                 : "Available through your public portfolio and direct link."}
           </p>
         </div>
+        {authStatus === "authenticated" && workspaceStatus === "ready" && (
+          <PublicAccountabilitySettings key={selectedProject.id} projectId={selectedProject.id} />
+        )}
         {shareNotice?.projectId === selectedProject.id && <p role="status" className="mt-2 text-sm t-dark-muted">{shareNotice.message}</p>}
 
         <div className="mt-4 flex flex-wrap gap-2 border-b border-[var(--edge-dark)] pb-4">

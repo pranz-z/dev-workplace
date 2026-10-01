@@ -151,9 +151,22 @@ export interface ProjectSettings {
   showCommitCount: boolean;
   showStreak: boolean;
   showAccountability: boolean;
+  showPublicAccountability: boolean;
+  showPublicAccountabilityScore: boolean;
   showLiveDemo: boolean;
   showRepository: boolean;
 }
+
+export type PublicAccountabilityHealth =
+  | "Active"
+  | "Steady"
+  | "Needs Attention"
+  | "Stalled"
+  | "Blocked"
+  | "Completed"
+  | "On Hold"
+  | "Cancelled"
+  | "Building Baseline";
 
 /**
  * Row returned by the public projection functions
@@ -192,6 +205,8 @@ export interface PublicProject {
   showCommitCount: boolean;
   showStreak: boolean;
   showAccountability: boolean;
+  accountabilityHealth: PublicAccountabilityHealth | null;
+  accountabilityScore: number | null;
   showLiveDemo: boolean;
   showRepository: boolean;
   technologies: string[];

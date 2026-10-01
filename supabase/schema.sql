@@ -285,6 +285,8 @@ create table if not exists public.project_settings (
   show_commit_count boolean not null default false,
   show_streak boolean not null default false,
   show_accountability boolean not null default false,
+  show_public_accountability boolean not null default false,
+  show_public_accountability_score boolean not null default false,
   show_live_demo boolean not null default false,
   show_repository boolean not null default false,
   created_at timestamptz not null default now(),
@@ -297,6 +299,8 @@ alter table public.project_settings add column if not exists show_github_activit
 alter table public.project_settings add column if not exists show_commit_count boolean not null default false;
 alter table public.project_settings add column if not exists show_streak boolean not null default false;
 alter table public.project_settings add column if not exists show_accountability boolean not null default false;
+alter table public.project_settings add column if not exists show_public_accountability boolean not null default false;
+alter table public.project_settings add column if not exists show_public_accountability_score boolean not null default false;
 alter table public.project_settings add column if not exists show_live_demo boolean not null default false;
 alter table public.project_settings add column if not exists show_repository boolean not null default false;
 alter table public.project_settings add column if not exists created_at timestamptz not null default now();
@@ -848,7 +852,9 @@ create type public.public_project_card as (
   total_milestones integer,
   completed_milestones integer,
   progress integer,
-  updated_at timestamptz
+  updated_at timestamptz,
+  public_accountability_health text,
+  public_accountability_score smallint
 );
 
 -- Core query. SECURITY DEFINER + owner (postgres) means row level security is
@@ -896,6 +902,18 @@ as $$
       coalesce(s.show_accountability, false) as show_accountability,
       coalesce(s.show_live_demo, false) as show_live_demo,
       coalesce(s.show_repository, false) as show_repository,
+      case
+        when p_slug is null or not coalesce(s.show_public_accountability, false) then null
+        when p.status in ('Completed', 'Blocked', 'On Hold', 'Cancelled') then p.status
+        else latest.health
+      end as public_accountability_health,
+      case
+        when p_slug is null
+          or not coalesce(s.show_public_accountability, false)
+          or not coalesce(s.show_public_accountability_score, false)
+          or p.status in ('Completed', 'Blocked', 'On Hold', 'Cancelled') then null
+        else latest.score
+      end as public_accountability_score,
       case p.workflow_stage
         when 'idea' then 0 when 'planning' then 1 when 'research' then 2 when 'development' then 3
         when 'testing' then 4 when 'deployment' then 5 when 'maintenance' then 6 when 'completed' then 7
@@ -903,6 +921,16 @@ as $$
       end as stage_index
     from public.projects p
     left join public.project_settings s on s.project_id = p.id
+    left join lateral (
+      select snapshot.health, snapshot.score
+      from public.accountability_snapshots snapshot
+      where snapshot.project_id = p.id
+        and snapshot.user_id = p.user_id
+        and p_slug is not null
+        and coalesce(s.show_public_accountability, false)
+      order by snapshot.snapshot_date desc, snapshot.captured_at desc
+      limit 1
+    ) latest on true
     left join task_stats ts on ts.project_id = p.id
     left join milestone_stats ms on ms.project_id = p.id
     where (p.visibility = 'Public' or (p_include_unlisted and p.visibility = 'Unlisted'))
@@ -943,7 +971,9 @@ as $$
         / (s.workflow_weight + s.task_weight + s.milestone_weight)
       ) * 100)::int
     end),
-    s.updated_at
+    s.updated_at,
+    s.public_accountability_health,
+    s.public_accountability_score
   from scored s
   order by s.is_featured desc, s.updated_at desc;
 $$;
