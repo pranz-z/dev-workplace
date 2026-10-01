@@ -1,12 +1,12 @@
 import type { User } from "@supabase/supabase-js";
-import type { Profile } from "@/types";
+import type { Profile, PublicProfile } from "@/types";
 import { getWorkspaceContext } from "@/data/context";
-import type { ProfileRow } from "@/data/database.types";
+import type { ProfileRow, PublicProfileRow } from "@/data/database.types";
 import { describeDatabaseError, SAVE_FAILED_MESSAGE, serviceFail, serviceOk, type ServiceResult } from "@/data/serviceResult";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
-const PROFILE_COLUMNS = "id, display_name, username, github_username, avatar_url, bio, public_profile_enabled, time_zone, created_at, updated_at";
+const PROFILE_COLUMNS = "id, display_name, username, github_username, avatar_url, bio, headline, public_contact_email, show_public_contact_email, public_github_url, public_linkedin_url, public_website_url, public_profile_enabled, time_zone, created_at, updated_at";
 
 function mapProfileRow(row: ProfileRow): Profile {
   return {
@@ -16,9 +16,32 @@ function mapProfileRow(row: ProfileRow): Profile {
     githubUsername: row.github_username ?? undefined,
     avatarUrl: row.avatar_url ?? undefined,
     bio: row.bio ?? undefined,
+    headline: row.headline ?? undefined,
+    publicContactEmail: row.public_contact_email ?? undefined,
+    showPublicContactEmail: row.show_public_contact_email,
+    publicGithubUrl: row.public_github_url ?? undefined,
+    publicLinkedinUrl: row.public_linkedin_url ?? undefined,
+    publicWebsiteUrl: row.public_website_url ?? undefined,
     publicProfileEnabled: row.public_profile_enabled,
     timeZone: row.time_zone ?? undefined,
   };
+}
+
+export async function getPublicProfile(): Promise<PublicProfile | null> {
+  if (!isSupabaseConfigured()) return null;
+  const { data, error } = await getSupabaseBrowserClient().rpc("public_profile");
+  if (error) throw error;
+  const row = ((data ?? []) as PublicProfileRow[])[0];
+  return row ? {
+    displayName: row.display_name ?? "",
+    headline: row.headline ?? undefined,
+    bio: row.bio ?? undefined,
+    avatarUrl: row.avatar_url ?? undefined,
+    contactEmail: row.public_contact_email ?? undefined,
+    githubUrl: row.github_url ?? undefined,
+    linkedinUrl: row.linkedin_url ?? undefined,
+    websiteUrl: row.website_url ?? undefined,
+  } : null;
 }
 
 /** Reads the signed-in user's profile (owner-only through RLS). */
@@ -69,6 +92,12 @@ export interface ProfilePatch {
   githubUsername?: string | null;
   avatarUrl?: string | null;
   bio?: string | null;
+  headline?: string | null;
+  publicContactEmail?: string | null;
+  showPublicContactEmail?: boolean;
+  publicGithubUrl?: string | null;
+  publicLinkedinUrl?: string | null;
+  publicWebsiteUrl?: string | null;
   publicProfileEnabled?: boolean;
   timeZone?: string | null;
 }
@@ -83,6 +112,12 @@ export async function updateProfile(patch: ProfilePatch): Promise<ServiceResult<
   if (patch.githubUsername !== undefined) payload.github_username = patch.githubUsername?.trim() || null;
   if (patch.avatarUrl !== undefined) payload.avatar_url = patch.avatarUrl;
   if (patch.bio !== undefined) payload.bio = patch.bio;
+  if (patch.headline !== undefined) payload.headline = patch.headline?.trim() || null;
+  if (patch.publicContactEmail !== undefined) payload.public_contact_email = patch.publicContactEmail?.trim() || null;
+  if (patch.showPublicContactEmail !== undefined) payload.show_public_contact_email = patch.showPublicContactEmail;
+  if (patch.publicGithubUrl !== undefined) payload.public_github_url = patch.publicGithubUrl?.trim() || null;
+  if (patch.publicLinkedinUrl !== undefined) payload.public_linkedin_url = patch.publicLinkedinUrl?.trim() || null;
+  if (patch.publicWebsiteUrl !== undefined) payload.public_website_url = patch.publicWebsiteUrl?.trim() || null;
   if (patch.publicProfileEnabled !== undefined) payload.public_profile_enabled = patch.publicProfileEnabled;
   if (patch.timeZone !== undefined) payload.time_zone = patch.timeZone;
 

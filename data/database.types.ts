@@ -17,6 +17,12 @@ export interface ProfileRow {
   github_username: string | null;
   avatar_url: string | null;
   bio: string | null;
+  headline: string | null;
+  public_contact_email: string | null;
+  show_public_contact_email: boolean;
+  public_github_url: string | null;
+  public_linkedin_url: string | null;
+  public_website_url: string | null;
   public_profile_enabled: boolean;
   time_zone: string | null;
   created_at: string;
@@ -141,6 +147,26 @@ export interface ProjectScreenshotRow {
   id: string;
   user_id: string;
   project_id: string;
+  storage_path: string;
+  caption: string;
+  is_public: boolean;
+  created_at: string;
+}
+
+export interface PublicProfileRow {
+  display_name: string | null;
+  headline: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  public_contact_email: string | null;
+  github_url: string | null;
+  linkedin_url: string | null;
+  website_url: string | null;
+}
+
+export interface PublicProjectScreenshotRow {
+  id: string;
+  project_slug: string;
   storage_path: string;
   caption: string;
   created_at: string;

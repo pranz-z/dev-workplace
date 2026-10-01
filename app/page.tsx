@@ -35,6 +35,7 @@ import { UserMenu } from "@/components/auth/user-menu";
 import { GithubRepositoryBrowser } from "@/components/github/repository-browser";
 import { ProjectScreenshots } from "@/components/projects/project-screenshots";
 import { PublicAccountabilitySettings } from "@/components/projects/public-accountability-settings";
+import { PublicProfileSettings } from "@/components/profile/public-profile-settings";
 import { hasLinkedGithubRepository } from "@/data/githubRepositoryLinkService";
 import { buildSeedState } from "@/data/mockData";
 import { calculateProjectAccountability } from "@/data/accountabilityService";
@@ -2163,6 +2164,7 @@ export default function Home() {
       </div>
       <button type="button" onClick={() => void handleSignOut()} className="mt-4 ink-button coral px-3 py-2 text-sm">Sign out</button>
       {signOutError && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{signOutError}</p>}
+      {authStatus === "authenticated" && workspaceStatus === "ready" && <PublicProfileSettings />}
     </div>
   );
 

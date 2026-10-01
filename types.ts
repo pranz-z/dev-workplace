@@ -139,8 +139,25 @@ export interface Profile {
   githubUsername?: string;
   avatarUrl?: string;
   bio?: string;
+  headline?: string;
+  publicContactEmail?: string;
+  showPublicContactEmail: boolean;
+  publicGithubUrl?: string;
+  publicLinkedinUrl?: string;
+  publicWebsiteUrl?: string;
   publicProfileEnabled: boolean;
   timeZone?: string;
+}
+
+export interface PublicProfile {
+  displayName: string;
+  headline?: string;
+  bio?: string;
+  avatarUrl?: string;
+  contactEmail?: string;
+  githubUrl?: string;
+  linkedinUrl?: string;
+  websiteUrl?: string;
 }
 
 export interface ProjectSettings {

@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
-import { addProjectScreenshot, deleteProjectScreenshot, type ProjectScreenshot } from "@/data/projectScreenshotService";
+import { addProjectScreenshot, deleteProjectScreenshot, setProjectScreenshotPublic, type ProjectScreenshot } from "@/data/projectScreenshotService";
 
 interface ProjectScreenshotsProps {
   projectId: string;
@@ -68,11 +68,29 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
     }
   };
 
+  const handleVisibility = async (screenshot: ProjectScreenshot) => {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await setProjectScreenshotPublic(projectId, screenshot.id, !screenshot.isPublic);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onChange(screenshots.map((item) => item.id === screenshot.id ? result.data : item));
+    } catch {
+      setError("Couldn't update screenshot visibility.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="space-y-4 dark-panel p-4" aria-labelledby="project-screenshots-title">
       <div>
         <h3 id="project-screenshots-title" className="text-lg font-semibold t-dark">Project screenshots</h3>
-        <p className="mt-1 text-sm t-dark-muted">Private images stored with this project.</p>
+        <p className="mt-1 text-sm t-dark-muted">Images are private by default. Share individual screenshots on public project pages when they are ready.</p>
       </div>
       <form ref={formRef} onSubmit={(event) => void handleUpload(event)} className="grid gap-3 rounded-xl dark-inset p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
         <label className="min-w-0 text-sm t-dark-muted">Image
@@ -93,7 +111,10 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
               <img src={screenshot.signedUrl} alt={screenshot.caption || "Project screenshot"} className="aspect-video w-full object-cover" />
               <div className="flex items-start justify-between gap-2 p-3">
                 <p className="min-w-0 break-words text-sm t-dark-soft">{screenshot.caption || "No caption"}</p>
-                <button type="button" onClick={() => void handleRemove(screenshot)} disabled={saving} aria-label={`Remove screenshot${screenshot.caption ? `: ${screenshot.caption}` : ""}`} className="dark-chip shrink-0 p-2 transition-colors hover:text-[var(--accent-coral)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-coral)] disabled:opacity-50"><Trash2 size={14} /></button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button type="button" onClick={() => void handleVisibility(screenshot)} disabled={saving} aria-pressed={screenshot.isPublic} className="dark-chip px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-coral)] disabled:opacity-50">{screenshot.isPublic ? "Public" : "Private"}</button>
+                  <button type="button" onClick={() => void handleRemove(screenshot)} disabled={saving} aria-label={`Remove screenshot${screenshot.caption ? `: ${screenshot.caption}` : ""}`} className="dark-chip p-2 transition-colors hover:text-[var(--accent-coral)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-coral)] disabled:opacity-50"><Trash2 size={14} /></button>
+                </div>
               </div>
             </article>
           ))}

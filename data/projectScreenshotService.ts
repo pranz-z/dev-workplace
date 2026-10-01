@@ -1,6 +1,8 @@
 import { getWorkspaceContext, isUuid } from "@/data/context";
 import { describeDatabaseError, serviceFail, serviceOk, type ServiceResult } from "@/data/serviceResult";
-import type { ProjectScreenshotRow } from "@/data/database.types";
+import type { ProjectScreenshotRow, PublicProjectScreenshotRow } from "@/data/database.types";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 const BUCKET = "project-screenshots";
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -9,13 +11,14 @@ const IMAGE_TYPES: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
 };
-const SCREENSHOT_COLUMNS = "id, user_id, project_id, storage_path, caption, created_at";
+const SCREENSHOT_COLUMNS = "id, user_id, project_id, storage_path, caption, is_public, created_at";
 
 export interface ProjectScreenshot {
   id: string;
   projectId: string;
   storagePath: string;
   caption: string;
+  isPublic: boolean;
   createdAt: string;
   signedUrl: string;
 }
@@ -26,9 +29,29 @@ function mapScreenshot(row: ProjectScreenshotRow, signedUrl: string): ProjectScr
     projectId: row.project_id,
     storagePath: row.storage_path,
     caption: row.caption,
+    isPublic: row.is_public,
     createdAt: row.created_at,
     signedUrl,
   };
+}
+
+export async function listPublicProjectScreenshots(slug: string | null) {
+  if (!isSupabaseConfigured()) return [];
+  return listWithClient(getSupabaseBrowserClient(), slug);
+}
+
+async function listWithClient(supabase: import("@supabase/supabase-js").SupabaseClient, slug: string | null) {
+  const { data, error } = await supabase.rpc("public_project_screenshots", { p_slug: slug });
+  if (error) throw error;
+  const rows = (data ?? []) as PublicProjectScreenshotRow[];
+  if (rows.length === 0) return [];
+  const { data: signedUrls, error: signedUrlError } = await supabase.storage.from(BUCKET).createSignedUrls(rows.map((row) => row.storage_path), 60 * 5);
+  if (signedUrlError) throw signedUrlError;
+  return rows.map((row, index) => {
+    const signedUrl = signedUrls?.[index]?.signedUrl;
+    if (!signedUrl) throw new Error("Couldn't create a temporary URL for a shared screenshot.");
+    return { id: row.id, projectSlug: row.project_slug, caption: row.caption, createdAt: row.created_at, signedUrl };
+  });
 }
 
 export async function listProjectScreenshots(projectId: string): Promise<ProjectScreenshot[]> {
@@ -102,6 +125,23 @@ export async function addProjectScreenshot(
     console.error("[data] project screenshot URL failed", { operation: "sign_project_screenshot", message: signedUrlError.message });
     return serviceFail("Screenshot saved, but couldn't open it. Refresh the project and check the Storage policies.");
   }
+  return serviceOk(mapScreenshot(row, signed.signedUrl));
+}
+
+export async function setProjectScreenshotPublic(projectId: string, screenshotId: string, isPublic: boolean): Promise<ServiceResult<ProjectScreenshot>> {
+  if (!isUuid(projectId) || !isUuid(screenshotId)) return serviceFail("That screenshot is no longer available. Refresh and try again.");
+  const context = await getWorkspaceContext();
+  if (!context) return serviceFail("Sign in to update project screenshots.");
+  const { data, error } = await context.supabase.from("project_screenshots")
+    .update({ is_public: isPublic })
+    .eq("id", screenshotId)
+    .eq("project_id", projectId)
+    .select(SCREENSHOT_COLUMNS)
+    .single();
+  if (error) return serviceFail(describeDatabaseError(error, "Couldn't update screenshot visibility."));
+  const row = data as unknown as ProjectScreenshotRow;
+  const { data: signed, error: signedError } = await context.supabase.storage.from(BUCKET).createSignedUrl(row.storage_path, 60 * 60);
+  if (signedError) return serviceFail(describeDatabaseError(signedError, "Screenshot visibility was saved, but couldn't open the image."));
   return serviceOk(mapScreenshot(row, signed.signedUrl));
 }
 
