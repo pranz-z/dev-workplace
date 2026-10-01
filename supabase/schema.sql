@@ -151,6 +151,7 @@ create table if not exists public.projects (
   project_type text not null default 'Personal',
   status text not null default 'Planning',
   workflow_stage text not null default 'planning',
+  sort_order integer not null default 0,
   priority text not null default 'Medium',
   is_featured boolean not null default false,
   visibility text not null default 'Private',
@@ -185,6 +186,7 @@ create table if not exists public.projects (
 alter table public.projects add column if not exists slug text;
 alter table public.projects add column if not exists project_type text not null default 'Personal';
 alter table public.projects add column if not exists workflow_stage text not null default 'planning';
+alter table public.projects add column if not exists sort_order integer not null default 0;
 alter table public.projects add column if not exists priority text not null default 'Medium';
 alter table public.projects add column if not exists visibility text not null default 'Private';
 alter table public.projects add column if not exists team_size integer;
@@ -262,6 +264,9 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'projects_workflow_stage_check' and conrelid = 'public.projects'::regclass) then
     alter table public.projects add constraint projects_workflow_stage_check
       check (workflow_stage in ('idea', 'planning', 'research', 'development', 'testing', 'deployment', 'maintenance', 'completed', 'blocked', 'on_hold', 'cancelled'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'projects_sort_order_check' and conrelid = 'public.projects'::regclass) then
+    alter table public.projects add constraint projects_sort_order_check check (sort_order >= 0);
   end if;
   if not exists (select 1 from pg_constraint where conname = 'projects_priority_check' and conrelid = 'public.projects'::regclass) then
     alter table public.projects add constraint projects_priority_check check (priority in ('Low', 'Medium', 'High', 'Critical'));
@@ -419,6 +424,7 @@ create table if not exists public.tasks (
   title text not null,
   description text not null default '',
   status text not null default 'Backlog',
+  sort_order integer not null default 0,
   priority text not null default 'Medium',
   due_date timestamptz,
   created_at timestamptz not null default now(),
@@ -428,6 +434,7 @@ create table if not exists public.tasks (
 
 alter table public.tasks add column if not exists user_id uuid references auth.users(id) on delete cascade;
 alter table public.tasks add column if not exists description text not null default '';
+alter table public.tasks add column if not exists sort_order integer not null default 0;
 alter table public.tasks add column if not exists updated_at timestamptz not null default now();
 alter table public.tasks add column if not exists completed_at timestamptz;
 
@@ -455,6 +462,9 @@ begin
   end if;
   if not exists (select 1 from pg_constraint where conname = 'tasks_title_not_blank_check' and conrelid = 'public.tasks'::regclass) then
     alter table public.tasks add constraint tasks_title_not_blank_check check (length(btrim(title)) > 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'tasks_sort_order_check' and conrelid = 'public.tasks'::regclass) then
+    alter table public.tasks add constraint tasks_sort_order_check check (sort_order >= 0);
   end if;
   if not exists (select 1 from pg_constraint where conname = 'tasks_completed_at_check' and conrelid = 'public.tasks'::regclass) then
     alter table public.tasks add constraint tasks_completed_at_check
@@ -594,10 +604,18 @@ create table if not exists public.project_screenshots (
   storage_path text not null unique,
   caption text not null default '' check (char_length(caption) <= 200),
   is_public boolean not null default false,
+  sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   check (storage_path = user_id::text || '/' || project_id::text || '/' || split_part(storage_path, '/', 3))
 );
 alter table public.project_screenshots add column if not exists is_public boolean not null default false;
+alter table public.project_screenshots add column if not exists sort_order integer not null default 0;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'project_screenshots_sort_order_check' and conrelid = 'public.project_screenshots'::regclass) then
+    alter table public.project_screenshots add constraint project_screenshots_sort_order_check check (sort_order >= 0);
+  end if;
+end $$;
 
 alter table public.notes add column if not exists content text not null default '';
 alter table public.notes add column if not exists updated_at timestamptz not null default now();
@@ -684,6 +702,109 @@ $$;
 drop trigger if exists project_technologies_assert_consistency on public.project_technologies;
 create trigger project_technologies_assert_consistency before insert or update on public.project_technologies
   for each row execute function private.assert_project_technology_consistency();
+
+create or replace function public.reorder_projects_in_workflow(
+  p_project_id uuid,
+  p_source_stage text,
+  p_destination_stage text,
+  p_source_project_ids uuid[],
+  p_destination_project_ids uuid[]
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  source_ids uuid[] := coalesce(p_source_project_ids, array[]::uuid[]);
+  destination_ids uuid[] := coalesce(p_destination_project_ids, array[]::uuid[]);
+begin
+  if auth.uid() is null then
+    raise exception using errcode = '42501', message = 'Authentication required.';
+  end if;
+
+  if p_source_stage not in ('idea', 'planning', 'research', 'development', 'testing', 'deployment', 'maintenance', 'completed', 'blocked', 'on_hold', 'cancelled')
+    or p_destination_stage not in ('idea', 'planning', 'research', 'development', 'testing', 'deployment', 'maintenance', 'completed', 'blocked', 'on_hold', 'cancelled') then
+    raise exception using errcode = '22023', message = 'Invalid workflow stage.';
+  end if;
+
+  if cardinality(source_ids) <> (select count(distinct id) from unnest(source_ids) as ids(id))
+    or cardinality(destination_ids) <> (select count(distinct id) from unnest(destination_ids) as ids(id))
+    or not (p_project_id = any(destination_ids)) then
+    raise exception using errcode = '22023', message = 'Invalid project order.';
+  end if;
+
+  if not exists (
+    select 1 from public.projects p
+    where p.id = p_project_id and p.user_id = auth.uid() and p.workflow_stage = p_source_stage
+  ) then
+    raise exception using errcode = '42501', message = 'Project is not available in the source workflow stage.';
+  end if;
+
+  if p_source_stage = p_destination_stage then
+    if cardinality(source_ids) <> 0
+      or exists (
+        select p.id from public.projects p
+        where p.user_id = auth.uid() and p.workflow_stage = p_source_stage
+        except select unnest(destination_ids)
+      )
+      or exists (
+        select unnest(destination_ids)
+        except select p.id from public.projects p
+        where p.user_id = auth.uid() and p.workflow_stage = p_source_stage
+      ) then
+      raise exception using errcode = '22023', message = 'Project order does not match the workflow column.';
+    end if;
+
+    update public.projects p
+    set sort_order = (ordered.position - 1)::integer
+    from unnest(destination_ids) with ordinality as ordered(id, position)
+    where p.id = ordered.id and p.user_id = auth.uid() and p.workflow_stage = p_source_stage;
+  else
+    if p_project_id = any(source_ids)
+      or exists (
+        select p.id from public.projects p
+        where p.user_id = auth.uid() and p.workflow_stage = p_source_stage and p.id <> p_project_id
+        except select unnest(source_ids)
+      )
+      or exists (
+        select unnest(source_ids)
+        except select p.id from public.projects p
+        where p.user_id = auth.uid() and p.workflow_stage = p_source_stage and p.id <> p_project_id
+      )
+      or exists (
+        select p.id from public.projects p
+        where p.user_id = auth.uid() and p.workflow_stage = p_destination_stage
+        union select p_project_id
+        except select unnest(destination_ids)
+      )
+      or exists (
+        select unnest(destination_ids)
+        except (
+          select p.id from public.projects p
+          where p.user_id = auth.uid() and p.workflow_stage = p_destination_stage
+          union select p_project_id
+        )
+      ) then
+      raise exception using errcode = '22023', message = 'Project order does not match the workflow columns.';
+    end if;
+
+    update public.projects p
+    set sort_order = (ordered.position - 1)::integer
+    from unnest(source_ids) with ordinality as ordered(id, position)
+    where p.id = ordered.id and p.user_id = auth.uid() and p.workflow_stage = p_source_stage;
+
+    update public.projects p
+    set workflow_stage = p_destination_stage,
+        sort_order = (ordered.position - 1)::integer
+    from unnest(destination_ids) with ordinality as ordered(id, position)
+    where p.id = ordered.id and p.user_id = auth.uid()
+      and (p.workflow_stage = p_destination_stage or p.id = p_project_id);
+  end if;
+end;
+$$;
+
+revoke all on function public.reorder_projects_in_workflow(uuid, text, text, uuid[], uuid[]) from public;
 
 -- -----------------------------------------------------------------------------
 -- Row level security
@@ -1064,9 +1185,9 @@ language sql security definer stable set search_path = '' as $$
     and ((p_slug is null and p.visibility = 'Public') or (p.slug = p_slug and p.visibility in ('Public', 'Unlisted')))
     and (p_slug is not null or s.id = (
       select cover.id from public.project_screenshots cover where cover.project_id = p.id and cover.is_public
-      order by cover.created_at desc limit 1
+      order by cover.sort_order, cover.created_at desc, cover.id limit 1
     ))
-  order by s.created_at desc;
+  order by s.sort_order, s.created_at desc, s.id;
 $$;
 revoke all on function public.public_profile() from public;
 revoke all on function public.public_project_screenshots(text) from public;
@@ -1095,6 +1216,7 @@ revoke all on public.github_repository_links from anon;
 
 grant select, insert, update, delete on public.profiles to authenticated;
 grant select, insert, update, delete on public.projects to authenticated;
+grant execute on function public.reorder_projects_in_workflow(uuid, text, text, uuid[], uuid[]) to authenticated;
 grant select, insert, update, delete on public.project_settings to authenticated;
 grant select, insert, update, delete on public.milestones to authenticated;
 grant select, insert, update, delete on public.tasks to authenticated;
@@ -1103,6 +1225,7 @@ grant select, insert, update, delete on public.project_plan_items to authenticat
 grant select, insert, update, delete on public.notes to authenticated;
 grant select, insert, delete on public.project_screenshots to authenticated;
 grant update (is_public) on public.project_screenshots to authenticated;
+grant update (sort_order) on public.project_screenshots to authenticated;
 grant select, insert, update, delete on public.technologies to authenticated;
 grant select, insert, update, delete on public.project_technologies to authenticated;
 revoke all on public.github_installations from authenticated;
@@ -1114,6 +1237,7 @@ grant all on public.github_installations to service_role;
 -- Indexes (only what the application actually queries)
 -- -----------------------------------------------------------------------------
 create index if not exists projects_user_id_idx on public.projects (user_id);
+create index if not exists projects_owner_workflow_sort_order_idx on public.projects(user_id, workflow_stage, sort_order, id);
 create index if not exists projects_public_visibility_idx on public.projects (visibility, is_featured desc, updated_at desc) where visibility <> 'Private';
 create index if not exists tasks_user_id_idx on public.tasks (user_id);
 create index if not exists tasks_project_id_idx on public.tasks (project_id);
@@ -1126,6 +1250,8 @@ create index if not exists project_plan_items_project_id_idx on public.project_p
 create index if not exists notes_user_id_idx on public.notes (user_id);
 create index if not exists notes_project_id_idx on public.notes (project_id);
 create index if not exists project_screenshots_project_created_idx on public.project_screenshots(project_id, created_at desc);
+create index if not exists tasks_project_status_sort_order_idx on public.tasks(project_id, status, sort_order, id);
+create index if not exists project_screenshots_project_sort_order_idx on public.project_screenshots(project_id, sort_order, id);
 create index if not exists project_technologies_technology_id_idx on public.project_technologies (technology_id);
 
 -- -----------------------------------------------------------------------------

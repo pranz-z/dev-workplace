@@ -56,6 +56,24 @@ export async function setPlanItemDone(itemId: string, done: boolean): Promise<Se
   return serviceOk(mapPlanItemRow(data as PlanItemRow));
 }
 
+export async function reorderPlanItems(planId: string, itemIds: string[]): Promise<ServiceResult<PlanItem[]>> {
+  if (!isUuid(planId) || itemIds.some((id) => !isUuid(id)) || new Set(itemIds).size !== itemIds.length) {
+    return serviceFail("That plan order is no longer available. Refresh and try again.");
+  }
+  const context = await getWorkspaceContext();
+  if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
+  const results = await Promise.all(itemIds.map((id, index) => context.supabase.from("project_plan_items")
+    .update({ sort_order: index + 1 })
+    .eq("plan_id", planId)
+    .eq("id", id)
+    .select(PLAN_ITEM_COLUMNS)
+    .maybeSingle()));
+  const failed = results.find((result) => result.error || !result.data);
+  if (failed?.error) return serviceFail(describeDatabaseError(failed.error, SAVE_FAILED_MESSAGE));
+  if (failed) return serviceFail(SAVE_FAILED_MESSAGE);
+  return serviceOk(results.map((result) => mapPlanItemRow(result.data as PlanItemRow)).sort((a, b) => a.order - b.order));
+}
+
 export async function deletePlanItem(itemId: string): Promise<ServiceResult<{ id: string }>> {
   if (!isUuid(itemId)) return serviceFail("That plan step is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();

@@ -172,6 +172,24 @@ export async function moveMilestone(milestoneId: string, direction: "up" | "down
   return serviceOk(reordered.map(mapMilestoneRow));
 }
 
+export async function reorderProjectMilestones(projectId: string, milestoneIds: string[]): Promise<ServiceResult<Milestone[]>> {
+  if (!isUuid(projectId) || milestoneIds.some((id) => !isUuid(id)) || new Set(milestoneIds).size !== milestoneIds.length) {
+    return serviceFail("That milestone order is no longer available. Refresh and try again.");
+  }
+  const context = await getWorkspaceContext();
+  if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
+  const results = await Promise.all(milestoneIds.map((id, index) => context.supabase.from("milestones")
+    .update({ sort_order: index + 1 })
+    .eq("project_id", projectId)
+    .eq("id", id)
+    .select(MILESTONE_COLUMNS)
+    .maybeSingle()));
+  const failed = results.find((result) => result.error || !result.data);
+  if (failed?.error) return serviceFail(describeDatabaseError(failed.error, SAVE_FAILED_MESSAGE));
+  if (failed) return serviceFail(SAVE_FAILED_MESSAGE);
+  return serviceOk(results.map((result) => mapMilestoneRow(result.data as MilestoneRow)).sort((a, b) => a.order - b.order));
+}
+
 export async function deleteMilestone(milestoneId: string): Promise<ServiceResult<{ id: string }>> {
   if (!isUuid(milestoneId)) return serviceFail("That milestone is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();

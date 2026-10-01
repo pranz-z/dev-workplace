@@ -50,6 +50,8 @@ export interface Project {
   /** Derived from tasks, milestones and the workflow stage (lib/projectProgress.ts). */
   progress: number;
   currentPhase: WorkflowPhase;
+  /** Persisted order within the owner's current workflow stage. */
+  sortOrder?: number;
   objective: string;
   role: string;
   startDate: string;
@@ -88,6 +90,7 @@ export interface Task {
   projectId: string;
   milestoneId?: string;
   status: TaskStatus;
+  sortOrder?: number;
   priority: Priority;
   dueDate?: string;
   tags: string[];

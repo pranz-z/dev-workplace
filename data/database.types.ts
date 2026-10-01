@@ -38,6 +38,7 @@ export interface ProjectRow {
   project_type: string;
   status: ProjectStatus;
   workflow_stage: string;
+  sort_order: number;
   priority: Priority;
   is_featured: boolean;
   visibility: Visibility;
@@ -102,6 +103,7 @@ export interface TaskRow {
   title: string;
   description: string;
   status: TaskStatus;
+  sort_order: number;
   priority: Priority;
   due_date: string | null;
   created_at: string;
@@ -150,6 +152,7 @@ export interface ProjectScreenshotRow {
   storage_path: string;
   caption: string;
   is_public: boolean;
+  sort_order: number;
   created_at: string;
 }
 
@@ -272,7 +275,7 @@ export interface PublicProjectCardRow {
 
 /** Columns selected for workspace reads (explicit, never `*`). */
 export const PROJECT_COLUMNS =
-  "id, user_id, slug, title, description, project_type, status, workflow_stage, priority, is_featured, visibility, role, team_size, start_date, target_date, current_objective, next_action, public_summary, public_problem, public_solution, public_result, repository_url, demo_url, docs_url, health_documentation, health_screenshots, health_testing, health_deployment, github_repository_id, github_repository_owner, github_repository_name, created_at, updated_at";
+  "id, user_id, slug, title, description, project_type, status, workflow_stage, sort_order, priority, is_featured, visibility, role, team_size, start_date, target_date, current_objective, next_action, public_summary, public_problem, public_solution, public_result, repository_url, demo_url, docs_url, health_documentation, health_screenshots, health_testing, health_deployment, github_repository_id, github_repository_owner, github_repository_name, created_at, updated_at";
 
 /**
  * Public projection columns. Kept in sync with the composite type

@@ -2,7 +2,8 @@
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
-import { addProjectScreenshot, deleteProjectScreenshot, setProjectScreenshotPublic, type ProjectScreenshot } from "@/data/projectScreenshotService";
+import { SortableList } from "@/components/dnd/SortableList";
+import { addProjectScreenshot, deleteProjectScreenshot, reorderProjectScreenshots, setProjectScreenshotPublic, type ProjectScreenshot } from "@/data/projectScreenshotService";
 
 interface ProjectScreenshotsProps {
   projectId: string;
@@ -39,7 +40,7 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
         setError(result.error);
         return;
       }
-      onChange([result.data, ...screenshots]);
+      onChange([...screenshots, result.data]);
       setFile(null);
       setCaption("");
       formRef.current?.reset();
@@ -86,6 +87,27 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
     }
   };
 
+  const handleReorder = async (ordered: ProjectScreenshot[]) => {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    onChange(ordered.map((item, index) => ({ ...item, sortOrder: index })));
+    try {
+      const result = await reorderProjectScreenshots(projectId, ordered.map((item) => item.id));
+      if (!result.ok) {
+        await onRefresh();
+        setError(result.error);
+        return;
+      }
+      onChange(result.data);
+    } catch {
+      try { await onRefresh(); } catch { /* The parent records its own refresh error. */ }
+      setError("Couldn't save screenshot order. The gallery was refreshed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="space-y-4 dark-panel p-4" aria-labelledby="project-screenshots-title">
       <div>
@@ -103,22 +125,29 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
       </form>
       {(error || loadError) && <p role="alert" className="text-sm text-amber-300">{error || loadError}</p>}
       {loading ? <p role="status" className="text-sm t-dark-muted">Loading screenshots…</p> : screenshots.length ? (
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {screenshots.map((screenshot) => (
-            <article key={screenshot.id} className="min-w-0 overflow-hidden rounded-xl dark-inset">
+        <SortableList
+          items={screenshots}
+          getId={(item) => item.id}
+          className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          layout="grid"
+          disabled={saving}
+          onReorder={(items) => void handleReorder(items)}
+          renderItem={(screenshot, dragHandle) => (
+            <article className="min-w-0 overflow-hidden rounded-xl dark-inset">
               {/* Signed URLs are temporary and scoped to the authenticated user's private bucket access. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={screenshot.signedUrl} alt={screenshot.caption || "Project screenshot"} className="aspect-video w-full object-cover" />
               <div className="flex items-start justify-between gap-2 p-3">
                 <p className="min-w-0 break-words text-sm t-dark-soft">{screenshot.caption || "No caption"}</p>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1">
+                  {dragHandle}
                   <button type="button" onClick={() => void handleVisibility(screenshot)} disabled={saving} aria-pressed={screenshot.isPublic} className="dark-chip px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-coral)] disabled:opacity-50">{screenshot.isPublic ? "Public" : "Private"}</button>
                   <button type="button" onClick={() => void handleRemove(screenshot)} disabled={saving} aria-label={`Remove screenshot${screenshot.caption ? `: ${screenshot.caption}` : ""}`} className="dark-chip p-2 transition-colors hover:text-[var(--accent-coral)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-coral)] disabled:opacity-50"><Trash2 size={14} /></button>
                 </div>
               </div>
             </article>
-          ))}
-        </div>
+          )}
+        />
       ) : (
         <div className="rounded-xl dark-inset p-4 text-sm t-dark-muted">
           <p>No screenshots yet.</p>

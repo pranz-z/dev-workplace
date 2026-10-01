@@ -13,12 +13,12 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
-const TASK_COLUMNS = "id, user_id, project_id, milestone_id, title, description, status, priority, due_date, created_at, updated_at, completed_at";
+const TASK_COLUMNS = "id, user_id, project_id, milestone_id, title, description, status, sort_order, priority, due_date, created_at, updated_at, completed_at";
 
 export async function listTasks(): Promise<Task[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.from("tasks").select(TASK_COLUMNS).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("tasks").select(TASK_COLUMNS).order("sort_order", { ascending: true }).order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((row) => mapTaskRow(row as TaskRow));
 }
@@ -44,6 +44,16 @@ export async function createTask(input: TaskInput): Promise<ServiceResult<Task>>
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
   const status = input.status ?? "Backlog";
+  const { data: last, error: orderError } = await context.supabase
+    .from("tasks")
+    .select("sort_order")
+    .eq("project_id", input.projectId)
+    .eq("status", status)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (orderError) return serviceFail(describeDatabaseError(orderError, SAVE_FAILED_MESSAGE));
+
   const { data, error } = await context.supabase
     .from("tasks")
     .insert({
@@ -53,6 +63,7 @@ export async function createTask(input: TaskInput): Promise<ServiceResult<Task>>
       title,
       description: input.description ?? "",
       status,
+      sort_order: ((last as { sort_order?: number } | null)?.sort_order ?? 0) + 1,
       priority: input.priority ?? "Medium",
       due_date: input.dueDate ?? null,
       // The database enforces (status = 'Completed') = (completed_at is not null).
@@ -130,6 +141,41 @@ export async function completeTask(taskId: string): Promise<ServiceResult<Task>>
 
 export async function reopenTask(taskId: string): Promise<ServiceResult<Task>> {
   return setTaskStatus(taskId, "In Progress");
+}
+
+export interface TaskOrderUpdate {
+  id: string;
+  status: TaskStatus;
+  sortOrder: number;
+}
+
+/** Persist a bounded reorder within one project; RLS remains the ownership boundary. */
+export async function reorderProjectTasks(projectId: string, movedTaskId: string, sourceStatus: TaskStatus, updates: TaskOrderUpdate[]): Promise<ServiceResult<{ id: string }>> {
+  if (!isUuid(projectId) || !isUuid(movedTaskId) || !updates.some((item) => item.id === movedTaskId)
+    || new Set(updates.map((item) => item.id)).size !== updates.length
+    || updates.some((item) => !isUuid(item.id) || !Number.isInteger(item.sortOrder) || item.sortOrder < 1)) {
+    return serviceFail("That task order is no longer available. Refresh and try again.");
+  }
+  const context = await getWorkspaceContext();
+  if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
+
+  const results = await Promise.all(updates.map(async (item) => {
+    const payload: { status?: TaskStatus; sort_order: number; completed_at?: string | null } = { sort_order: item.sortOrder };
+    if (item.id === movedTaskId) {
+      payload.status = item.status;
+      if (item.status !== sourceStatus) payload.completed_at = item.status === "Completed" ? new Date().toISOString() : null;
+    }
+    return context.supabase.from("tasks").update(payload)
+      .eq("id", item.id)
+      .eq("project_id", projectId)
+      .eq("user_id", context.userId)
+      .select("id")
+      .maybeSingle();
+  }));
+  const failed = results.find((result) => result.error || !result.data);
+  if (failed?.error) return serviceFail(describeDatabaseError(failed.error, SAVE_FAILED_MESSAGE));
+  if (failed) return serviceFail(SAVE_FAILED_MESSAGE);
+  return serviceOk({ id: projectId });
 }
 
 export async function deleteTask(taskId: string): Promise<ServiceResult<{ id: string }>> {

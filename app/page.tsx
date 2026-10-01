@@ -34,6 +34,9 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { UserMenu } from "@/components/auth/user-menu";
 import { GithubRepositoryBrowser } from "@/components/github/repository-browser";
 import { ProjectScreenshots } from "@/components/projects/project-screenshots";
+import { ProjectKanbanBoard } from "@/components/projects/ProjectKanbanBoard";
+import { SortableList } from "@/components/dnd/SortableList";
+import { TaskKanbanBoard } from "@/components/tasks/TaskKanbanBoard";
 import { PublicAccountabilitySettings } from "@/components/projects/public-accountability-settings";
 import { PublicProfileSettings } from "@/components/profile/public-profile-settings";
 import { hasLinkedGithubRepository } from "@/data/githubRepositoryLinkService";
@@ -42,13 +45,13 @@ import { calculateProjectAccountability } from "@/data/accountabilityService";
 import { AccountabilityWorkspace } from "@/components/accountability/accountability-workspace";
 import { calculateProjectProgress } from "@/lib/projectProgress";
 import { loadWorkspaceData } from "@/data/workspaceService";
-import { completeTask, createTask, deleteTask, reopenTask, setTaskStatus, updateTask } from "@/data/taskService";
-import { createPlan, deletePlan, setPlanStatus, updatePlan } from "@/data/planService";
-import { createPlanItem, deletePlanItem, setPlanItemDone } from "@/data/planItemService";
-import { createMilestone, deleteMilestone, setMilestoneStatus, updateMilestone } from "@/data/milestoneService";
+import { completeTask, createTask, deleteTask, listTasks, reopenTask, reorderProjectTasks, setTaskStatus, updateTask } from "@/data/taskService";
+import { createPlan, deletePlan, listPlans, setPlanStatus, updatePlan } from "@/data/planService";
+import { createPlanItem, deletePlanItem, reorderPlanItems, setPlanItemDone } from "@/data/planItemService";
+import { createMilestone, deleteMilestone, listProjectMilestones, reorderProjectMilestones, setMilestoneStatus, updateMilestone } from "@/data/milestoneService";
 import { createNote, deleteNote, updateNote } from "@/data/noteService";
 import { attachTechnology, createTechnology, detachTechnology, listProjectTechnologyNames, listTechnologies } from "@/data/technologyService";
-import { createProject, deleteProject, setProjectVisibility, updateProject } from "@/data/projectService";
+import { createProject, deleteProject, reorderProjectsInWorkflow, setProjectVisibility, updateProject } from "@/data/projectService";
 import { listProjectScreenshots, type ProjectScreenshot } from "@/data/projectScreenshotService";
 import type {
   ActivityItem,
@@ -62,6 +65,8 @@ import type {
   Plan,
   Project,
   Task,
+  TaskStatus,
+  WorkflowPhase,
   TechnologyItem,
 } from "@/types";
 
@@ -166,15 +171,7 @@ const navGroups = [
   },
 ] as const;
 
-const workflowStages = [
-  "Planning",
-  "Research",
-  "Development",
-  "Testing",
-  "Deployment",
-  "Maintenance",
-  "Completed",
-];
+const workflowStages = ["Planning", "Research", "Development", "Testing", "Deployment", "Maintenance", "Completed"] as const;
 
 const unavailableViews = new Set<ViewName>(["calendar", "resume", "portfolio"]);
 
@@ -319,6 +316,9 @@ export default function Home() {
   const [projectGithubLinkState, setProjectGithubLinkState] = useState<{ projectId: string; connected: boolean; error: string } | null>(null);
   const [projectView, setProjectView] = useState<"grid" | "list" | "kanban">("grid");
   const [taskView, setTaskView] = useState<"list" | "kanban" | "today" | "upcoming">("kanban");
+  const [taskBoardProjectId, setTaskBoardProjectId] = useState("");
+  const [isPersistingOrder, setIsPersistingOrder] = useState(false);
+  const orderWriteLock = useRef(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [githubImportOpen, setGithubImportOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1055,12 +1055,68 @@ export default function Home() {
     } : plan));
   };
 
+  const reorderChecklist = (planId: string, orderedItems: NonNullable<Plan["items"]>) => {
+    if (orderWriteLock.current) return;
+    orderWriteLock.current = true;
+    setIsPersistingOrder(true);
+    setPlans((current) => current.map((plan) => plan.id === planId ? {
+      ...plan,
+      items: orderedItems.map((item, index) => ({ ...item, order: index + 1 })),
+      tasks: orderedItems.map((item) => ({ id: item.id, label: item.label, done: item.done })),
+    } : plan));
+    void (async () => {
+      try {
+        const result = await reorderPlanItems(planId, orderedItems.map((item) => item.id));
+        if (!result.ok) {
+          setPlans(await listPlans());
+          setWorkspaceError(result.error);
+        }
+      } catch {
+        try { setPlans(await listPlans()); } catch { /* Keep the last known state if refresh is unavailable. */ }
+        setWorkspaceError("Couldn't save checklist order. Your workspace was refreshed.");
+      } finally {
+        orderWriteLock.current = false;
+        setIsPersistingOrder(false);
+      }
+    })();
+  };
+
   const handleCreateMilestone = (projectId: string) => {
     setMilestoneEditor({ projectId, title: "", description: "", targetDate: "" });
   };
 
   const handleEditMilestone = (milestone: Milestone) => {
     setMilestoneEditor({ id: milestone.id, projectId: milestone.projectId, title: milestone.title, description: milestone.description ?? "", targetDate: dateInputValue(milestone.targetDate) });
+  };
+
+  const reorderMilestones = (projectId: string, orderedMilestones: Milestone[]) => {
+    if (orderWriteLock.current) return;
+    orderWriteLock.current = true;
+    setIsPersistingOrder(true);
+    setMilestones((current) => current.map((milestone) => {
+      if (milestone.projectId !== projectId) return milestone;
+      const index = orderedMilestones.findIndex((item) => item.id === milestone.id);
+      return index < 0 ? milestone : { ...milestone, order: index + 1 };
+    }));
+    void (async () => {
+      try {
+        const result = await reorderProjectMilestones(projectId, orderedMilestones.map((item) => item.id));
+        if (!result.ok) {
+          const refreshed = await listProjectMilestones(projectId);
+          setMilestones((current) => [...current.filter((item) => item.projectId !== projectId), ...refreshed]);
+          setWorkspaceError(result.error);
+        }
+      } catch {
+        try {
+          const refreshed = await listProjectMilestones(projectId);
+          setMilestones((current) => [...current.filter((item) => item.projectId !== projectId), ...refreshed]);
+        } catch { /* Keep the last known state if refresh is unavailable. */ }
+        setWorkspaceError("Couldn't save milestone order. Your workspace was refreshed.");
+      } finally {
+        orderWriteLock.current = false;
+        setIsPersistingOrder(false);
+      }
+    })();
   };
 
   const saveMilestone = async (event: FormEvent<HTMLFormElement>) => {
@@ -1230,6 +1286,90 @@ export default function Home() {
         updateDerivedProjectProgress(result.data.projectId, nextTasks);
       } else {
         setWorkspaceError(result.error);
+      }
+    })();
+  };
+
+  const moveTaskInBoard = (move: { taskId: string; sourceStatus: TaskStatus; destinationStatus: TaskStatus; sourceTaskIds: string[]; destinationTaskIds: string[] }) => {
+    if (orderWriteLock.current || !taskBoardProjectId) return;
+    const projectId = taskBoardProjectId;
+    const orderedIds = move.sourceStatus === move.destinationStatus
+      ? [{ status: move.destinationStatus, ids: move.destinationTaskIds }]
+      : [{ status: move.sourceStatus, ids: move.sourceTaskIds }, { status: move.destinationStatus, ids: move.destinationTaskIds }];
+    const updates = orderedIds.flatMap(({ status, ids }) => ids.map((id, index) => ({ id, status: id === move.taskId ? move.destinationStatus : status, sortOrder: index + 1 })));
+    const updateById = new Map(updates.map((item) => [item.id, item]));
+    const nextTasks = tasks.map((task) => {
+      const order = updateById.get(task.id);
+      return order ? { ...task, status: order.status, sortOrder: order.sortOrder, completedAt: order.status === "Completed" ? task.completedAt ?? new Date().toISOString() : undefined } : task;
+    });
+    orderWriteLock.current = true;
+    setIsPersistingOrder(true);
+    setTasks(nextTasks);
+    updateDerivedProjectProgress(projectId, nextTasks);
+    void (async () => {
+      try {
+        const result = await reorderProjectTasks(projectId, move.taskId, move.sourceStatus, updates);
+        if (!result.ok) {
+          const refreshed = await listTasks();
+          setTasks(refreshed);
+          updateDerivedProjectProgress(projectId, refreshed);
+          setWorkspaceError(result.error);
+        }
+      } catch {
+        try {
+          const refreshed = await listTasks();
+          setTasks(refreshed);
+          updateDerivedProjectProgress(projectId, refreshed);
+        } catch { /* Keep the last known state if Supabase is unavailable. */ }
+        setWorkspaceError("Couldn't save task order. Your workspace was refreshed.");
+      } finally {
+        orderWriteLock.current = false;
+        setIsPersistingOrder(false);
+      }
+    })();
+  };
+
+  const moveProjectInBoard = (move: { projectId: string; sourceStage: WorkflowPhase; destinationStage: WorkflowPhase; sourceProjectIds: string[]; destinationProjectIds: string[] }) => {
+    if (orderWriteLock.current || authStatus !== "authenticated" || workspaceStatus !== "ready") return;
+    const orders = move.sourceStage === move.destinationStage
+      ? [{ stage: move.destinationStage, ids: move.destinationProjectIds }]
+      : [{ stage: move.sourceStage, ids: move.sourceProjectIds }, { stage: move.destinationStage, ids: move.destinationProjectIds }];
+    const projectOrderById = new Map(orders.flatMap(({ stage, ids }) => ids.map((id, index) => [id, { stage, sortOrder: index }] as const)));
+    const nextProjects = projects.map((project) => {
+      const order = projectOrderById.get(project.id);
+      if (!order) return project;
+      return {
+        ...project,
+        currentPhase: order.stage,
+        sortOrder: order.sortOrder,
+        progress: calculateProjectProgress({
+          workflowStage: order.stage,
+          tasks: tasks.filter((task) => task.projectId === project.id),
+          milestones: milestones.filter((milestone) => milestone.projectId === project.id),
+        }).total,
+      };
+    });
+
+    orderWriteLock.current = true;
+    setIsPersistingOrder(true);
+    setProjects(nextProjects);
+    void (async () => {
+      try {
+        const result = await reorderProjectsInWorkflow(move);
+        if (!result.ok) {
+          const remote = await loadWorkspaceData();
+          if (remote) setProjects(remote.projects);
+          setWorkspaceError(result.error);
+        }
+      } catch {
+        try {
+          const remote = await loadWorkspaceData();
+          if (remote) setProjects(remote.projects);
+        } catch { /* Keep the last known state if Supabase is unavailable. */ }
+        setWorkspaceError("Couldn't save project order. Your workspace was refreshed.");
+      } finally {
+        orderWriteLock.current = false;
+        setIsPersistingOrder(false);
       }
     })();
   };
@@ -1785,21 +1925,31 @@ export default function Home() {
             {projectTab === "Milestones" && (
               <div className="space-y-3 dark-panel p-4">
                 <button type="button" onClick={() => handleCreateMilestone(selectedProject.id)} className="ink-button primary px-3 py-2 text-sm">Add milestone</button>
-                {projectMilestonesList.map((milestone) => (
-                  <div key={milestone.id} className="flex items-center justify-between dark-inset p-3">
-                    <div>
-                      <p className="font-medium t-dark">{milestone.title}</p>
-                      <p className="mt-1 text-xs t-dark-muted">Target: {formatDisplayDate(milestone.targetDate)}</p>
+                <SortableList
+                  items={projectMilestonesList}
+                  getId={(item) => item.id}
+                  className="space-y-3"
+                  disabled={authStatus !== "authenticated" || workspaceStatus !== "ready" || isPersistingOrder}
+                  onReorder={(items) => reorderMilestones(selectedProject.id, items)}
+                  renderItem={(milestone, dragHandle) => (
+                    <div className="flex items-center justify-between gap-2 dark-inset p-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {dragHandle}
+                        <div>
+                          <p className="font-medium t-dark">{milestone.title}</p>
+                          <p className="mt-1 text-xs t-dark-muted">Target: {formatDisplayDate(milestone.targetDate)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select value={milestone.status} onChange={(event) => void changeMilestoneStatus(milestone, event.target.value as Milestone["status"])} className="dark-chip px-2 py-1 text-xs">
+                          {(["pending", "active", "completed"] as const).map((status) => <option key={status}>{status}</option>)}
+                        </select>
+                        <button type="button" onClick={() => handleEditMilestone(milestone)} className="dark-chip px-2 py-1 text-xs">Edit</button>
+                        <button type="button" onClick={() => void removeMilestone(milestone.id)} className="dark-chip p-1.5"><X size={13} /></button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <select value={milestone.status} onChange={(event) => void changeMilestoneStatus(milestone, event.target.value as Milestone["status"])} className="dark-chip px-2 py-1 text-xs">
-                        {(["pending", "active", "completed"] as const).map((status) => <option key={status}>{status}</option>)}
-                      </select>
-                      <button type="button" onClick={() => handleEditMilestone(milestone)} className="dark-chip px-2 py-1 text-xs">Edit</button>
-                      <button type="button" onClick={() => void removeMilestone(milestone.id)} className="dark-chip p-1.5"><X size={13} /></button>
-                    </div>
-                  </div>
-                ))}
+                  )}
+                />
                 {projectMilestonesList.length === 0 && <p className="t-dark-muted">No milestones for this project yet.</p>}
               </div>
             )}
@@ -1877,28 +2027,16 @@ export default function Home() {
           )}
 
           {projectView === "kanban" && (
-            <div className="grid gap-4 xl:grid-cols-3">
-              {workflowStages.map((stage) => (
-                <div key={stage} className="dark-panel p-3">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="text-sm font-medium t-dark">{stage}</h3>
-                    <span className="dark-chip px-2 py-1">
-                      {projects.filter((project) => project.currentPhase === (stage === "Development" ? "DEVELOPMENT" : stage === "Planning" ? "PLANNING" : stage === "Research" ? "RESEARCH" : stage === "Testing" ? "TESTING" : stage === "Deployment" ? "DEPLOYMENT" : stage === "Maintenance" ? "MAINTENANCE" : "COMPLETED")).length}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {projects
-                      .filter((project) => project.currentPhase === (stage === "Development" ? "DEVELOPMENT" : stage === "Planning" ? "PLANNING" : stage === "Research" ? "RESEARCH" : stage === "Testing" ? "TESTING" : stage === "Deployment" ? "DEPLOYMENT" : stage === "Maintenance" ? "MAINTENANCE" : "COMPLETED"))
-                      .map((project) => (
-                        <button key={project.id} type="button" onClick={() => openProjectDetail(project)} className="w-full dark-inset p-3 text-left">
-                          <p className="text-sm font-medium t-dark">{project.name}</p>
-                          <p className="mt-1 text-[10px] uppercase tracking-[0.18em] t-dark-muted">{project.progress}%</p>
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ProjectKanbanBoard
+              projects={projects}
+              selectedProjectId={selectedProject?.id ?? ""}
+              busy={authStatus !== "authenticated" || workspaceStatus !== "ready" || isPersistingOrder}
+              onSelect={(projectId) => {
+                const project = projects.find((item) => item.id === projectId);
+                if (project) openProjectDetail(project);
+              }}
+              onMove={moveProjectInBoard}
+            />
           )}
         </div>
 
@@ -1932,34 +2070,27 @@ export default function Home() {
       </div>
 
       {taskView === "kanban" && (
-        <div className="grid gap-4 xl:grid-cols-3 2xl:grid-cols-7">
-          {taskColumns.map((column) => (
-            <div key={column} className="dark-panel p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-medium t-dark">{column}</h3>
-                <span className="dark-chip px-2 py-1">{tasks.filter((task) => task.status === column).length}</span>
-              </div>
-              <div className="space-y-2">
-                {tasks.filter((task) => task.status === column).map((task) => (
-                  <div key={task.id} className="dark-inset p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium t-dark">{task.title}</p>
-                      <button type="button" onClick={() => toggleTaskComplete(task.id)} className="text-xs text-[var(--ink-green)]">{task.status === "Completed" ? "Done" : "Done?"}</button>
-                    </div>
-                    <p className="mt-2 text-[11px] t-dark-muted">{projects.find((project) => project.id === task.projectId)?.name}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <span className={`${priorityColors[task.priority]}`}>{task.priority}</span>
-                      <span className="dark-chip px-2 py-1">{task.tags[0] ?? "Work"}</span>
-                    </div>
-                    <select aria-label={`Move ${task.title}`} value={task.status} onChange={(event) => updateTaskStatus(task.id, event.target.value as Task["status"])} className="mt-3 w-full dark-chip px-2 py-1 text-xs">
-                      {taskColumns.map((status) => <option key={status}>{status}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          {tasks.length === 0 && <p className="text-sm t-dark-muted">No tasks yet. Add a project before creating a task.</p>}
+        <div className="space-y-3">
+          <label className="flex flex-wrap items-center gap-2 text-sm t-dark-muted">
+            Reorder within project
+            <select value={taskBoardProjectId} onChange={(event) => setTaskBoardProjectId(event.target.value)} className="dark-chip px-3 py-2 text-sm t-dark">
+              <option value="">All projects (ordering disabled)</option>
+              {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+          </label>
+          {tasks.length === 0
+            ? <p className="text-sm t-dark-muted">No tasks yet. Add a project before creating a task.</p>
+            : <TaskKanbanBoard
+                projectId={authStatus === "authenticated" && workspaceStatus === "ready" ? taskBoardProjectId : ""}
+                tasks={taskBoardProjectId ? tasks.filter((task) => task.projectId === taskBoardProjectId) : tasks}
+                columns={taskColumns}
+                onMove={moveTaskInBoard}
+                onStatusChange={updateTaskStatus}
+                onComplete={toggleTaskComplete}
+                projects={projects}
+                busy={isPersistingOrder}
+              />}
+          {tasks.length > 0 && taskBoardProjectId && !tasks.some((task) => task.projectId === taskBoardProjectId) && <p className="text-sm t-dark-muted">No tasks for this project yet.</p>}
         </div>
       )}
 
@@ -2014,7 +2145,22 @@ export default function Home() {
                 <div className="progress-fill" style={{ width: `${percent}%` }} />
               </div>
               <div className="mt-4 space-y-2">
-                {plan.tasks.map((item) => (
+                {plan.items ? (
+                  <SortableList
+                    items={plan.items}
+                    getId={(item) => item.id}
+                    disabled={authStatus !== "authenticated" || workspaceStatus !== "ready" || isPersistingOrder}
+                    onReorder={(items) => reorderChecklist(plan.id, items)}
+                    renderItem={(item, dragHandle) => (
+                      <div className="flex items-center gap-2 text-sm t-dark-soft">
+                        {dragHandle}
+                        <input type="checkbox" checked={item.done} onChange={(event) => void togglePlanItem(plan.id, item.id, event.target.checked)} />
+                        <span className={item.done ? "text-[var(--ink-green)]" : "text-[var(--text-light-soft)]"}>{item.label}</span>
+                        <button type="button" onClick={() => void removePlanItem(plan.id, item.id)} className="ml-auto dark-chip p-1"><X size={12} /></button>
+                      </div>
+                    )}
+                  />
+                ) : plan.tasks.map((item) => (
                   <div key={item.id ?? item.label} className="flex items-center gap-2 text-sm t-dark-soft">
                     <input type="checkbox" checked={item.done} disabled={!item.id} onChange={(event) => item.id && void togglePlanItem(plan.id, item.id, event.target.checked)} />
                     <span className={item.done ? "text-[var(--ink-green)]" : "text-[var(--text-light-soft)]"}>{item.label}</span>

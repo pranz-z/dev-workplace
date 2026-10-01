@@ -87,6 +87,17 @@ export async function createProject(draft: ProjectDraft): Promise<ServiceResult<
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
+  const workflowStage = toWorkflowColumn(draft.currentPhase ?? "PLANNING");
+  const { data: lastInStage, error: orderError } = await context.supabase
+    .from("projects")
+    .select("sort_order")
+    .eq("user_id", context.userId)
+    .eq("workflow_stage", workflowStage)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (orderError) return serviceFail(describeDatabaseError(orderError, SAVE_FAILED_MESSAGE));
+
   const baseSlug = draft.slug && isValidSlug(draft.slug) ? draft.slug : name;
   let lastError: unknown = null;
   let created: ProjectRow | null = null;
@@ -102,7 +113,8 @@ export async function createProject(draft: ProjectDraft): Promise<ServiceResult<
         description: draft.description ?? "",
         project_type: draft.type ?? "Personal",
         status: draft.status ?? "Planning",
-        workflow_stage: toWorkflowColumn(draft.currentPhase ?? "PLANNING"),
+        workflow_stage: workflowStage,
+        sort_order: ((lastInStage as { sort_order?: number } | null)?.sort_order ?? -1) + 1,
         priority: draft.priority ?? "Medium",
         visibility: draft.visibility ?? "Private",
         is_featured: draft.featured ?? false,
@@ -196,7 +208,29 @@ export async function updateProject(projectId: string, patch: ProjectPatch): Pro
   if (patch.description !== undefined) payload.description = patch.description;
   if (patch.type !== undefined) payload.project_type = patch.type;
   if (patch.status !== undefined) payload.status = patch.status;
-  if (patch.currentPhase !== undefined) payload.workflow_stage = toWorkflowColumn(patch.currentPhase);
+  if (patch.currentPhase !== undefined) {
+    const nextWorkflowStage = toWorkflowColumn(patch.currentPhase);
+    const { data: current, error: currentError } = await context.supabase.from("projects")
+      .select("workflow_stage")
+      .eq("id", projectId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (currentError) return serviceFail(describeDatabaseError(currentError, SAVE_FAILED_MESSAGE));
+    if (!current) return serviceFail(SAVE_FAILED_MESSAGE);
+    payload.workflow_stage = nextWorkflowStage;
+    if (current.workflow_stage !== nextWorkflowStage) {
+      const { data: lastInStage, error: orderError } = await context.supabase.from("projects")
+        .select("sort_order")
+        .eq("user_id", context.userId)
+        .eq("workflow_stage", nextWorkflowStage)
+        .neq("id", projectId)
+        .order("sort_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (orderError) return serviceFail(describeDatabaseError(orderError, SAVE_FAILED_MESSAGE));
+      payload.sort_order = ((lastInStage as { sort_order?: number } | null)?.sort_order ?? -1) + 1;
+    }
+  }
   if (patch.priority !== undefined) payload.priority = patch.priority;
   if (patch.role !== undefined) payload.role = patch.role.trim() || null;
   if (patch.teamSize !== undefined) payload.team_size = patch.teamSize ?? null;
@@ -224,6 +258,7 @@ export async function updateProject(projectId: string, patch: ProjectPatch): Pro
     .from("projects")
     .update(payload)
     .eq("id", projectId)
+    .eq("user_id", context.userId)
     .select(PROJECT_COLUMNS)
     .single();
 
@@ -256,6 +291,37 @@ export async function updateProject(projectId: string, patch: ProjectPatch): Pro
       technologies: technologyNames,
     }),
   );
+}
+
+export interface ProjectWorkflowOrder {
+  projectId: string;
+  sourceStage: WorkflowPhase;
+  destinationStage: WorkflowPhase;
+  sourceProjectIds: string[];
+  destinationProjectIds: string[];
+}
+
+/** Persist both affected workflow columns atomically under the caller's RLS identity. */
+export async function reorderProjectsInWorkflow(input: ProjectWorkflowOrder): Promise<ServiceResult<{ id: string }>> {
+  const allIds = [...input.sourceProjectIds, ...input.destinationProjectIds];
+  if (!isUuid(input.projectId) || allIds.some((id) => !isUuid(id)) || new Set(allIds).size !== allIds.length
+    || !input.destinationProjectIds.includes(input.projectId)
+    || (input.sourceStage === input.destinationStage && input.sourceProjectIds.length !== 0)
+    || (input.sourceStage !== input.destinationStage && input.sourceProjectIds.includes(input.projectId))) {
+    return serviceFail("That project order is no longer available. Refresh and try again.");
+  }
+  const context = await getWorkspaceContext();
+  if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
+
+  const { error } = await context.supabase.rpc("reorder_projects_in_workflow", {
+    p_project_id: input.projectId,
+    p_source_stage: toWorkflowColumn(input.sourceStage),
+    p_destination_stage: toWorkflowColumn(input.destinationStage),
+    p_source_project_ids: input.sourceProjectIds,
+    p_destination_project_ids: input.destinationProjectIds,
+  });
+  if (error) return serviceFail(describeDatabaseError(error, SAVE_FAILED_MESSAGE));
+  return serviceOk({ id: input.projectId });
 }
 
 export async function setProjectVisibility(projectId: string, visibility: Visibility): Promise<ServiceResult<Project>> {
