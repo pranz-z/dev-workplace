@@ -112,7 +112,7 @@ Create a GitHub App in **GitHub → Settings → Developer settings → GitHub A
 - **Redirect on update**: enable this so repository selection changes return to the workspace
 - **Request user authorization during installation**: leave unchecked; Phase 3A starts the separate user authorization flow after GitHub returns to the Setup URL
 - **Webhook**: leave disabled for Phase 3A
-- **Repository permissions**: `Metadata: Read-only` only; no write permissions are used
+- **Repository permissions**: `Metadata: Read-only`, `Contents: Read-only`, `Pull requests: Read-only`, and `Issues: Read-only`; no write permissions are used
 - **Where can this GitHub App be installed?**: choose the account scope that fits your use; users select the repositories during installation
 
 Save the App, copy its numeric **App ID** and **Client ID**, generate a **Client secret**, and generate a private key from the App's **Private keys** section. Set these values in the ignored local `.env.local` file (never in `NEXT_PUBLIC_*` variables). Also copy the Supabase **service role key** from Project Settings → API; the callback uses it only after GitHub confirms the signed-in GitHub user can access the installation. Authenticated users can read only their own installation rows; they cannot create or change those rows directly.
@@ -130,7 +130,13 @@ The private key may also be entered with literal newlines. Set the GitHub App's 
 
 Installation and repository IDs are unique per Developer Workplace user. This lets two workspace users connect the same organization installation and link the same repository independently while preventing duplicate links within either user's workspace. Apply `supabase/migrations/20261001100000_phase3a_github_repository_connections.sql` only after reviewing it, then restart the app and use **GitHub → Connect GitHub** in the authenticated workspace.
 
-For production, change the GitHub App homepage and setup URL to the deployed HTTPS origin and add the same three server-only variables to the hosting provider. OAuth login remains configured separately in Supabase.
+## Phase 3B — GitHub activity sync
+
+The authenticated project **GitHub** tab shows up to 10 recent commits, pull requests, and issues plus the latest five releases for its linked repository. Activity is read live through the owning workspace user's GitHub App installation; responses are cached briefly per user and repository in the server process, with an explicit **Refresh activity** action. Private activity remains in the authenticated project workspace. Public project views continue to expose only the existing safe repository link behavior.
+
+Phase 3B requires read-only `Contents`, `Pull requests`, and `Issues` repository permissions in addition to Phase 3A's `Metadata` read permission. The REST endpoints used for commits and releases require `Contents: Read`, listing pull requests requires `Pull requests: Read`, and listing repository issues requires `Issues: Read` ([commits](https://docs.github.com/en/rest/commits/commits#list-commits), [pull requests](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests), [issues](https://docs.github.com/en/rest/issues/issues#list-repository-issues), [releases](https://docs.github.com/en/rest/releases/releases#list-releases)). **Manual setup required:** update the GitHub App permissions and approve the permission change for existing installations before expecting private repository activity to load. No write permissions or database migration are required.
+
+For production, change the GitHub App homepage and setup URL to the deployed HTTPS origin and add all variables listed above to the hosting provider. OAuth login remains configured separately in Supabase.
 
 The unauthenticated prototype may still show seeded demo data. Authenticated repository flows never fall back to demo repositories.
 
@@ -138,7 +144,7 @@ The unauthenticated prototype may still show seeded demo data. Authenticated rep
 
 The Phase 1 foundation intentionally leaves these areas deferred:
 
-- GitHub OAuth remains the identity provider; commit/activity feeds, webhooks, and accountability scoring remain deferred
+- GitHub OAuth remains the identity provider; webhooks and accountability scoring remain deferred
 - no multi-user collaboration
 - `/app` always requires a verified Supabase session; without Supabase configuration the private workspace stays locked and only the public routes serve mock data
 - GitHub write operations and webhooks are not enabled yet; the trusted server boundary returns an explicit `501` until configured

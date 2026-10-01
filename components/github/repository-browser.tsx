@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExternalLink, RefreshCw, Unlink } from "lucide-react";
 import type { Project } from "@/types";
+import { GithubProjectActivity } from "@/components/github/project-activity";
 
 interface Repository {
   id: number;
@@ -41,7 +42,8 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
   const [search, setSearch] = useState("");
   const [visibility, setVisibility] = useState<"all" | "public" | "private">("all");
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [attachProjectId, setAttachProjectId] = useState("");
+  const [attachProjectIds, setAttachProjectIds] = useState<Record<number, string>>({});
+  const [repositoryErrors, setRepositoryErrors] = useState<Record<number, string>>({});
 
   const refresh = useCallback(async (force = false) => {
     setLoading(true);
@@ -82,7 +84,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
 
   const linkRepository = async (repository: Repository, mode: "import" | "attach", targetProjectId?: string) => {
     setBusy(true);
-    setError("");
+    setRepositoryErrors((current) => ({ ...current, [repository.id]: "" }));
     try {
       const response = await fetch("/api/github/link", {
         method: "POST",
@@ -91,10 +93,18 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "The repository could not be linked.");
+      setRepositoryErrors((current) => {
+        const next = { ...current };
+        delete next[repository.id];
+        return next;
+      });
       await refresh();
       onLinked?.();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The repository could not be linked.");
+      setRepositoryErrors((current) => ({
+        ...current,
+        [repository.id]: cause instanceof Error ? cause.message : "The repository could not be linked.",
+      }));
     } finally {
       setBusy(false);
     }
@@ -117,7 +127,8 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
   };
 
   if (projectId) {
-    return <section className="dark-panel p-4" aria-label="GitHub repository">
+    return <div className="space-y-4">
+      <section className="dark-panel p-4" aria-label="GitHub repository">
       <div className="flex items-center justify-between gap-3">
         <div><p className="eyebrow t-dark-soft">GitHub repository</p><h3 className="mt-1 text-lg font-semibold t-dark">{linkedForProject?.fullName ?? "No repository linked"}</h3></div>
         {linkedForProject && <><button type="button" disabled={busy || loading} onClick={() => void refresh(true)} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm"><RefreshCw size={14} /> Refresh</button><button type="button" disabled={busy} onClick={() => void unlinkProject(projectId)} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm"><Unlink size={14} /> Unlink</button></>}
@@ -128,7 +139,9 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
         <a href={linkedForProject.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[var(--ink-coral)]">Open GitHub <ExternalLink size={13} /></a>
       </div>}
       {!linkedForProject && error && <button type="button" onClick={() => void refresh()} className="mt-2 text-sm text-[var(--ink-coral)]">Refresh repository status</button>}
-    </section>;
+      </section>
+      {linkedForProject && <GithubProjectActivity projectId={projectId} />}
+    </div>;
   }
 
   return <div className="space-y-5">
@@ -158,10 +171,11 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {repository.linkedProjectId ? <span className="dark-chip px-2 py-1 text-xs">Already linked{projects.find((project) => project.id === repository.linkedProjectId) ? `: ${projects.find((project) => project.id === repository.linkedProjectId)?.name}` : ""}</span> : <>
               <button type="button" disabled={busy} onClick={() => void linkRepository(repository, "import")} className="ink-button primary rounded-xl px-3 py-2 text-sm">Import as project</button>
-              {availableProjects.length > 0 && <><select value={attachProjectId} onChange={(event) => setAttachProjectId(event.target.value)} className="dark-chip min-w-40 px-2 py-2 text-sm" aria-label={`Project to attach ${repository.fullName}`}><option value="">Choose project…</option>{availableProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><button type="button" disabled={busy || !attachProjectId} onClick={() => void linkRepository(repository, "attach", attachProjectId)} className="dark-chip px-3 py-2 text-sm">Attach</button></>}
+              {availableProjects.length > 0 && <><select value={attachProjectIds[repository.id] ?? ""} onChange={(event) => setAttachProjectIds((current) => ({ ...current, [repository.id]: event.target.value }))} className="dark-chip min-w-40 px-2 py-2 text-sm" aria-label={`Project to attach ${repository.fullName}`}><option value="">Choose project…</option>{availableProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><button type="button" disabled={busy || !attachProjectIds[repository.id]} onClick={() => void linkRepository(repository, "attach", attachProjectIds[repository.id])} className="dark-chip px-3 py-2 text-sm">Attach</button></>}
             </>}
             <a href={repository.url} target="_blank" rel="noreferrer" className="dark-chip inline-flex items-center gap-1 px-3 py-2 text-sm">Preview <ExternalLink size={13} /></a>
           </div>
+          {repositoryErrors[repository.id] && <p role="alert" className="mt-3 text-sm text-rose-300">{repositoryErrors[repository.id]}</p>}
           {selected?.id === repository.id && <div className="mt-3 rounded-xl bg-black/10 p-3 text-sm t-dark-muted"><p className="font-medium t-dark">Repository preview</p><p className="mt-1">{repository.description || "No description provided by GitHub."}</p><p className="mt-2">{repository.private ? "Private repository" : "Public repository"} · {repository.language ?? "Primary language not specified"} · default branch {repository.defaultBranch} · updated {dateLabel(repository.updatedAt)}</p></div>}
         </article>)}</div>}
     </>}

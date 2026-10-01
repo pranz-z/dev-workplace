@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash, createPrivateKey, createSign, randomBytes } from "node:crypto";
+import type { GithubCommitActivity, GithubIssueActivity, GithubPullRequestActivity, GithubReleaseActivity, GithubRepositoryActivity } from "@/data/githubActivityTypes";
 
 export interface GithubAppInstallation {
   id: number;
@@ -17,6 +18,8 @@ export interface GithubRepository {
   language: string | null;
   default_branch: string;
   updated_at: string;
+  pushed_at: string | null;
+  archived: boolean;
 }
 
 export class GithubIntegrationError extends Error {
@@ -72,10 +75,14 @@ async function githubRequest<T>(path: string, token: string, init?: RequestInit)
     },
   });
   if (!response.ok) {
-    if (response.status === 404 || response.status === 403) {
-      const rateLimited = response.headers.get("x-ratelimit-remaining") === "0";
-      throw new GithubIntegrationError(rateLimited ? "GitHub rate limit reached. Try again later." : "GitHub could not access this installation or repository. Check its permissions and try reconnecting.", response.status);
+    const rateLimited = response.status === 429 || (response.status === 403 && (
+      response.headers.get("x-ratelimit-remaining") === "0" || Boolean(response.headers.get("retry-after"))
+    ));
+    if (rateLimited) {
+      throw new GithubIntegrationError("GitHub rate limit reached. Try again later.", 429);
     }
+    if (response.status === 404) throw new GithubIntegrationError("Repository access is no longer available. Update your GitHub App installation or unlink this repository.", 404);
+    if (response.status === 403) throw new GithubIntegrationError("GitHub denied access. Confirm the GitHub App has the required read permissions and repository access.", 403);
     throw new GithubIntegrationError(response.status >= 500 ? "GitHub is temporarily unavailable. Try again shortly." : "GitHub rejected the repository request.", response.status);
   }
   return response.json() as Promise<T>;
@@ -135,10 +142,136 @@ export async function listInstallationRepositories(token: string): Promise<Githu
 }
 
 export async function getInstallationRepository(token: string, repositoryId: number): Promise<GithubRepository> {
-  const repositories = await listInstallationRepositories(token);
-  const repository = repositories.find((item) => item.id === repositoryId);
-  if (!repository) throw new GithubIntegrationError("This repository is no longer available to the connected GitHub installation.", 404);
-  return repository;
+  for (let page = 1; page <= 10; page += 1) {
+    const result = await githubRequest<{ repositories: GithubRepository[]; total_count: number }>(
+      `/installation/repositories?per_page=100&page=${page}`, token,
+    );
+    const repository = result.repositories.find((item) => item.id === repositoryId);
+    if (repository) return repository;
+    if (result.repositories.length < 100 || page * 100 >= result.total_count) break;
+  }
+  throw new GithubIntegrationError("Repository access is no longer available. Update your GitHub App installation or unlink this repository.", 404);
+}
+
+interface GithubCommitResponse {
+  sha: string;
+  html_url: string;
+  commit: { message: string; author: { name: string; date: string } | null; committer: { date: string } | null };
+  author: { login: string } | null;
+}
+
+interface GithubPullRequestResponse {
+  number: number;
+  title: string;
+  state: "open" | "closed";
+  draft: boolean;
+  created_at: string;
+  updated_at: string;
+  merged_at: string | null;
+  html_url: string;
+  user: { login: string } | null;
+}
+
+interface GithubIssueResponse {
+  number: number;
+  title: string;
+  state: "open" | "closed";
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  html_url: string;
+  user: { login: string } | null;
+  pull_request?: { url: string };
+}
+
+interface GithubReleaseResponse {
+  tag_name: string;
+  name: string | null;
+  draft: boolean;
+  prerelease: boolean;
+  published_at: string | null;
+  html_url: string;
+}
+
+export async function getRecentRepositoryActivity(token: string, repository: GithubRepository): Promise<GithubRepositoryActivity> {
+  const owner = encodeURIComponent(repository.owner.login);
+  const name = encodeURIComponent(repository.name);
+  const base = `/repos/${owner}/${name}`;
+  const [rawCommits, rawPullRequests, rawIssues, rawReleases] = await Promise.all([
+    githubRequest<GithubCommitResponse[]>(`${base}/commits?per_page=10`, token),
+    githubRequest<GithubPullRequestResponse[]>(`${base}/pulls?state=all&sort=updated&direction=desc&per_page=10`, token),
+    githubRequest<GithubIssueResponse[]>(`${base}/issues?state=all&sort=updated&direction=desc&per_page=10`, token),
+    githubRequest<GithubReleaseResponse[]>(`${base}/releases?per_page=5`, token),
+  ]);
+  const commits: GithubCommitActivity[] = rawCommits.map((commit) => ({
+    sha: commit.sha,
+    shortSha: commit.sha.slice(0, 7),
+    title: commit.commit.message.split(/\r?\n/, 1)[0] || "Commit",
+    author: commit.author?.login ?? commit.commit.author?.name ?? null,
+    occurredAt: commit.commit.author?.date ?? commit.commit.committer?.date ?? null,
+    url: commit.html_url,
+  }));
+  const pullRequests: GithubPullRequestActivity[] = rawPullRequests.map((pull) => ({
+    number: pull.number,
+    title: pull.title,
+    state: pull.merged_at ? "merged" : pull.state,
+    draft: pull.draft,
+    author: pull.user?.login ?? null,
+    createdAt: pull.created_at,
+    updatedAt: pull.updated_at,
+    mergedAt: pull.merged_at,
+    url: pull.html_url,
+  }));
+  const issues: GithubIssueActivity[] = rawIssues.filter((issue) => !issue.pull_request).map((issue) => ({
+    number: issue.number,
+    title: issue.title,
+    state: issue.state,
+    author: issue.user?.login ?? null,
+    createdAt: issue.created_at,
+    updatedAt: issue.updated_at,
+    closedAt: issue.closed_at,
+    url: issue.html_url,
+  }));
+  const releases: GithubReleaseActivity[] = rawReleases.map((release) => ({
+    tagName: release.tag_name,
+    name: release.name,
+    draft: release.draft,
+    prerelease: release.prerelease,
+    publishedAt: release.published_at,
+    url: release.html_url,
+  }));
+  const timestamps = [
+    repository.pushed_at,
+    ...commits.map((item) => item.occurredAt),
+    ...pullRequests.map((item) => item.updatedAt),
+    ...issues.map((item) => item.updatedAt),
+    ...releases.map((item) => item.publishedAt),
+  ].filter((value): value is string => Boolean(value));
+  const lastActivityAt = timestamps.sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+  const latestReleaseAt = releases.find((release) => release.publishedAt)?.publishedAt ?? null;
+
+  return {
+    repository: {
+      id: repository.id,
+      fullName: repository.full_name,
+      private: repository.private,
+      archived: repository.archived,
+      updatedAt: repository.updated_at,
+      pushedAt: repository.pushed_at,
+    },
+    summary: {
+      lastActivityAt,
+      recentCommitCount: commits.length,
+      recentPullRequestCount: pullRequests.length,
+      recentIssueCount: issues.length,
+      latestReleaseAt,
+    },
+    commits,
+    pullRequests,
+    issues,
+    releases,
+    fetchedAt: new Date().toISOString(),
+  };
 }
 
 export function toSafeRepository(repository: GithubRepository) {
