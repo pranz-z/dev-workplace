@@ -570,6 +570,17 @@ create table if not exists public.notes (
   updated_at timestamptz not null default now()
 );
 
+-- Screenshots stay in a private Storage bucket; this table holds only owner-checked metadata.
+create table if not exists public.project_screenshots (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid not null references public.projects(id) on delete cascade,
+  storage_path text not null unique,
+  caption text not null default '' check (char_length(caption) <= 200),
+  created_at timestamptz not null default now(),
+  check (storage_path = user_id::text || '/' || project_id::text || '/' || split_part(storage_path, '/', 3))
+);
+
 alter table public.notes add column if not exists content text not null default '';
 alter table public.notes add column if not exists updated_at timestamptz not null default now();
 
@@ -667,6 +678,7 @@ alter table public.tasks enable row level security;
 alter table public.plans enable row level security;
 alter table public.project_plan_items enable row level security;
 alter table public.notes enable row level security;
+alter table public.project_screenshots enable row level security;
 alter table public.technologies enable row level security;
 alter table public.project_technologies enable row level security;
 alter table public.github_installations enable row level security;
@@ -687,6 +699,9 @@ drop policy if exists "own tasks" on public.tasks;
 drop policy if exists "own plans" on public.plans;
 drop policy if exists "own project plan items" on public.project_plan_items;
 drop policy if exists "own notes" on public.notes;
+drop policy if exists "read own project screenshots" on public.project_screenshots;
+drop policy if exists "add own project screenshots" on public.project_screenshots;
+drop policy if exists "remove own project screenshots" on public.project_screenshots;
 drop policy if exists "own technologies" on public.technologies;
 drop policy if exists "own project technologies" on public.project_technologies;
 drop policy if exists "own github installations" on public.github_installations;
@@ -722,6 +737,20 @@ create policy "own notes" on public.notes for all to authenticated
   using (user_id = auth.uid() and (project_id is null or private.owns_project(project_id)))
   with check (user_id = auth.uid() and (project_id is null or private.owns_project(project_id)));
 
+create policy "read own project screenshots" on public.project_screenshots for select to authenticated
+  using (user_id = auth.uid() and private.owns_project(project_id));
+
+create policy "add own project screenshots" on public.project_screenshots for insert to authenticated
+  with check (
+    user_id = auth.uid()
+    and private.owns_project(project_id)
+    and split_part(storage_path, '/', 1) = auth.uid()::text
+    and split_part(storage_path, '/', 2) = project_id::text
+  );
+
+create policy "remove own project screenshots" on public.project_screenshots for delete to authenticated
+  using (user_id = auth.uid() and private.owns_project(project_id));
+
 create policy "own technologies" on public.technologies for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
@@ -745,6 +774,29 @@ create policy "own project github links" on public.github_repository_links for a
   with check (user_id = auth.uid() and private.owns_project(project_id) and exists (
     select 1 from public.github_installations i where i.id = installation_record_id and i.user_id = auth.uid()
   ));
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('project-screenshots', 'project-screenshots', false, 10485760, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set
+  name = excluded.name,
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "read own project screenshot files" on storage.objects;
+create policy "read own project screenshot files" on storage.objects for select to authenticated
+  using (bucket_id = 'project-screenshots' and (storage.foldername(name))[1] = auth.uid()::text
+    and exists (select 1 from public.projects p where p.id::text = (storage.foldername(name))[2] and p.user_id = auth.uid()));
+
+drop policy if exists "upload own project screenshot files" on storage.objects;
+create policy "upload own project screenshot files" on storage.objects for insert to authenticated
+  with check (bucket_id = 'project-screenshots' and (storage.foldername(name))[1] = auth.uid()::text
+    and exists (select 1 from public.projects p where p.id::text = (storage.foldername(name))[2] and p.user_id = auth.uid()));
+
+drop policy if exists "delete own project screenshot files" on storage.objects;
+create policy "delete own project screenshot files" on storage.objects for delete to authenticated
+  using (bucket_id = 'project-screenshots' and (storage.foldername(name))[1] = auth.uid()::text
+    and exists (select 1 from public.projects p where p.id::text = (storage.foldername(name))[2] and p.user_id = auth.uid()));
 
 -- -----------------------------------------------------------------------------
 -- Public portfolio projection
@@ -944,6 +996,7 @@ revoke all on public.tasks from anon;
 revoke all on public.plans from anon;
 revoke all on public.project_plan_items from anon;
 revoke all on public.notes from anon;
+revoke all on public.project_screenshots from anon;
 revoke all on public.technologies from anon;
 revoke all on public.project_technologies from anon;
 revoke all on public.github_installations from anon;
@@ -957,6 +1010,7 @@ grant select, insert, update, delete on public.tasks to authenticated;
 grant select, insert, update, delete on public.plans to authenticated;
 grant select, insert, update, delete on public.project_plan_items to authenticated;
 grant select, insert, update, delete on public.notes to authenticated;
+grant select, insert, delete on public.project_screenshots to authenticated;
 grant select, insert, update, delete on public.technologies to authenticated;
 grant select, insert, update, delete on public.project_technologies to authenticated;
 revoke all on public.github_installations from authenticated;
@@ -979,6 +1033,7 @@ create index if not exists project_plan_items_plan_id_idx on public.project_plan
 create index if not exists project_plan_items_project_id_idx on public.project_plan_items (project_id);
 create index if not exists notes_user_id_idx on public.notes (user_id);
 create index if not exists notes_project_id_idx on public.notes (project_id);
+create index if not exists project_screenshots_project_created_idx on public.project_screenshots(project_id, created_at desc);
 create index if not exists project_technologies_technology_id_idx on public.project_technologies (technology_id);
 
 -- -----------------------------------------------------------------------------

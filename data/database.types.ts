@@ -134,6 +134,15 @@ export interface NoteRow {
   updated_at: string;
 }
 
+export interface ProjectScreenshotRow {
+  id: string;
+  user_id: string;
+  project_id: string;
+  storage_path: string;
+  caption: string;
+  created_at: string;
+}
+
 export interface TechnologyRow {
   id: string;
   user_id: string;

@@ -3,9 +3,17 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import type { GithubRepositoryActivity } from "@/data/githubActivityTypes";
+import { calculateProjectAccountability } from "@/data/accountabilityService";
+import { ProjectAccountabilityCard } from "@/components/accountability/project-accountability-card";
+import type { Milestone, Plan, Project, Task } from "@/types";
 
 interface GithubProjectActivityProps {
   projectId: string;
+  project: Project;
+  tasks: Task[];
+  milestones: Milestone[];
+  plans: Plan[];
+  showAccountability: boolean;
 }
 
 const displayDate = (value: string | null) => value
@@ -18,7 +26,7 @@ function ActivityLink({ href, children }: { href: string; children: ReactNode })
   </a>;
 }
 
-export function GithubProjectActivity({ projectId }: GithubProjectActivityProps) {
+export function GithubProjectActivity({ projectId, project, tasks, milestones, plans, showAccountability }: GithubProjectActivityProps) {
   const [activity, setActivity] = useState<GithubRepositoryActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -27,6 +35,7 @@ export function GithubProjectActivity({ projectId }: GithubProjectActivityProps)
   const loadActivity = useCallback(async (refresh = false) => {
     if (requestInFlight.current) return;
     requestInFlight.current = true;
+    setActivity(null);
     setLoading(true);
     setError("");
     try {
@@ -43,12 +52,22 @@ export function GithubProjectActivity({ projectId }: GithubProjectActivityProps)
     }
   }, [projectId]);
 
+  const accountability = calculateProjectAccountability({
+    project,
+    tasks,
+    milestones,
+    plans,
+    github: activity ? { status: "available", activity } : { status: loading ? "loading" : "unavailable" },
+  });
+
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadActivity(); }, 0);
     return () => window.clearTimeout(timer);
   }, [loadActivity]);
 
-  return <section className="dark-panel p-4 md:p-5" aria-label="GitHub activity">
+  return <div className="space-y-4">
+    {showAccountability && <ProjectAccountabilityCard projectName={project.name} result={accountability} />}
+    <section className="dark-panel p-4 md:p-5" aria-label="GitHub activity">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="eyebrow t-dark-soft">Connected repository</p>
@@ -101,7 +120,8 @@ export function GithubProjectActivity({ projectId }: GithubProjectActivityProps)
       </div>
     </>}
     {!loading && !activity && !error && <p role="status" className="mt-4 text-sm t-dark-muted">Repository activity is not available yet.</p>}
-  </section>;
+    </section>
+  </div>;
 }
 
 function ActivityGroup({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {

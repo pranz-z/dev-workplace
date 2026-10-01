@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExternalLink, RefreshCw, Unlink } from "lucide-react";
 import type { Project } from "@/types";
 import { GithubProjectActivity } from "@/components/github/project-activity";
+import { calculateProjectAccountability } from "@/data/accountabilityService";
+import { ProjectAccountabilityCard } from "@/components/accountability/project-accountability-card";
+import type { Milestone, Plan, Task } from "@/types";
 
 interface Repository {
   id: number;
@@ -28,11 +31,15 @@ interface RepositoryBrowserProps {
   projectId?: string;
   onLinked?: () => void;
   onClose?: () => void;
+  tasks?: Task[];
+  milestones?: Milestone[];
+  plans?: Plan[];
+  showAccountability?: boolean;
 }
 
 const dateLabel = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 
-export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose }: RepositoryBrowserProps) {
+export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose, tasks = [], milestones = [], plans = [], showAccountability = false }: RepositoryBrowserProps) {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [projectRepository, setProjectRepository] = useState<LinkedRepository | null>(null);
   const [connected, setConnected] = useState(false);
@@ -127,7 +134,16 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
   };
 
   if (projectId) {
+    const project = projects.find((item) => item.id === projectId);
+    const accountability = project ? calculateProjectAccountability({
+      project,
+      tasks,
+      milestones,
+      plans,
+      github: { status: "not-connected" },
+    }) : null;
     return <div className="space-y-4">
+      {showAccountability && !loading && !linkedForProject && project && accountability && <ProjectAccountabilityCard projectName={project.name} result={accountability} />}
       <section className="dark-panel p-4" aria-label="GitHub repository">
       <div className="flex items-center justify-between gap-3">
         <div><p className="eyebrow t-dark-soft">GitHub repository</p><h3 className="mt-1 text-lg font-semibold t-dark">{linkedForProject?.fullName ?? "No repository linked"}</h3></div>
@@ -140,7 +156,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
       </div>}
       {!linkedForProject && error && <button type="button" onClick={() => void refresh()} className="mt-2 text-sm text-[var(--ink-coral)]">Refresh repository status</button>}
       </section>
-      {linkedForProject && <GithubProjectActivity projectId={projectId} />}
+      {linkedForProject && project && <GithubProjectActivity key={projectId} projectId={projectId} project={project} tasks={tasks} milestones={milestones} plans={plans} showAccountability={showAccountability} />}
     </div>;
   }
 

@@ -87,6 +87,7 @@ export function mapTaskRow(row: TaskRow): Task {
     dueDate: row.due_date ?? undefined,
     tags: [],
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     completedAt: row.completed_at ?? undefined,
   };
 }
@@ -113,6 +114,7 @@ export function mapPlanItemRow(row: PlanItemRow): PlanItem {
     label: row.label,
     done: row.done,
     order: row.sort_order,
+    updatedAt: row.updated_at,
   };
 }
 

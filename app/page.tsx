@@ -10,7 +10,6 @@ import {
   Code2,
   FolderGit2,
   FolderKanban,
-  Flame,
   GitBranch,
   Globe,
   LayoutDashboard,
@@ -30,12 +29,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { UserMenu } from "@/components/auth/user-menu";
 import { GithubRepositoryBrowser } from "@/components/github/repository-browser";
+import { ProjectScreenshots } from "@/components/projects/project-screenshots";
+import { hasLinkedGithubRepository } from "@/data/githubRepositoryLinkService";
 import { buildSeedState } from "@/data/mockData";
-import { calculateAccountabilityScore } from "@/data/githubAccountabilityService";
+import { calculateProjectAccountability } from "@/data/accountabilityService";
 import { calculateProjectProgress } from "@/lib/projectProgress";
 import { loadWorkspaceData } from "@/data/workspaceService";
 import { completeTask, createTask, deleteTask, reopenTask, setTaskStatus, updateTask } from "@/data/taskService";
@@ -45,6 +46,7 @@ import { createMilestone, deleteMilestone, setMilestoneStatus, updateMilestone }
 import { createNote, deleteNote, updateNote } from "@/data/noteService";
 import { attachTechnology, createTechnology, detachTechnology, listProjectTechnologyNames, listTechnologies } from "@/data/technologyService";
 import { createProject, deleteProject, setProjectVisibility, updateProject } from "@/data/projectService";
+import { listProjectScreenshots, type ProjectScreenshot } from "@/data/projectScreenshotService";
 import type {
   ActivityItem,
   GithubActivityEvent,
@@ -272,12 +274,14 @@ const formatLongDate = (value?: string) => {
   }).format(date);
 };
 
-const formatRelativeAge = (value?: string) => {
-  if (!value) return "No activity";
-  const days = Math.floor((Date.now() - new Date(value).getTime()) / (24 * 60 * 60 * 1000));
-  if (days <= 0) return "Today";
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
+const isHttpUrl = (value?: string) => {
+  if (!value) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
 };
 
 export default function Home() {
@@ -304,6 +308,10 @@ export default function Home() {
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [projectTab, setProjectTab] = useState("Overview");
+  const [projectTaskFilter, setProjectTaskFilter] = useState<"all" | "testing">("all");
+  const [noteProjectFilter, setNoteProjectFilter] = useState("");
+  const [projectScreenshotsState, setProjectScreenshotsState] = useState<{ projectId: string; screenshots: ProjectScreenshot[]; error: string } | null>(null);
+  const [projectGithubLinkState, setProjectGithubLinkState] = useState<{ projectId: string; connected: boolean; error: string } | null>(null);
   const [projectView, setProjectView] = useState<"grid" | "list" | "kanban">("grid");
   const [taskView, setTaskView] = useState<"list" | "kanban" | "today" | "upcoming">("kanban");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -313,7 +321,6 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [focusRunning, setFocusRunning] = useState(false);
-  const [publicVisibility, setPublicVisibility] = useState({ score: true, streak: true, commits: false, projects: true, heatmap: false, recent: false, username: false });
   const [workspaceStatus, setWorkspaceStatus] = useState<"checking" | "mock" | "ready" | "error">("checking");
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
   const [workspaceError, setWorkspaceError] = useState("");
@@ -501,10 +508,6 @@ export default function Home() {
   }, [authStatus, workspaceStatus, projects, tasks, plans, milestones, activities, githubRepos, githubActivity, jobApplications, freelanceLeads, learningItems, notes, technologies, selectedProjectId]);
 
   useEffect(() => {
-    window.localStorage.setItem("developer-workplace-public-visibility", JSON.stringify(publicVisibility));
-  }, [publicVisibility]);
-
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -535,6 +538,68 @@ export default function Home() {
     () => projects.find((project) => project.id === selectedProjectId) ?? projects[0],
     [projects, selectedProjectId],
   );
+
+  const currentProjectScreenshots = projectScreenshotsState?.projectId === selectedProject?.id ? projectScreenshotsState : null;
+  const projectScreenshots = currentProjectScreenshots?.screenshots ?? [];
+  const projectScreenshotsError = currentProjectScreenshots?.error ?? "";
+  const projectScreenshotsLoading = Boolean(selectedProject?.id && authStatus === "authenticated" && workspaceStatus === "ready" && !currentProjectScreenshots);
+  const currentProjectGithubLink = projectGithubLinkState?.projectId === selectedProject?.id ? projectGithubLinkState : null;
+  const projectGithubLinked = currentProjectGithubLink?.connected ?? false;
+  const projectGithubLoading = Boolean(selectedProject?.id && authStatus === "authenticated" && workspaceStatus === "ready" && !currentProjectGithubLink);
+
+  const refreshProjectScreenshots = useCallback(async (projectId: string) => {
+    if (authStatus !== "authenticated" || workspaceStatus !== "ready") return;
+    try {
+      const data = await listProjectScreenshots(projectId);
+      if (selectedProjectId !== projectId) return;
+      setProjectScreenshotsState({ projectId, screenshots: data, error: "" });
+    } catch (error) {
+      if (selectedProjectId !== projectId) return;
+      setProjectScreenshotsState({ projectId, screenshots: [], error: error instanceof Error ? error.message : "Couldn't load project screenshots." });
+    }
+  }, [authStatus, workspaceStatus, selectedProjectId]);
+
+  useEffect(() => {
+    if (!selectedProject?.id || authStatus !== "authenticated" || workspaceStatus !== "ready") return;
+    let current = true;
+    void listProjectScreenshots(selectedProject.id)
+      .then((data) => { if (current) setProjectScreenshotsState({ projectId: selectedProject.id, screenshots: data, error: "" }); })
+      .catch((error: unknown) => {
+        if (current) {
+          setProjectScreenshotsState({ projectId: selectedProject.id, screenshots: [], error: error instanceof Error ? error.message : "Couldn't load project screenshots." });
+        }
+      });
+    return () => { current = false; };
+  }, [selectedProject?.id, authStatus, workspaceStatus]);
+
+  useEffect(() => {
+    if (!selectedProject?.id || authStatus !== "authenticated" || workspaceStatus !== "ready") return;
+    let current = true;
+    void hasLinkedGithubRepository(selectedProject.id)
+      .then((connected) => { if (current) setProjectGithubLinkState({ projectId: selectedProject.id, connected, error: "" }); })
+      .catch((error: unknown) => {
+        if (current) setProjectGithubLinkState({ projectId: selectedProject.id, connected: false, error: error instanceof Error ? error.message : "Couldn't check this project's GitHub connection." });
+      });
+    return () => { current = false; };
+  }, [selectedProject?.id, authStatus, workspaceStatus]);
+
+  const handleProjectHealthAction = (action: "documentation" | "screenshots" | "github" | "testing" | "deployment", projectId: string) => {
+    setSelectedProjectId(projectId);
+    setShowcaseMode("workspace");
+    if (action === "documentation") {
+      setNoteProjectFilter(projectId);
+      setActiveView("notes");
+      return;
+    }
+    setActiveView("projects");
+    if (action === "screenshots") setProjectTab("Screenshots");
+    if (action === "github") setProjectTab("GitHub");
+    if (action === "testing") {
+      setProjectTaskFilter("testing");
+      setProjectTab("Tasks");
+    }
+    if (action === "deployment") setProjectTab("Workflow");
+  };
 
   const todayTasks = useMemo(
     () => tasks.filter((task) => task.status !== "Completed").slice(0, 4),
@@ -569,7 +634,16 @@ export default function Home() {
     return items;
   }, [tasks, milestones]);
 
-  const accountability = useMemo(() => calculateAccountabilityScore(projects, githubActivity), [projects, githubActivity]);
+  const projectAccountability = useMemo(() => projects.map((project) => ({
+    project,
+    result: calculateProjectAccountability({
+      project,
+      tasks,
+      milestones,
+      plans,
+      github: project.health.github ? { status: "loading" } : { status: "not-connected" },
+    }),
+  })), [projects, tasks, milestones, plans]);
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -840,6 +914,13 @@ export default function Home() {
     }
     setWorkspaceError("");
     setTaskEditor({ title: "", description: "", projectId, status: "Backlog", priority: "Medium", dueDate: "" });
+  };
+
+  const handleCreateTestingTask = () => {
+    const projectId = selectedProject?.id;
+    if (!projectId) return;
+    setWorkspaceError("");
+    setTaskEditor({ title: "Testing: ", description: "", projectId, status: "Backlog", priority: "Medium", dueDate: "" });
   };
 
   const handleEditTask = (task: Task) => {
@@ -1179,62 +1260,6 @@ export default function Home() {
     })();
   };
 
-  const renderAccountability = () => {
-    const healthByProject = new Map(accountability.projectHealth.map((item) => [item.projectId, item]));
-    const heatmap = Array.from({ length: 30 }, (_, index) => {
-      const date = new Date();
-      date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() - (29 - index));
-      const key = date.toISOString().slice(0, 10);
-      const count = githubActivity.filter((event) => event.meaningful && event.occurredAt.slice(0, 10) === key).length;
-      return { key, label: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), count };
-    });
-    const needsAttention = projects.filter((project) => healthByProject.get(project.id)?.health === "Needs Attention");
-
-    return (
-      <section className="dark-panel accountability-panel p-4 md:p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <div className="flex items-center gap-2"><FolderGit2 size={17} className="t-mood" /><p className="eyebrow t-mood">GitHub accountability</p></div>
-            <h2 className="mt-2 text-2xl font-semibold t-dark">Build, ship, document, repeat.</h2>
-            <p className="mt-1 max-w-2xl text-sm t-dark-muted">A transparent consistency signal, not a measure of programming ability.</p>
-          </div>
-          <span className="dark-chip px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]">Demo data</span>
-        </div>
-
-        <div className="mt-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="dark-inset p-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div><p className="eyebrow t-dark-soft">Accountability score</p><p className="mt-2 text-5xl font-semibold t-dark">{accountability.total}<span className="text-xl t-dark-soft"> / 100</span></p></div>
-              <div className="sm:text-right"><p className="flex items-center gap-2 text-lg font-semibold t-dark"><Flame size={18} className="text-[var(--accent-peach-solid)]" /> {accountability.currentStreak} day streak</p><p className="mt-1 text-xs t-dark-muted">{accountability.state} · {accountability.activeDaysThisWeek} active days this week</p></div>
-            </div>
-            <div className="progress-track mt-4 h-2.5"><div className="progress-fill" style={{ width: `${accountability.total}%` }} /></div>
-            <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              {["Consistency", "Maintenance", "New projects", "Documentation", "Momentum"].map((label, index) => {
-                const values = [accountability.consistency, accountability.maintenance, accountability.newProjects, accountability.documentation, accountability.momentum];
-                const max = [40, 25, 15, 10, 10][index];
-                return <div key={label} className="text-xs t-dark-muted"><div className="flex justify-between gap-2"><span>{label}</span><span>{values[index]} / {max}</span></div><div className="progress-track mt-1 h-1.5"><div className="progress-fill" style={{ width: `${(values[index] / max) * 100}%` }} /></div></div>;
-              })}
-            </div>
-          </div>
-
-          <div className="dark-inset p-4">
-            <div className="flex items-center justify-between"><p className="eyebrow t-dark-soft">Last 30 days</p><span className="text-xs t-dark-muted">Meaningful activity</span></div>
-            <div className="activity-heatmap mt-4" aria-label="GitHub activity heatmap">{heatmap.map((day) => <span key={day.key} title={`${day.label}: ${day.count} meaningful activities`} className={`activity-cell level-${Math.min(day.count, 3)}`} />)}</div>
-            <div className="mt-4 flex items-center justify-between text-xs t-dark-muted"><span>Quiet</span><span>Active</span></div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center"><div><p className="text-xl font-semibold t-dark">{accountability.updatedProjects}</p><p className="text-[10px] uppercase tracking-[0.12em] t-dark-soft">Updated</p></div><div><p className="text-xl font-semibold t-dark">{accountability.commits}</p><p className="text-[10px] uppercase tracking-[0.12em] t-dark-soft">Commits</p></div><div><p className="text-xl font-semibold t-dark">{accountability.documentationUpdates}</p><p className="text-[10px] uppercase tracking-[0.12em] t-dark-soft">Docs</p></div></div>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_0.9fr]">
-          <div><div className="mb-3 flex items-center justify-between"><p className="eyebrow t-dark-soft">Project maintenance</p><span className="text-xs t-dark-muted">{needsAttention.length} need attention</span></div><div className="space-y-2">{projects.slice(0, 4).map((project) => { const item = healthByProject.get(project.id); return <div key={project.id} className="dark-inset flex items-center justify-between gap-3 p-3"><div><p className="text-sm font-medium t-dark">{project.name}</p><p className="mt-1 text-xs t-dark-muted">{item?.health === "Exempt" ? `${project.status} · no penalty` : `${formatRelativeAge(item?.lastActivityAt)} · ${item?.health}`}</p></div><span className={`badge ${item?.health === "Healthy" ? "badge-completed" : item?.health === "Needs Attention" ? "badge-development" : item?.health === "Exempt" ? "badge-planning" : "badge-blocked"}`}>{item?.health}</span></div>; })}</div></div>
-          <div><div className="mb-3 flex items-center justify-between"><p className="eyebrow t-dark-soft">Recent GitHub activity</p><span className="text-xs t-dark-muted">{accountability.recentEvents.length} events</span></div><div className="space-y-2">{accountability.recentEvents.slice(0, 4).map((event) => <div key={event.id} className="dark-inset flex items-start gap-2 p-3"><Check size={14} className="mt-0.5 shrink-0 text-[var(--ink-green)]" /><div><p className="text-sm t-dark">{event.summary}</p><p className="mt-1 text-xs t-dark-muted">{event.repository} · {formatRelativeAge(event.occurredAt)}</p></div></div>)}</div></div>
-          <div className="dark-inset mood-peach p-4"><p className="eyebrow t-mood">Weekly goals</p><div className="mt-3 space-y-3 text-sm t-dark"><div className="flex justify-between"><span>Active days</span><span className="font-semibold">{Math.min(accountability.activeDaysThisWeek, 5)} / 5</span></div><div className="flex justify-between"><span>Project updates</span><span className="font-semibold">{accountability.updatedProjects} / 2</span></div><div className="flex justify-between"><span>Documentation</span><span className="font-semibold">{accountability.documentationUpdates} / 1</span></div></div><p className="mt-4 text-xs t-dark-muted">Longest streak: {accountability.longestStreak} days. Keep the rhythm forgiving.</p></div>
-        </div>
-      </section>
-    );
-  };
-
   const renderDashboard = () => (
     <div className="space-y-6">
       {/* GREETING SHEET — cream paper, deep warm charcoal ink, in both themes */}
@@ -1280,7 +1305,23 @@ export default function Home() {
         ))}
       </div>
 
-      {workspaceStatus === "mock" && renderAccountability()}
+      {authStatus === "authenticated" && workspaceStatus === "ready" && <section className="dark-panel p-4 md:p-5" aria-label="Project accountability overview">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><p className="eyebrow t-mood">Project health</p><h2 className="mt-2 text-2xl font-semibold t-dark">Your current project rhythm</h2><p className="mt-1 text-sm t-dark-muted">Workspace progress; open a project&apos;s GitHub tab to include its repository activity.</p></div>
+          <span className="dark-chip px-2.5 py-1 text-xs">Private workspace</span>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {(["Active", "Steady", "Needs Attention"] as const).map((health) => <div key={health} className="dark-inset p-3"><p className="text-xs t-dark-muted">{health}</p><p className="mt-1 text-2xl font-semibold t-dark">{projectAccountability.filter((item) => item.result.githubStatus !== "loading" && item.result.health === health).length}</p></div>)}
+          <div className="dark-inset p-3"><p className="text-xs t-dark-muted">Repository check needed</p><p className="mt-1 text-2xl font-semibold t-dark">{projectAccountability.filter((item) => item.result.githubStatus === "loading").length}</p></div>
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-2">
+          {projectAccountability.filter(({ project, result }) => ["Needs Attention", "Blocked"].includes(result.health) || (result.health === "Stalled" && (!project.health.github || result.githubStatus === "not-relevant"))).slice(0, 4).map(({ project, result }) => <div key={project.id} className="dark-inset flex items-start justify-between gap-3 p-3">
+            <div><p className="text-sm font-medium t-dark">{project.name}</p><p className="mt-1 text-xs t-dark-muted">{result.reasons.find((reason) => reason.kind === "attention")?.text ?? (result.daysSinceActivity === null ? "No recent progress signals" : `${result.daysSinceActivity} days since progress`)}</p></div>
+            <span className="dark-chip shrink-0 px-2 py-1 text-xs">{result.health}</span>
+          </div>)}
+          {projectAccountability.every(({ project, result }) => !["Needs Attention", "Blocked"].includes(result.health) && !(result.health === "Stalled" && (!project.health.github || result.githubStatus === "not-relevant"))) && <p className="dark-inset p-3 text-sm t-dark-muted">No projects currently need attention based on loaded workspace data.</p>}
+        </div>
+      </section>}
 
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
         <div className="space-y-7">
@@ -1491,6 +1532,23 @@ export default function Home() {
 
     const projectTasks = tasks.filter((task) => task.projectId === selectedProject.id);
     const projectMilestonesList = milestones.filter((milestone) => milestone.projectId === selectedProject.id);
+    const projectNotes = notes.filter((note) => note.projectId === selectedProject.id);
+    const hasMeaningfulDocumentation = isHttpUrl(selectedProject.links.docs)
+      || projectNotes.some((note) => note.title.trim().length > 0 && note.content.trim().length >= 20);
+    const testingTasks = projectTasks.filter((task) => task.status === "Testing" || /\b(test|testing|qa|quality assurance|verification|validate)\b/i.test(`${task.title} ${task.description}`));
+    const testingCompleted = testingTasks.length > 0
+      ? testingTasks.every((task) => task.status === "Completed")
+      : ["DEPLOYMENT", "MAINTENANCE", "COMPLETED"].includes(selectedProject.currentPhase);
+    const hasDeploymentUrl = isHttpUrl(selectedProject.links.live);
+    const deploymentStageReached = ["DEPLOYMENT", "MAINTENANCE", "COMPLETED"].includes(selectedProject.currentPhase);
+    const healthItems = [
+      { key: "documentation" as const, label: "Documentation", complete: hasMeaningfulDocumentation, hint: hasMeaningfulDocumentation ? "Project documentation is available." : "Add a project note or documentation link." },
+      { key: "screenshots" as const, label: "Screenshots", complete: projectScreenshots.length > 0, hint: projectScreenshotsLoading ? "Checking saved screenshots." : projectScreenshotsError || (projectScreenshots.length > 0 ? "Saved screenshots are available." : "Add a project screenshot.") },
+      { key: "github" as const, label: "GitHub", complete: authStatus === "authenticated" && workspaceStatus === "ready" ? projectGithubLinked : selectedProject.health.github, hint: projectGithubLoading ? "Checking the repository connection." : currentProjectGithubLink?.error || (projectGithubLinked || (authStatus !== "authenticated" && selectedProject.health.github) ? "Repository connected." : "Connect a repository.") },
+      { key: "testing" as const, label: "Testing", complete: testingCompleted, hint: testingCompleted ? "Testing work is complete or the workflow has advanced beyond testing." : testingTasks.length ? "Complete outstanding testing tasks." : "Add testing tasks or advance the workflow after testing." },
+      { key: "deployment" as const, label: "Deployment", complete: hasDeploymentUrl && deploymentStageReached, hint: hasDeploymentUrl && deploymentStageReached ? "Deployment URL is configured for this stage." : "Add a deployment URL and set the deployment stage." },
+    ];
+    const visibleProjectTasks = projectTaskFilter === "testing" ? testingTasks : projectTasks;
 
     return (
       <div className="dark-panel p-4">
@@ -1536,11 +1594,11 @@ export default function Home() {
         {shareNotice?.projectId === selectedProject.id && <p role="status" className="mt-2 text-sm t-dark-muted">{shareNotice.message}</p>}
 
         <div className="mt-4 flex flex-wrap gap-2 border-b border-[var(--edge-dark)] pb-4">
-          {["Overview", "Workflow", "Tasks", "Milestones", "GitHub"].map((tab) => (
+          {["Overview", "Workflow", "Tasks", "Milestones", "Screenshots", "GitHub"].map((tab) => (
             <button
               key={tab}
               type="button"
-              onClick={() => setProjectTab(tab)}
+              onClick={() => { setProjectTab(tab); if (tab === "Tasks") setProjectTaskFilter("all"); }}
               className={`soft-pill px-3 py-1.5 text-xs ${
                 projectTab === tab ? "is-selected" : "t-dark-muted"
               }`}
@@ -1591,11 +1649,20 @@ export default function Home() {
                   <div className="dark-panel p-4">
                     <h3 className="text-lg font-semibold t-dark">Project health</h3>
                     <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                      {Object.entries(selectedProject.health).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between dark-inset p-3 text-sm t-dark-soft">
-                          <span className="capitalize">{key}</span>
-                          <span className={value ? "text-[var(--ink-green)]" : "text-amber-300"}>{value ? "✓" : "⚠"}</span>
-                        </div>
+                      {healthItems.map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          title={item.hint}
+                          aria-label={`${item.label}: ${item.key === "screenshots" && projectScreenshotsLoading || item.key === "github" && projectGithubLoading ? "checking" : item.complete ? "complete" : "needs attention"}. ${item.hint}`}
+                          onClick={() => handleProjectHealthAction(item.key, selectedProject.id)}
+                          className="flex min-h-11 cursor-pointer items-center justify-between rounded-xl dark-inset p-3 text-left text-sm t-dark-soft transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-coral)]"
+                        >
+                          <span>{item.label}</span>
+                          <span aria-hidden="true" className={item.complete ? "text-[var(--ink-green)]" : "text-amber-300"}>
+                            {item.key === "screenshots" && projectScreenshotsLoading || item.key === "github" && projectGithubLoading ? "…" : item.complete ? "✓" : "⚠"}
+                          </span>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1640,6 +1707,19 @@ export default function Home() {
                     </select>
                   </label>
                 </div>
+                <form key={`deployment-${selectedProject.id}`} onSubmit={(event) => {
+                  event.preventDefault();
+                  const formData = new FormData(event.currentTarget);
+                  const url = String(formData.get("deploymentUrl") ?? "").trim();
+                  void saveProjectField(selectedProject.id, { demoUrl: url || null });
+                }} className="mb-4 rounded-xl dark-inset p-3">
+                  <label htmlFor="project-deployment-url" className="block text-sm t-dark-muted">Deployment / live-demo URL</label>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                    <input id="project-deployment-url" name="deploymentUrl" type="url" defaultValue={selectedProject.links.live ?? ""} placeholder="https://example.com" className="min-w-0 flex-1 dark-chip px-3 py-2 text-sm" />
+                    <button type="submit" className="ink-button primary px-3 py-2 text-sm">Save deployment URL</button>
+                  </div>
+                  {!deploymentStageReached && <p className="mt-2 text-xs t-dark-muted">Set the workflow stage to Deployment or later when the project reaches that point.</p>}
+                </form>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {[
                     "PLANNING",
@@ -1661,8 +1741,14 @@ export default function Home() {
 
             {projectTab === "Tasks" && (
               <div className="space-y-3 dark-panel p-4">
-                <button type="button" onClick={handleCreateTask} className="ink-button primary px-3 py-2 text-sm">Add task</button>
-                {projectTasks.length > 0 ? projectTasks.map((task) => (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-lg font-semibold t-dark">{projectTaskFilter === "testing" ? "Testing tasks" : "Project tasks"}</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {projectTaskFilter === "testing" && <button type="button" onClick={() => setProjectTaskFilter("all")} className="dark-chip px-3 py-2 text-sm">Show all tasks</button>}
+                    <button type="button" onClick={projectTaskFilter === "testing" ? handleCreateTestingTask : handleCreateTask} className="ink-button primary px-3 py-2 text-sm">{projectTaskFilter === "testing" ? "Add testing task" : "Add task"}</button>
+                  </div>
+                </div>
+                {visibleProjectTasks.length > 0 ? visibleProjectTasks.map((task) => (
                   <div key={task.id} className="flex items-start justify-between gap-4 dark-inset p-3">
                     <div>
                       <p className="font-medium t-dark">{task.title}</p>
@@ -1682,7 +1768,7 @@ export default function Home() {
                       </select>
                     </div>
                   </div>
-                )) : <p className="t-dark-muted">No tasks linked to this project yet.</p>}
+                )) : <div className="rounded-xl dark-inset p-3 text-sm t-dark-muted">{projectTaskFilter === "testing" ? "No testing tasks yet." : "No tasks linked to this project yet."}</div>}
               </div>
             )}
 
@@ -1708,7 +1794,20 @@ export default function Home() {
               </div>
             )}
 
-            {projectTab === "GitHub" && <GithubRepositoryBrowser projects={projects} projectId={selectedProject.id} onLinked={() => window.location.reload()} />}
+            {projectTab === "Screenshots" && (
+              authStatus === "authenticated" && workspaceStatus === "ready"
+                ? <ProjectScreenshots
+                    projectId={selectedProject.id}
+                    screenshots={projectScreenshots}
+                    loading={projectScreenshotsLoading}
+                    loadError={projectScreenshotsError}
+                    onChange={(nextScreenshots) => setProjectScreenshotsState({ projectId: selectedProject.id, screenshots: nextScreenshots, error: "" })}
+                    onRefresh={() => refreshProjectScreenshots(selectedProject.id)}
+                  />
+                : <div className="dark-panel p-4 text-sm t-dark-muted"><h3 className="text-lg font-semibold t-dark">Project screenshots</h3><p className="mt-2">Sign in to manage screenshots that persist to your workspace.</p></div>
+            )}
+
+            {projectTab === "GitHub" && <GithubRepositoryBrowser projects={projects} projectId={selectedProject.id} tasks={tasks} milestones={milestones} plans={plans} showAccountability={authStatus === "authenticated" && workspaceStatus === "ready"} onLinked={() => window.location.reload()} />}
           </div>
         )}
       </div>
@@ -1971,19 +2070,22 @@ export default function Home() {
     </div>
   );
 
-  const renderKnowledgePage = () => (
+  const renderKnowledgePage = () => {
+    const visibleNotes = noteProjectFilter ? notes.filter((note) => note.projectId === noteProjectFilter) : notes;
+    const documentationProject = projects.find((project) => project.id === noteProjectFilter);
+    return (
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="dark-panel p-4">
-          <div className="flex items-center justify-between"><h3 className="text-lg font-semibold t-dark">Notes</h3><button type="button" onClick={handleCreateNote} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New note</button></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-lg font-semibold t-dark">{documentationProject ? `${documentationProject.name} documentation` : "Notes"}</h3>{documentationProject && <p className="mt-1 text-xs t-dark-muted">Project documentation and notes</p>}</div><div className="flex flex-wrap gap-2">{documentationProject && <button type="button" onClick={() => setNoteProjectFilter("")} className="dark-chip px-3 py-2 text-sm">All notes</button>}<button type="button" onClick={() => documentationProject ? setNoteEditor({ title: "Documentation", content: "", projectId: documentationProject.id }) : handleCreateNote()} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> {documentationProject ? "Add documentation" : "New note"}</button></div></div>
           <div className="mt-4 space-y-3">
-            {notes.map((note) => (
+            {visibleNotes.map((note) => (
               <div key={note.id} className="dark-inset p-3">
                 <div className="flex items-start justify-between gap-2"><p className="font-medium t-dark">{note.title}</p><div className="flex gap-1"><button type="button" onClick={() => handleEditNote(note)} className="dark-chip px-2 py-1 text-xs">Edit</button><button type="button" onClick={() => void removeNote(note.id)} className="dark-chip p-1.5"><X size={13} /></button></div></div>
                 <p className="mt-2 text-sm t-dark-muted">{note.content}</p>
               </div>
             ))}
-            {notes.length === 0 && <p className="text-sm t-dark-muted">No notes yet.</p>}
+            {visibleNotes.length === 0 && <div className="rounded-xl dark-inset p-3 text-sm t-dark-muted">{documentationProject ? "No documentation yet." : "No notes yet."} Use the action above to add one.</div>}
           </div>
         </div>
 
@@ -2004,7 +2106,8 @@ export default function Home() {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderTechPage = () => (
     <div className="space-y-4">
@@ -2046,15 +2149,7 @@ export default function Home() {
         </div>
         <div className="dark-inset p-4">
           <p className="text-sm font-medium t-dark">Phase boundaries</p>
-          <p className="mt-2 text-sm t-dark-muted">Commit activity, webhooks, and accountability scoring remain outside repository connection setup.</p>
-        </div>
-      </div>
-      <div className="mt-4 dark-inset p-4">
-        <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-medium t-dark">Public GitHub accountability</p><p className="mt-1 text-xs t-dark-muted">Only aggregate fields enabled here can appear on the public portfolio.</p></div><span className="dark-chip px-2 py-1 text-[10px] uppercase">Safe by default</span></div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {(["score", "streak", "commits", "projects", "heatmap", "recent", "username"] as const).map((key) => (
-            <label key={key} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--edge-dark-soft)] px-3 py-2 text-sm t-dark-muted"><span className="capitalize">{key === "projects" ? "Project count" : key === "heatmap" ? "Activity heatmap" : key === "username" ? "GitHub username" : `Show ${key}`}</span><input type="checkbox" checked={publicVisibility[key]} onChange={() => setPublicVisibility((current) => ({ ...current, [key]: !current[key] }))} /></label>
-          ))}
+          <p className="mt-2 text-sm t-dark-muted">GitHub activity is read-only. Accountability results stay in your authenticated private workspace.</p>
         </div>
       </div>
       <button type="button" onClick={() => void handleSignOut()} className="mt-4 ink-button coral px-3 py-2 text-sm">Sign out</button>

@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Flame, FolderGit2, Moon, Sparkles, Sun } from "lucide-react";
+import { ArrowUpRight, FolderGit2, Moon, Sparkles, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { calculateAccountabilityScore } from "@/data/githubAccountabilityService";
-import { mockGithubActivity, mockProjects } from "@/data/mockData";
+import { mockProjects } from "@/data/mockData";
 import { listPublicProjects, toProjectViewFromPublicProject } from "@/data/projectService";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -25,15 +24,6 @@ export default function PublicViewerPage() {
     if (typeof window === "undefined") return "system";
     const saved = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
     return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
-  });
-  const [visibility] = useState(() => {
-    const defaults = { score: true, streak: true, commits: false, projects: true, heatmap: false, recent: false, username: false };
-    if (typeof window === "undefined") return defaults;
-    try {
-      return { ...defaults, ...JSON.parse(window.localStorage.getItem("developer-workplace-public-visibility") ?? "{}") };
-    } catch {
-      return defaults;
-    }
   });
   const [projects, setProjects] = useState(() => (isSupabaseConfigured() ? [] : mockProjects));
   const [loadError, setLoadError] = useState(false);
@@ -68,9 +58,6 @@ export default function PublicViewerPage() {
 
   const featuredProjects = publicProjects.filter((project) => project.featured);
   const otherProjects = publicProjects.filter((project) => !project.featured);
-  const publicActivity = isSupabaseConfigured() ? [] : mockGithubActivity.filter((event) => event.public);
-  const accountability = calculateAccountabilityScore(publicProjects, publicActivity, new Date("2026-09-30T18:00:00.000Z"));
-
   return (
     <div className="public-shell">
       <header className="mx-auto max-w-6xl px-4 py-5">
@@ -204,20 +191,6 @@ export default function PublicViewerPage() {
             ))}
             {otherProjects.length === 0 && publicProjects.length > 0 && <p className="public-card p-5 text-sm text-[var(--muted)]">No other public projects are available.</p>}
           </div>
-        </section>
-
-        <section id="github-activity" className="public-card p-6 md:p-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--muted)]">✦ Building consistently</p><h2 className="mt-3 text-3xl font-black text-[var(--ink)]">GitHub activity</h2><p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">A small public view of building rhythm. Activity counts are intentionally separate from software quality.</p></div>
-            <span className="rounded-full border border-[var(--public-border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">Demo data</span>
-          </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            {visibility.score && <div className="rounded-2xl border border-[var(--public-border)] bg-[var(--surface)] p-4"><p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Accountability score</p><p className="mt-2 text-4xl font-black text-[var(--ink)]">{accountability.total}<span className="text-lg font-semibold text-[var(--muted)]"> / 100</span></p></div>}
-            {visibility.streak && <div className="rounded-2xl border border-[var(--public-border)] bg-[var(--surface)] p-4"><p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Current rhythm</p><p className="mt-2 flex items-center gap-2 text-xl font-bold text-[var(--ink)]"><Flame size={17} /> {accountability.currentStreak} day streak</p><p className="mt-1 text-xs text-[var(--muted)]">{accountability.activeDaysThisWeek} active days this week</p></div>}
-            {visibility.projects && <div className="rounded-2xl border border-[var(--public-border)] bg-[var(--surface)] p-4"><p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Projects maintained</p><p className="mt-2 text-4xl font-black text-[var(--ink)]">{accountability.updatedProjects}</p><p className="mt-1 text-xs text-[var(--muted)]">public project updates this month</p></div>}
-          </div>
-          {visibility.heatmap && <div className="mt-5 rounded-2xl border border-[var(--public-border)] bg-[var(--surface)] p-4"><p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Last 30 days</p><div className="activity-heatmap mt-3">{Array.from({ length: 30 }, (_, index) => <span key={index} className="activity-cell level-1" />)}</div></div>}
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]"><span>{visibility.commits ? `${accountability.commits} meaningful commits` : "Meaningful activity"}</span><span>·</span><span>{accountability.state}</span>{visibility.username && <><span>·</span><span>@franzcayanan</span></>}</div>
         </section>
 
         <section id="about" className="grid gap-6 md:grid-cols-[1fr_0.8fr]">

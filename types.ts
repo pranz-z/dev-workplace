@@ -92,6 +92,7 @@ export interface Task {
   dueDate?: string;
   tags: string[];
   createdAt: string;
+  updatedAt?: string;
   completedAt?: string;
 }
 
@@ -114,6 +115,7 @@ export interface PlanItem {
   label: string;
   done: boolean;
   order: number;
+  updatedAt?: string;
 }
 
 export type PlanStatus = "Planning" | "Active" | "Paused" | "Completed" | "Cancelled";
