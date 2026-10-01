@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, FolderGit2, Moon, Sparkles, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { mockProjects } from "@/data/mockData";
-import { getPublicProjectBySlug } from "@/data/projectService";
+import { getPublicProjectBySlug, toProjectViewFromPublicProject } from "@/data/projectService";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -27,7 +27,7 @@ export default function PublicProjectPage() {
     const saved = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
     return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
   });
-  const [project, setProject] = useState(() => mockProjects.find((item) => item.id === slug) ?? mockProjects[0]);
+  const [project, setProject] = useState(() => mockProjects.find((item) => item.slug === slug) ?? mockProjects[0]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -44,7 +44,7 @@ export default function PublicProjectPage() {
 
   useEffect(() => {
     getPublicProjectBySlug(slug).then((remoteProject) => {
-      if (remoteProject) setProject(remoteProject);
+      if (remoteProject) setProject(toProjectViewFromPublicProject(remoteProject));
     }).catch(() => undefined);
   }, [slug]);
 

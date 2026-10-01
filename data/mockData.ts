@@ -16,6 +16,7 @@ import type {
 export const mockProjects: Project[] = [
   {
     id: "autocare",
+    slug: "autocare-booking-system",
     name: "AutoCare Booking System",
     description: "Customer booking and service workflow for a local auto repair shop.",
     type: "Client / Portfolio",
@@ -52,6 +53,7 @@ export const mockProjects: Project[] = [
   },
   {
     id: "ai-agent",
+    slug: "ai-customer-service-assistant",
     name: "AI Customer Service Assistant",
     description: "AI-powered support workflow using retrieval, context, and knowledge traces.",
     type: "AI / Freelance",
@@ -87,6 +89,7 @@ export const mockProjects: Project[] = [
   },
   {
     id: "mobile-llm",
+    slug: "mobile-offline-llm",
     name: "Mobile Offline LLM",
     description: "Pocket-sized local AI experimentation for offline tasks and quick demos.",
     type: "Personal / AI",
@@ -119,6 +122,7 @@ export const mockProjects: Project[] = [
   },
   {
     id: "autosimar",
+    slug: "autosimar",
     name: "AutoSimAR",
     description: "AR-driven automotive simulation and repair guidance study project.",
     type: "Thesis / Academic",
@@ -154,6 +158,7 @@ export const mockProjects: Project[] = [
   },
   {
     id: "portfolio",
+    slug: "developer-portfolio",
     name: "Developer Portfolio",
     description: "Professional portfolio, project showcase, and career evidence hub.",
     type: "Personal",

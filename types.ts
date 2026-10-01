@@ -9,6 +9,11 @@ export type ProjectStatus =
   | "On Hold"
   | "Cancelled";
 
+/**
+ * Workflow stage vocabulary. The database stores these lowercase
+ * (see projects_workflow_stage_check in supabase/schema.sql); the UI uses the
+ * uppercase form and the extra paused states are excluded from progress.
+ */
 export type WorkflowPhase =
   | "IDEA"
   | "PLANNING"
@@ -17,7 +22,10 @@ export type WorkflowPhase =
   | "TESTING"
   | "DEPLOYMENT"
   | "MAINTENANCE"
-  | "COMPLETED";
+  | "COMPLETED"
+  | "BLOCKED"
+  | "ON_HOLD"
+  | "CANCELLED";
 
 export type TaskStatus =
   | "Backlog"
@@ -31,12 +39,15 @@ export type TaskStatus =
 export type Priority = "Low" | "Medium" | "High" | "Critical";
 
 export interface Project {
+  /** Internal database uuid. Never used in a public URL. */
   id: string;
-  slug?: string;
+  /** Public, globally unique identifier: /view/project/<slug>. */
+  slug: string;
   name: string;
   description: string;
   type: string;
   status: ProjectStatus;
+  /** Derived from tasks, milestones and the workflow stage (lib/projectProgress.ts). */
   progress: number;
   currentPhase: WorkflowPhase;
   objective: string;
@@ -50,6 +61,8 @@ export interface Project {
   repoName?: string;
   featured?: boolean;
   visibility?: "Private" | "Public" | "Unlisted";
+  priority?: Priority;
+  teamSize?: number;
   publicSummary?: string;
   publicProblem?: string;
   publicSolution?: string;
@@ -86,17 +99,105 @@ export interface Milestone {
   id: string;
   projectId: string;
   title: string;
+  description?: string;
   status: "completed" | "active" | "pending";
   targetDate?: string;
   order: number;
+  lastUpdated?: string;
 }
+
+export interface PlanItem {
+  id: string;
+  planId: string;
+  projectId?: string;
+  taskId?: string;
+  label: string;
+  done: boolean;
+  order: number;
+}
+
+export type PlanStatus = "Planning" | "Active" | "Paused" | "Completed" | "Cancelled";
 
 export interface Plan {
   id: string;
   title: string;
   goal: string;
   deadline: string;
-  tasks: { label: string; done: boolean }[];
+  /** Persisted checklist rows; `tasks` below is the derived read model. */
+  items?: PlanItem[];
+  tasks: Array<{ id?: string; label: string; done: boolean }>;
+  status?: PlanStatus;
+  timeframe?: string;
+}
+
+export interface Profile {
+  id: string;
+  displayName: string;
+  username?: string;
+  githubUsername?: string;
+  avatarUrl?: string;
+  bio?: string;
+  publicProfileEnabled: boolean;
+}
+
+export interface ProjectSettings {
+  projectId: string;
+  customColor?: string;
+  customIcon?: string;
+  showGithubActivity: boolean;
+  showCommitCount: boolean;
+  showStreak: boolean;
+  showAccountability: boolean;
+  showLiveDemo: boolean;
+  showRepository: boolean;
+}
+
+/**
+ * Row returned by the public projection functions
+ * (public.public_project_list / public.public_project_by_slug). This is the only
+ * shape a public visitor can read - it never carries internal columns.
+ * `progress` is calculated in SQL with the same formula as lib/projectProgress.ts.
+ */
+export interface PublicProject {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  projectType: string;
+  status: string;
+  workflowStage: string;
+  role?: string;
+  teamSize?: number;
+  startDate?: string;
+  targetDate?: string;
+  isFeatured: boolean;
+  visibility: "Public" | "Unlisted";
+  publicSummary?: string;
+  publicProblem?: string;
+  publicSolution?: string;
+  publicResult?: string;
+  repositoryUrl?: string;
+  demoUrl?: string;
+  docsUrl?: string;
+  health: {
+    documentation: boolean;
+    screenshots: boolean;
+    testing: boolean;
+    deployment: boolean;
+  };
+  showGithubActivity: boolean;
+  showCommitCount: boolean;
+  showStreak: boolean;
+  showAccountability: boolean;
+  showLiveDemo: boolean;
+  showRepository: boolean;
+  technologies: string[];
+  totalTasks: number;
+  completedTasks: number;
+  totalMilestones: number;
+  completedMilestones: number;
+  progress: number;
+  updatedAt: string;
 }
 
 export interface ActivityItem {
@@ -202,13 +303,17 @@ export interface NoteItem {
   title: string;
   content: string;
   projectId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TechnologyItem {
   id: string;
   name: string;
+  /** Presentational grouping. The database only stores the name, so this is
+   *  derived from the projects the technology is attached to. */
   category: string;
-  summary: string;
+  summary?: string;
   usedIn: string[];
   deployed: number;
   clientProjects: number;

@@ -31,13 +31,18 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/components/auth/auth-provider";
+import { UserMenu } from "@/components/auth/user-menu";
 import { buildSeedState } from "@/data/mockData";
-import { signInWithGithub, signOut } from "@/data/authService";
+import { signInWithGithub } from "@/data/authService";
 import { calculateAccountabilityScore } from "@/data/githubAccountabilityService";
 import { loadWorkspaceData, migrateLocalWorkspace } from "@/data/workspaceService";
-import { createTask, updateTask } from "@/data/workspaceService";
-import { createProject } from "@/data/projectService";
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { completeTask, createTask, deleteTask, reopenTask, setTaskStatus } from "@/data/taskService";
+import { createPlan, deletePlan, setPlanStatus, updatePlan } from "@/data/planService";
+import { createMilestone, deleteMilestone, moveMilestone, setMilestoneStatus, updateMilestone } from "@/data/milestoneService";
+import { createNote, deleteNote, updateNote } from "@/data/noteService";
+import { attachTechnology, createTechnology, detachTechnology } from "@/data/technologyService";
+import { archiveProject, createProject, deleteProject, restoreProject, updateProject } from "@/data/projectService";
 import type {
   ActivityItem,
   GithubActivityEvent,
@@ -242,6 +247,7 @@ const formatRelativeAge = (value?: string) => {
 
 export default function Home() {
   const router = useRouter();
+  const { status: authStatus, user, signOut: signOutOfSession } = useAuth();
   const initialWorkspace = getWorkspaceSnapshot();
 
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -287,7 +293,17 @@ export default function Home() {
   const [workspaceError, setWorkspaceError] = useState("");
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [migrationMessage, setMigrationMessage] = useState("");
+  const [signOutError, setSignOutError] = useState("");
   const [hadLocalWorkspace] = useState(() => typeof window !== "undefined" && Boolean(window.localStorage.getItem("developer-workspace-v1")));
+
+  const firstName = useMemo(() => {
+    const metadata = user?.user_metadata ?? {};
+    const explicitName = [metadata.full_name, metadata.name, metadata.user_name].find(
+      (value): value is string => typeof value === "string" && value.trim().length > 0,
+    );
+    const candidate = explicitName ?? user?.email ?? "";
+    return candidate.split(/[\s@._-]+/).filter(Boolean)[0] ?? "there";
+  }, [user]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -310,15 +326,10 @@ export default function Home() {
   }, [themeMode]);
 
   useEffect(() => {
+    if (authStatus === "loading") return;
     let active = true;
     const hydrateWorkspace = async () => {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        setWorkspaceStatus("mock");
-        return;
-      }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      if (authStatus !== "authenticated") {
         setWorkspaceStatus("mock");
         return;
       }
@@ -344,7 +355,7 @@ export default function Home() {
     };
     void hydrateWorkspace();
     return () => { active = false; };
-  }, [hadLocalWorkspace]);
+  }, [authStatus, hadLocalWorkspace]);
 
   const handleMigrateWorkspace = async () => {
     try {
@@ -360,6 +371,17 @@ export default function Home() {
     } catch {
       setMigrationMessage("The workspace could not be imported. Your local data is still intact.");
     }
+  };
+
+  const handleSignOut = async () => {
+    const result = await signOutOfSession();
+    if (!result.ok) {
+      setSignOutError(result.message);
+      return;
+    }
+    setSignOutError("");
+    router.replace("/login");
+    router.refresh();
   };
 
   useEffect(() => {
@@ -536,82 +558,69 @@ export default function Home() {
     </button>
   );
 
-  const sharePublicProject = (projectId: string) => {
-    const url = `/view/project/${projectId}`;
+  const sharePublicProject = (project: Project) => {
+    const url = `/view/project/${project.slug || project.id}`;
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
+  /** Persist-first create — the card only appears after Supabase confirms it. */
   const handleCreateProject = () => {
-    const project: Project = {
-      id: makeId("proj"),
-      name: "New Product Sprint",
-      description: "Explore the next milestone, customer value, and delivery path for a fresh software prototype.",
-      type: "Personal",
-      status: "Planning",
-      progress: 12,
-      currentPhase: "PLANNING",
-      objective: "Define the sprint outcome and track the earliest release-ready milestone.",
-      role: "Product builder",
-      startDate: new Date().toISOString(),
-      targetDate: getFutureDate(30),
-      nextAction: "Confirm problem framing and deliver the first milestone",
-      technologies: ["Next.js", "TypeScript"],
-      lastUpdated: new Date().toISOString(),
-      githubConnected: false,
-      health: {
-        documentation: false,
-        screenshots: false,
-        github: false,
-        testing: false,
-        deployment: false,
-      },
-      links: {},
-    };
-    setProjects((current) => [project, ...current]);
-    setSelectedProjectId(project.id);
-    setActiveView("projects");
-    void createProject(project).then((savedProject) => {
-      if (savedProject.id !== project.id) setProjects((current) => current.map((item) => item.id === project.id ? savedProject : item));
-    }).catch(() => undefined);
+    void (async () => {
+      const result = await createProject({ name: "New Product Sprint" });
+      if (result.ok) {
+        setProjects((current) => [result.data, ...current]);
+        setSelectedProjectId(result.data.id);
+        setActiveView("projects");
+      } else {
+        setWorkspaceError(result.error);
+      }
+    })();
   };
 
+  /** Persist-first create — the task only appears after Supabase confirms it. */
   const handleCreateTask = () => {
-    const task: Task = {
-      id: makeId("task"),
-      title: "New task for the current project",
-      description: "Capture the next important action for this sprint.",
-      projectId: selectedProject?.id ?? "autocare",
-      status: "Planned",
-      priority: "Medium",
-      dueDate: getFutureDate(1),
-      tags: ["prototype"],
-      createdAt: new Date().toISOString(),
-    };
-    setTasks((current) => [task, ...current]);
-    setActiveView("tasks");
-    void createTask(task).then((savedTask) => {
-      if (savedTask.id !== task.id) setTasks((current) => current.map((item) => item.id === task.id ? savedTask : item));
-    }).catch(() => undefined);
+    if (!selectedProject) return;
+    void (async () => {
+      const result = await createTask({
+        projectId: selectedProject.id,
+        title: "New task for the current project",
+        description: "Capture the next important action for this sprint.",
+        status: "Planned",
+        priority: "Medium",
+        dueDate: getFutureDate(1),
+      });
+      if (result.ok) {
+        setTasks((current) => [result.data, ...current]);
+        setActiveView("tasks");
+      } else {
+        setWorkspaceError(result.error);
+      }
+    })();
   };
 
+  /** Persist-first create — the plan only appears after Supabase confirms it. */
   const handleCreatePlan = () => {
-    const plan: Plan = {
-      id: makeId("plan"),
-      title: "Next milestone plan",
-      goal: "Define the next significant objective for your current work cycle.",
-      deadline: getFutureDate(12),
-      tasks: [
-        { label: "Define scope", done: false },
-        { label: "Ship the first proof", done: false },
-      ],
-    };
-    setPlans((current) => [plan, ...current]);
-    setActiveView("plans");
+    void (async () => {
+      const result = await createPlan({
+        title: "Next milestone plan",
+        goal: "Define the next significant objective for your current work cycle.",
+        targetDate: getFutureDate(12),
+        items: [{ label: "Define scope" }, { label: "Ship the first proof" }],
+      });
+      if (result.ok) {
+        setPlans((current) => [result.data, ...current]);
+        setActiveView("plans");
+      } else {
+        setWorkspaceError(result.error);
+      }
+    })();
   };
 
   const handleImportRepo = (repo: GithubRepo) => {
+    const slug = repo.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "imported-project";
     const newProject: Project = {
       id: makeId("proj"),
+      slug,
       name: repo.name,
       description: repo.description,
       type: "Personal",
@@ -645,25 +654,44 @@ export default function Home() {
     setActiveView("projects");
   };
 
+  /** Status changes keep the old row visible until Supabase confirms the write. */
   const updateTaskStatus = (taskId: string, nextStatus: Task["status"]) => {
     const currentTask = tasks.find((task) => task.id === taskId);
     if (!currentTask) return;
-    const updatedTask = { ...currentTask, status: nextStatus, completedAt: nextStatus === "Completed" ? new Date().toISOString() : undefined };
-    setTasks((current) => current.map((task) => task.id === taskId ? updatedTask : task));
-    void updateTask(updatedTask).catch(() => setTasks((current) => current.map((task) => task.id === taskId ? currentTask : task)));
+    void (async () => {
+      const result = await setTaskStatus(taskId, nextStatus);
+      if (result.ok) {
+        setTasks((current) => current.map((task) => (task.id === taskId ? result.data : task)));
+      } else {
+        setWorkspaceError(result.error);
+      }
+    })();
   };
 
   const toggleTaskComplete = (taskId: string) => {
     const currentTask = tasks.find((task) => task.id === taskId);
     if (!currentTask) return;
-    const shouldComplete = currentTask.status !== "Completed";
-    const updatedTask = { ...currentTask, status: shouldComplete ? "Completed" : "In Progress" as Task["status"], completedAt: shouldComplete ? new Date().toISOString() : undefined };
-    setTasks((current) => current.map((task) => task.id === taskId ? updatedTask : task));
-    void updateTask(updatedTask).catch(() => setTasks((current) => current.map((task) => task.id === taskId ? currentTask : task)));
+    const action = currentTask.status === "Completed" ? reopenTask : completeTask;
+    void (async () => {
+      const result = await action(taskId);
+      if (result.ok) {
+        setTasks((current) => current.map((task) => (task.id === taskId ? result.data : task)));
+      } else {
+        setWorkspaceError(result.error);
+      }
+    })();
   };
 
-  const deleteTask = (taskId: string) => {
-    setTasks((current) => current.filter((task) => task.id !== taskId));
+  /** Persist-first delete — the task leaves the list only after Supabase confirms it. */
+  const handleDeleteTask = (taskId: string) => {
+    void (async () => {
+      const result = await deleteTask(taskId);
+      if (result.ok) {
+        setTasks((current) => current.filter((task) => task.id !== taskId));
+      } else {
+        setWorkspaceError(result.error);
+      }
+    })();
   };
 
   const renderAccountability = () => {
@@ -728,7 +756,7 @@ export default function Home() {
       <div className="hero-paper tilt-left p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="hero-script text-[32px] leading-none">Good afternoon, Franz ✦</h3>
+            <h3 className="hero-script text-[32px] leading-none">Good afternoon, {firstName} ✦</h3>
             <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.2em] t-paper-muted">Let&apos;s build something cool.</p>
             <h1 className="mt-3 text-3xl font-extrabold tracking-tight t-paper text-shadow-paper">Tuesday, September 29</h1>
           </div>
@@ -992,7 +1020,7 @@ export default function Home() {
           <div className="flex flex-wrap gap-2">
             <button type="button" className="dark-chip px-3 py-2 text-sm">Edit</button>
             <button type="button" className="dark-chip px-3 py-2 text-sm">Connect GitHub</button>
-            <button type="button" onClick={() => sharePublicProject(selectedProject.id)} className="rounded-xl ink-button px-3 py-2 text-sm">
+            <button type="button" onClick={() => sharePublicProject(selectedProject)} className="rounded-xl ink-button px-3 py-2 text-sm">
               Share Public View
             </button>
             <button type="button" onClick={() => setShowcaseMode((current) => (current === "workspace" ? "showcase" : "workspace"))} className="rounded-xl ink-button primary px-3 py-2 text-sm">
@@ -1528,15 +1556,15 @@ export default function Home() {
   const renderSettingsPage = () => (
     <div className="dark-panel p-6">
       <h2 className="text-2xl font-semibold t-dark">Workspace settings</h2>
-      <p className="mt-2 t-dark-muted">This prototype intentionally keeps configuration local and lightweight for prototype exploration.</p>
+      <p className="mt-2 t-dark-muted">Your account is verified by Supabase Auth with GitHub; workspace data syncs to Supabase while localStorage stays as the offline fallback.</p>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <div className="dark-inset p-4">
           <p className="text-sm font-medium t-dark">Data storage</p>
-          <p className="mt-2 text-sm t-dark-muted">Local browser persistence via localStorage.</p>
+          <p className="mt-2 text-sm t-dark-muted">Supabase sync when configured, with local browser persistence as a fallback.</p>
         </div>
         <div className="dark-inset p-4">
-          <p className="text-sm font-medium t-dark">Prototype boundaries</p>
-          <p className="mt-2 text-sm t-dark-muted">No production auth, cloud DB, or real GitHub OAuth yet.</p>
+          <p className="text-sm font-medium t-dark">Phase boundaries</p>
+          <p className="mt-2 text-sm t-dark-muted">GitHub repository access, webhooks, and accountability scoring arrive in a later phase.</p>
         </div>
       </div>
       <div className="mt-4 dark-inset p-4">
@@ -1547,7 +1575,8 @@ export default function Home() {
           ))}
         </div>
       </div>
-      <button type="button" onClick={() => void signOut().then(() => router.push("/login"))} className="mt-4 ink-button coral px-3 py-2 text-sm">Sign out</button>
+      <button type="button" onClick={() => void handleSignOut()} className="mt-4 ink-button coral px-3 py-2 text-sm">Sign out</button>
+      {signOutError && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{signOutError}</p>}
     </div>
   );
 
@@ -1654,7 +1683,7 @@ export default function Home() {
                   {themeMode === "dark" ? <Sun size={15} /> : <Moon size={15} />}
                 </button>
                 <Link href="/view" className="rounded-xl border border-[var(--edge-cream)] bg-[var(--surface-cream)] px-3 py-2 text-sm font-medium text-[var(--text-desk)]">Public View</Link>
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--edge-cream)] bg-[linear-gradient(135deg,var(--accent-coral),var(--accent-lavender))] font-semibold text-[var(--text-dark)]">F</div>
+                <UserMenu onOpenSettings={() => setActiveView("settings")} />
               </div>
             </div>
           </header>
@@ -1662,7 +1691,7 @@ export default function Home() {
           <main className="p-4 lg:p-6">
             {workspaceStatus === "checking" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Loading your workspace...</div>}
             {workspaceStatus === "error" && <div className="mb-4 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}</div>}
-            {workspaceStatus === "mock" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Prototype mode: local workspace data is active until Supabase is configured.</div>}
+            {workspaceStatus === "mock" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Prototype mode: showing local workspace data. Sign in with GitHub to sync with Supabase.</div>}
             {migrationMessage && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">{migrationMessage}</div>}
             {renderPage()}
           </main>

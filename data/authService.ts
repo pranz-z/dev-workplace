@@ -1,17 +1,20 @@
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { buildAuthCallbackUrl, sanitizeNextPath } from "@/lib/auth/redirects";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
-export async function signInWithGithub() {
+/**
+ * Starts the Supabase GitHub OAuth flow.
+ * GitHub is used as an identity provider only: no repository scopes are requested in
+ * this phase, and repository access stays a separate opt-in step.
+ */
+export async function signInWithGithub(nextPath = "/app") {
+  if (!isSupabaseConfigured()) return { configured: false as const };
   const supabase = getSupabaseBrowserClient();
-  if (!supabase) return { configured: false as const };
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "github",
-    options: { redirectTo: `${window.location.origin}/auth/callback?next=/` },
+    options: { redirectTo: buildAuthCallbackUrl(sanitizeNextPath(nextPath)) },
   });
   if (error) throw error;
   return { configured: true as const };
 }
 
-export async function signOut() {
-  const supabase = getSupabaseBrowserClient();
-  if (supabase) await supabase.auth.signOut();
-}

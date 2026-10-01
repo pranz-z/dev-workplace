@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider } from "@/components/auth/auth-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Developer Workplace Prototype",
-  description: "Personal software development workplace and public portfolio prototype for project, tasks, plans, and GitHub-inspired workflows.",
+  title: "Developer Workplace",
+  description: "Personal software development workplace and public portfolio for projects, tasks, plans, and GitHub-inspired workflows.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -24,7 +25,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-[var(--background)] text-[var(--ink)]">{children}</body>
+      <body className="min-h-full bg-[var(--background)] text-[var(--ink)]">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

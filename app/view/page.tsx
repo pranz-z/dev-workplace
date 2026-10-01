@@ -5,7 +5,8 @@ import { ArrowUpRight, Flame, FolderGit2, Moon, Sparkles, Sun } from "lucide-rea
 import { useEffect, useMemo, useState } from "react";
 import { calculateAccountabilityScore } from "@/data/githubAccountabilityService";
 import { mockGithubActivity, mockProjects } from "@/data/mockData";
-import { listPublicProjects } from "@/data/projectService";
+import { listPublicProjects, toProjectViewFromPublicProject } from "@/data/projectService";
+import type { Project } from "@/types";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -51,7 +52,7 @@ export default function PublicViewerPage() {
 
   useEffect(() => {
     listPublicProjects().then((remoteProjects) => {
-      if (remoteProjects.length > 0) setProjects(remoteProjects);
+      if (remoteProjects.length > 0) setProjects(remoteProjects.map(toProjectViewFromPublicProject));
     }).catch(() => undefined);
   }, []);
 

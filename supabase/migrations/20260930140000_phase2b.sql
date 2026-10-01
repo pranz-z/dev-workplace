@@ -1,0 +1,15 @@
+-- Phase 2B migration: turn the workspace data into real, persistent, secured rows.
+--
+-- What it adds on top of Phase 1:
+--   * project_settings consolidation (the duplicated project_metadata table is
+--     folded into it) plus showcase / link / evidence columns on projects
+--   * globally unique, format-checked slugs for /view/project/<slug>
+--   * value constraints for status, workflow_stage, priority, task status,
+--     milestone status, plan status, date ordering and ownership triggers
+--   * owner-only RLS policies on every table (anon has no privileges at all)
+--   * the public portfolio projection functions (Public list + exact-slug
+--     share links for Unlisted) and the supporting indexes
+--
+-- The canonical SQL lives in ../schema.sql; this migration applies it and is
+-- idempotent, so re-running it is safe.
+\ir ../schema.sql
