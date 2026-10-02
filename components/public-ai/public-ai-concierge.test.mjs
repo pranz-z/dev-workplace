@@ -30,9 +30,15 @@ test("opening shows a local welcome without sending a Gemini request", () => {
 });
 
 test("public suggested questions use the public request and public chat has no workspace controls", () => {
+  assert.match(concierge, /suggestedQuestions\.slice\(4, 8\)/);
   assert.match(concierge, /suggestedQuestions\.slice\(0, 4\)/);
   assert.match(concierge, /onClick=\{\(\) => void ask\(suggestion\)\}/);
   assert.doesNotMatch(concierge, /\/api\/ai(?:\/chat)?|Attach file|Add context|Workspace AI|workspaceContext/);
+});
+
+test("resume answers use the fixed static link rather than a model-provided URL", () => {
+  assert.match(concierge, /showResumeLink: \/\\b\(resume\|cv\)\\b\//);
+  assert.match(concierge, /href="\/resume\/Franz_Michael_Cayanan_Resume\.pdf" download/);
 });
 
 test("public launcher is mounted on portfolio and public project pages", () => {

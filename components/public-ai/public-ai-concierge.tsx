@@ -7,18 +7,22 @@ import { ChatMessageBubble, ChatTypingIndicator, type ChatMessage } from "@/comp
 
 const suggestedQuestions = [
   "What does Franz specialize in?",
-  "What professional experience does Franz have?",
+  "What experience does Franz have at BMWare?",
   "What AI systems has Franz built?",
-  "Which project shows backend skills?",
   "What technologies does Franz work with?",
-  "What did Franz work on at BMWare?",
+  "What did Franz build for his thesis?",
+  "How can I contact Franz?",
+  "Tell me about Developer Workplace.",
+  "Where can I download his resume?",
 ];
+
+type PublicChatMessage = ChatMessage & { showResumeLink?: boolean };
 
 export function PublicAiConcierge() {
   const [available, setAvailable] = useState(false);
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<PublicChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const launcherRef = useRef<HTMLButtonElement>(null);
@@ -64,7 +68,7 @@ export function PublicAiConcierge() {
       });
       const payload = await response.json() as { answer?: string; relatedProjects?: Array<{ slug: string; title: string }>; error?: { message?: string } };
       if (!response.ok || typeof payload.answer !== "string") throw new Error(payload.error?.message || "The portfolio assistant is temporarily unavailable.");
-      setMessages((current) => [...current, { role: "assistant" as const, content: payload.answer!, relatedProjects: Array.isArray(payload.relatedProjects) ? payload.relatedProjects : [] }].slice(-12));
+      setMessages((current) => [...current, { role: "assistant" as const, content: payload.answer!, relatedProjects: Array.isArray(payload.relatedProjects) ? payload.relatedProjects : [], showResumeLink: /\b(resume|cv)\b/i.test(currentQuestion) }].slice(-12));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The portfolio assistant is temporarily unavailable.");
     } finally { setBusy(false); }
@@ -98,6 +102,7 @@ export function PublicAiConcierge() {
         {messages.length === 0 && <ChatMessageBubble role="assistant" publicMode>Hi! Ask me about Franz&apos;s skills, experience, or public work.</ChatMessageBubble>}
         {messages.map((item, index) => <div key={`${index}-${item.role}`} className={`flex flex-col gap-2 ${item.role === "user" ? "items-end" : "items-start"}`}>
           <ChatMessageBubble role={item.role} publicMode>{item.content}</ChatMessageBubble>
+          {item.showResumeLink && <a href="/resume/Franz_Michael_Cayanan_Resume.pdf" download className="public-link">Download Resume</a>}
           {item.relatedProjects && item.relatedProjects.length > 0 && <div className="flex flex-wrap gap-2">{item.relatedProjects.map((project) => <Link key={project.slug} href={`/projects/${encodeURIComponent(project.slug)}`} className="public-link">View {project.title}</Link>)}</div>}
         </div>)}
         {busy && <ChatTypingIndicator publicMode />}
@@ -105,7 +110,7 @@ export function PublicAiConcierge() {
 
       <div className="shrink-0 space-y-2 border-t border-[var(--public-border)] p-3">
         <div className="flex flex-wrap gap-1.5" aria-label="Suggested recruiter questions">
-          {suggestedQuestions.slice(0, 4).map((suggestion) => <button key={suggestion} type="button" disabled={busy} onClick={() => void ask(suggestion)} className="rounded-full border border-[var(--public-border)] px-2.5 py-1.5 text-left text-xs text-[var(--ink)] hover:bg-[var(--surface-strong)] disabled:opacity-50">{suggestion}</button>)}
+          {(messages.length > 0 && messages.length % 4 >= 2 ? suggestedQuestions.slice(4, 8) : suggestedQuestions.slice(0, 4)).map((suggestion) => <button key={suggestion} type="button" disabled={busy} onClick={() => void ask(suggestion)} className="rounded-full border border-[var(--public-border)] px-2.5 py-1.5 text-left text-xs text-[var(--ink)] hover:bg-[var(--surface-strong)] disabled:opacity-50">{suggestion}</button>)}
         </div>
         <form onSubmit={submit} className="flex items-end gap-2">
           <label htmlFor="public-ai-question" className="sr-only">Question about the developer</label>

@@ -128,6 +128,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
               {professional && <p className="mt-4 text-sm text-[var(--muted)]">{professional.heroContext}</p>}
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link href="#projects" className="public-link">View Projects</Link>
+                <a href="/resume/Franz_Michael_Cayanan_Resume.pdf" download className="public-link">Download Resume</a>
                 {(contactEmail || socialLinks.length > 0) && <Link href="#contact" className="public-link">Contact me</Link>}
                 {status === "authenticated" && <Link href="/app" className="inline-flex items-center px-2 text-sm text-[var(--muted)] underline underline-offset-4">Open Workspace</Link>}
               </div>
