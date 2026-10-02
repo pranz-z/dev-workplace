@@ -33,6 +33,7 @@ Then open http://localhost:3000
 - `data/workspaceService.ts` hydrates the authenticated workspace and provides the guarded localStorage migration.
 - `proxy.ts` (the Next.js 16 replacement for middleware) refreshes Supabase auth cookies on every request and protects `/app` and any future `/app/*` route server-side.
 - `supabase/tests/rls.sql` checks RLS enablement and required ownership/public policies in the Supabase test workflow.
+- `app/api/public-ai/route.ts` serves the opt-in public developer concierge separately from the authenticated workspace assistant. It loads only the dedicated public AI RPC projections and never reads private workspace tables.
 - `supabase/seed.sql` seeds safe example projects for the first local auth user; it exits without changes when no local user exists.
 
 ### Supabase setup
@@ -56,6 +57,14 @@ Then open http://localhost:3000
 No service-role key is needed by the browser. Keep privileged secrets out of `NEXT_PUBLIC_*` variables.
 
 The local Supabase CLI requires Docker Desktop or Podman. The application build does not require a local database runtime.
+
+### Phase 5D public AI setup
+
+Review and apply `supabase/migrations/20261002130000_phase5d_public_ai_concierge.sql` after the earlier Phase 5A/5B migrations. Do not enable the assistant until the migration is applied and the server environment is configured. Set `PUBLIC_AI_RATE_LIMIT_SALT` to a random secret of at least 32 characters, keep it server-only, and restart the app. `PUBLIC_AI_DAILY_LIMIT` defaults to 25 and accepts values from 1 to 100. The endpoint also caps each visitor at five requests per UTC minute.
+
+The rate limiter stores HMAC-derived visitor identifiers in RLS-protected tables under the unexposed `private` schema. Service-role-only RPCs update counters and acquire short-lived single-request leases; expired buckets and leases are removed as requests arrive. The public assistant keeps no visitor conversation history. The owner enables it from **Public portfolio profile → Public AI assistant**; both that toggle and **Show my profile on the public portfolio** must be on. The assistant uses only the safe public profile and public project projections and shows a privacy summary in the owner settings.
+
+Run `npm run test:public-ai` for public-AI boundary, validation, and rate-limit handler tests. `supabase/tests/public-ai.sql` contains database privilege and limiter checks for `supabase test db`.
 
 ## Theme system
 
@@ -149,7 +158,7 @@ The Phase 1 foundation intentionally leaves these areas deferred:
 - `/app` always requires a verified Supabase session; without Supabase configuration the private workspace stays locked and only the public routes serve mock data
 - GitHub write operations and webhooks are not enabled yet; the trusted server boundary returns an explicit `501` until configured
 - no billing or enterprise permissions
-- no AI generation workflows
+- the authenticated Gemini workspace assistant and the owner-opt-in public portfolio concierge use separate server-side context paths
 
 Never place Supabase service-role keys, GitHub client secrets, or GitHub App private keys in `NEXT_PUBLIC_*` variables or browser storage.
 

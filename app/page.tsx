@@ -40,6 +40,7 @@ import { SortableList } from "@/components/dnd/SortableList";
 import { TaskKanbanBoard } from "@/components/tasks/TaskKanbanBoard";
 import { PublicAccountabilitySettings } from "@/components/projects/public-accountability-settings";
 import { PublicProfileSettings } from "@/components/profile/public-profile-settings";
+import { AiAssistant, AiSettingsStatus } from "@/components/ai/AiAssistant";
 import { hasLinkedGithubRepository } from "@/data/githubRepositoryLinkService";
 import { buildSeedState } from "@/data/mockData";
 import { calculateProjectAccountability } from "@/data/accountabilityService";
@@ -889,6 +890,35 @@ export default function Home() {
       console.error("[workspace] project update failed", error);
       setWorkspaceError("Couldn't save changes. Refresh and try again.");
     }
+  };
+
+  const applyAiProjectPatch = async (projectId: string, patch: Parameters<typeof updateProject>[1]) => {
+    const result = await updateProject(projectId, patch);
+    if (!result.ok) throw new Error(result.error);
+    setProjects((current) => current.map((project) => project.id === result.data.id ? result.data : project));
+  };
+
+  const addAiTasks = async (projectId: string, suggestions: Array<{ title: string; description: string; priority: "low" | "medium" | "high" }>) => {
+    const created: Task[] = [];
+    for (const suggestion of suggestions) {
+      const result = await createTask({
+        projectId,
+        title: suggestion.title,
+        description: suggestion.description,
+        status: "Backlog",
+        priority: suggestion.priority === "high" ? "High" : suggestion.priority === "low" ? "Low" : "Medium",
+      });
+      if (!result.ok) throw new Error(result.error);
+      created.push(result.data);
+      setTasks((current) => [result.data, ...current]);
+    }
+    if (created.length) updateDerivedProjectProgress(projectId, [...created, ...tasks]);
+  };
+
+  const applyAiNoteSummary = async (noteId: string, content: string) => {
+    const result = await updateNote(noteId, { content });
+    if (!result.ok) throw new Error(result.error);
+    setNotes((current) => current.map((note) => note.id === result.data.id ? result.data : note));
   };
 
   const handleDeleteProject = async (project: Project) => {
@@ -1867,6 +1897,18 @@ export default function Home() {
         ) : (
           <div className="mt-6 space-y-6">
             {projectTab === "Overview" && (
+              <div className="space-y-4">
+                {authStatus === "authenticated" && workspaceStatus === "ready" && <div className="dark-panel p-4"><p className="mb-3 text-sm font-medium t-dark">AI actions</p><AiAssistant
+                  key={`project-ai-${selectedProject.id}`}
+                  mode="project"
+                  project={selectedProject}
+                  projects={projects}
+                  onAddTasks={addAiTasks}
+                  onSetNextAction={(projectId, nextAction) => applyAiProjectPatch(projectId, { nextAction })}
+                  onApplyDescription={(projectId, description) => applyAiProjectPatch(projectId, { description })}
+                  onApplyCaseStudy={(projectId, patch) => applyAiProjectPatch(projectId, patch)}
+                  onApplyNoteSummary={applyAiNoteSummary}
+                /></div>}
               <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
                 <div className="space-y-4">
                   <div className="dark-panel p-4">
@@ -1925,6 +1967,7 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
+              </div>
               </div>
             )}
 
@@ -1991,6 +2034,7 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`${priorityColors[task.priority]}`}>{task.priority}</span>
+                      {authStatus === "authenticated" && workspaceStatus === "ready" && <AiAssistant key={`task-ai-${task.id}`} mode="task" project={selectedProject} task={task} projects={projects} onAddTasks={addAiTasks} onSetNextAction={(projectId, nextAction) => applyAiProjectPatch(projectId, { nextAction })} onApplyDescription={(projectId, description) => applyAiProjectPatch(projectId, { description })} onApplyCaseStudy={(projectId, patch) => applyAiProjectPatch(projectId, patch)} onApplyNoteSummary={applyAiNoteSummary} />}
                       <button type="button" onClick={() => handleEditTask(task)} className="dark-chip px-2 py-1 text-xs">Edit</button>
                       <select
                         value={task.status}
@@ -2322,7 +2366,7 @@ export default function Home() {
           <div className="mt-4 space-y-3">
             {visibleNotes.map((note) => (
               <div key={note.id} className="dark-inset p-3">
-                <div className="flex items-start justify-between gap-2"><p className="font-medium t-dark">{note.title}</p><div className="flex gap-1"><button type="button" onClick={() => handleEditNote(note)} className="dark-chip px-2 py-1 text-xs">Edit</button><button type="button" onClick={() => void removeNote(note.id)} className="dark-chip p-1.5"><X size={13} /></button></div></div>
+                <div className="flex items-start justify-between gap-2"><p className="font-medium t-dark">{note.title}</p><div className="flex flex-wrap gap-1">{authStatus === "authenticated" && workspaceStatus === "ready" && <AiAssistant key={`note-ai-${note.id}`} mode="note" project={projects.find((item) => item.id === note.projectId) ?? selectedProject ?? projects[0]} note={note} projects={projects} onAddTasks={addAiTasks} onSetNextAction={(projectId, nextAction) => applyAiProjectPatch(projectId, { nextAction })} onApplyDescription={(projectId, description) => applyAiProjectPatch(projectId, { description })} onApplyCaseStudy={(projectId, patch) => applyAiProjectPatch(projectId, patch)} onApplyNoteSummary={applyAiNoteSummary} />}<button type="button" onClick={() => handleEditNote(note)} className="dark-chip px-2 py-1 text-xs">Edit</button><button type="button" onClick={() => void removeNote(note.id)} className="dark-chip p-1.5"><X size={13} /></button></div></div>
                 <p className="mt-2 text-sm t-dark-muted">{note.content}</p>
               </div>
             ))}
@@ -2392,6 +2436,7 @@ export default function Home() {
           <p className="text-sm font-medium t-dark">Phase boundaries</p>
           <p className="mt-2 text-sm t-dark-muted">GitHub activity is read-only. Accountability results stay in your authenticated private workspace.</p>
         </div>
+        {authStatus === "authenticated" && <AiSettingsStatus />}
       </div>
       <button type="button" onClick={() => void handleSignOut()} className="mt-4 ink-button coral px-3 py-2 text-sm">Sign out</button>
       {signOutError && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{signOutError}</p>}

@@ -24,6 +24,7 @@ export interface ProfileRow {
   public_linkedin_url: string | null;
   public_website_url: string | null;
   public_profile_enabled: boolean;
+  public_ai_assistant_enabled: boolean;
   time_zone: string | null;
   created_at: string;
   updated_at: string;
@@ -161,6 +162,16 @@ export interface PublicProfileRow {
   headline: string | null;
   bio: string | null;
   avatar_url: string | null;
+  public_contact_email: string | null;
+  github_url: string | null;
+  linkedin_url: string | null;
+  website_url: string | null;
+}
+
+export interface PublicAiProfileRow {
+  display_name: string | null;
+  headline: string | null;
+  bio: string | null;
   public_contact_email: string | null;
   github_url: string | null;
   linkedin_url: string | null;

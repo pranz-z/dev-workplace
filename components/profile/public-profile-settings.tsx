@@ -9,6 +9,7 @@ const emptyProfile: Profile = {
   id: "",
   displayName: "",
   publicProfileEnabled: false,
+  publicAiAssistantEnabled: false,
   showPublicContactEmail: false,
 };
 
@@ -63,6 +64,7 @@ export function PublicProfileSettings() {
       publicLinkedinUrl: profile.publicLinkedinUrl ?? null,
       publicWebsiteUrl: profile.publicWebsiteUrl ?? null,
       publicProfileEnabled: profile.publicProfileEnabled,
+      publicAiAssistantEnabled: profile.publicAiAssistantEnabled,
     });
     setSaving(false);
     if (!result.ok) {
@@ -95,6 +97,14 @@ export function PublicProfileSettings() {
           <label className="flex items-start gap-3 text-sm t-dark"><input type="checkbox" checked={profile.publicProfileEnabled} onChange={(event) => update("publicProfileEnabled", event.target.checked)} className="mt-1" />
             <span><strong>Show my profile on the public portfolio</strong><span className="mt-1 block text-xs t-dark-muted">Off by default. Public projects remain governed by their own visibility settings.</span></span>
           </label>
+          <label className="flex items-start gap-3 text-sm t-dark"><input type="checkbox" checked={profile.publicAiAssistantEnabled} onChange={(event) => update("publicAiAssistantEnabled", event.target.checked)} className="mt-1" />
+            <span><strong>Public AI assistant</strong><span className="mt-1 block text-xs t-dark-muted">Off by default. Allow visitors to ask Gemini about your public professional profile. Only information already shared on your public portfolio is used.</span></span>
+          </label>
+          <div className="rounded-xl dark-inset p-3 text-xs t-dark-muted">
+            <p className="font-medium t-dark">What the public assistant can see</p>
+            <p className="mt-1">Public display name, headline, bio, which public contact methods are available, technologies, and up to 6 featured-first public project titles, short summaries, types, and roles.</p>
+            <p className="mt-1">It cannot see private email or link values, tasks, notes, goals, plans, calendar, private repositories or GitHub activity, reports, or other private workspace data.</p>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             {textField("Professional headline", "headline", "For example, your current role or specialization.")}
             {textField("Public bio", "bio", "A concise professional introduction.")}

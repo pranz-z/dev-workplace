@@ -149,6 +149,7 @@ export interface Profile {
   publicLinkedinUrl?: string;
   publicWebsiteUrl?: string;
   publicProfileEnabled: boolean;
+  publicAiAssistantEnabled: boolean;
   timeZone?: string;
 }
 

@@ -7,6 +7,7 @@ import { listPublicProjects, toProjectViewFromPublicProject } from "@/data/proje
 import { getPublicProfile } from "@/data/profileService";
 import { listPublicProjectScreenshots } from "@/data/projectScreenshotService";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { PublicAiConcierge } from "@/components/public-ai/public-ai-concierge";
 import type { PublicProfile } from "@/types";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -116,6 +117,8 @@ export default function PublicViewerPage() {
             <span aria-hidden="true">·</span><span>{technologyCount} project technologies</span>
           </div>}
         </section>
+
+        <PublicAiConcierge />
 
         <section id="projects" className="space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
