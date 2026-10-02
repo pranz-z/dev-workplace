@@ -12,9 +12,13 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Sparkles } from "lucide-react";
+import { AlertCircle, CalendarDays, CheckCircle2, CircleDashed, Eye, FlaskConical, GripVertical, Play, Plus, Sparkles } from "lucide-react";
+import { useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import type { Task, TaskStatus } from "@/types";
+import { formatCalendarDate, taskCalendarDate } from "@/data/workspaceCalendar";
 import { WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload } from "@/lib/ai/chat-drag";
+import { buildTaskKanbanMove } from "@/data/taskKanban";
 
 interface TaskKanbanBoardProps {
   projectId: string;
@@ -22,9 +26,10 @@ interface TaskKanbanBoardProps {
   tasks: Task[];
   columns: readonly TaskStatus[];
   onMove: (move: { taskId: string; sourceStatus: TaskStatus; destinationStatus: TaskStatus; sourceTaskIds: string[]; destinationTaskIds: string[] }) => void;
-  onStatusChange: (taskId: string, status: TaskStatus) => void;
-  onComplete: (taskId: string) => void;
+  onOpenTask: (task: Task) => void;
   projects: Array<{ id: string; name: string }>;
+  timeZone: string;
+  today: string;
 }
 
 const priorityClass: Record<Task["priority"], string> = {
@@ -34,113 +39,148 @@ const priorityClass: Record<Task["priority"], string> = {
   Critical: "prio prio-high",
 };
 
-function TaskCard({ task, projectName, columns, onStatusChange, onComplete, disabled }: Pick<TaskKanbanBoardProps, "columns" | "onStatusChange" | "onComplete"> & { task: Task; projectName: string; disabled: boolean }) {
+const statusIcon: Record<TaskStatus, LucideIcon> = {
+  Backlog: CircleDashed,
+  Planned: CalendarDays,
+  "In Progress": Play,
+  Review: Eye,
+  Testing: FlaskConical,
+  Blocked: AlertCircle,
+  Completed: CheckCircle2,
+};
+
+function TaskCard({ task, projectName, projectScoped, onOpenTask, disabled, timeZone, today }: {
+  task: Task;
+  projectName: string;
+  projectScoped: boolean;
+  onOpenTask: (task: Task) => void;
+  disabled: boolean;
+  timeZone: string;
+  today: string;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled });
+  const dueDate = taskCalendarDate(task.dueDate, timeZone);
+  const overdue = Boolean(dueDate && dueDate < today && task.status !== "Completed");
   return (
     <article
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.45 : undefined }}
-      className="dark-inset p-3"
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : undefined }}
+      className={`task-kanban-card ${task.status === "Completed" ? "is-completed" : ""} ${isDragging ? "is-dragging" : ""}`}
     >
       <div className="flex items-start gap-2">
-        <button type="button" draggable onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "task", id: task.id })); event.dataTransfer.effectAllowed = "copy"; }} aria-label={`Drag ${task.title} into Workspace AI context`} title={`Drag ${task.title} into Workspace AI`} className="dark-chip cursor-grab p-1 active:cursor-grabbing"><Sparkles size={14} /></button>
         {!disabled && <button
           type="button"
           {...attributes}
           {...listeners}
           aria-label={`Reorder ${task.title}`}
-          title="Drag to reorder; press Space to pick up, use arrow keys, then Space to drop"
-          className="touch-none cursor-grab rounded p-1 text-[var(--text-light-soft)] hover:text-[var(--ink-green)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--ink-green)] active:cursor-grabbing"
+          title="Reorder task — press Space to pick up, use arrow keys, then Space to drop"
+          className="task-kanban-drag-handle"
         >
-          <GripVertical size={16} />
+          <GripVertical size={17} aria-hidden="true" />
         </button>}
+        <button
+          type="button"
+          draggable
+          onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "task", id: task.id })); event.dataTransfer.effectAllowed = "copy"; }}
+          aria-label={`Drag ${task.title} to add it to Workspace AI context`}
+          title="Drag to add to AI context"
+          className="task-kanban-ai-handle"
+        ><Sparkles size={15} aria-hidden="true" /></button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium t-dark">{task.title}</p>
-            <button type="button" onClick={() => onComplete(task.id)} className="shrink-0 text-xs text-[var(--ink-green)]">{task.status === "Completed" ? "Done" : "Done?"}</button>
+          <button type="button" onClick={() => onOpenTask(task)} className="task-kanban-title">{task.title}</button>
+          {!projectScoped && <p className="task-kanban-project">{projectName}</p>}
+          <div className="task-kanban-metadata">
+            <span className={`${priorityClass[task.priority]} task-kanban-priority`}>{task.priority}</span>
+            {task.tags[0] && <span className="task-kanban-tag">{task.tags[0]}</span>}
+            {dueDate && <span className={`task-kanban-due ${overdue ? "is-overdue" : ""}`} aria-label={`${overdue ? "Overdue, due" : "Due"} ${formatCalendarDate(dueDate, { month: "short", day: "numeric" })}`}>
+              <CalendarDays size={13} aria-hidden="true" />
+              <span>{overdue ? "Overdue · " : "Due "}{formatCalendarDate(dueDate, { month: "short", day: "numeric" })}</span>
+            </span>}
           </div>
-          <p className="mt-2 text-[11px] t-dark-muted">{projectName}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className={priorityClass[task.priority]}>{task.priority}</span>
-            <span className="dark-chip px-2 py-1 text-xs">{task.tags[0] ?? "Work"}</span>
-          </div>
-          <select aria-label={`Move ${task.title}`} value={task.status} onChange={(event) => onStatusChange(task.id, event.target.value as TaskStatus)} className="mt-3 w-full dark-chip px-2 py-1 text-xs">
-            {columns.map((status) => <option key={status}>{status}</option>)}
-          </select>
         </div>
       </div>
     </article>
   );
 }
 
-function TaskColumn({ status, tasks, columns, onStatusChange, onComplete, projectNames, disabled }: {
+function TaskColumn({ status, tasks, projectNames, projectScoped, disabled, draggingTaskTitle, onOpenTask, timeZone, today }: {
   status: TaskStatus;
   tasks: Task[];
-  columns: readonly TaskStatus[];
-  onStatusChange: TaskKanbanBoardProps["onStatusChange"];
-  onComplete: TaskKanbanBoardProps["onComplete"];
   projectNames: Map<string, string>;
+  projectScoped: boolean;
   disabled: boolean;
+  draggingTaskTitle: string;
+  onOpenTask: (task: Task) => void;
+  timeZone: string;
+  today: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `column:${status}` });
+  const Icon = statusIcon[status];
   return (
-    <div className={`dark-panel p-3 transition-colors ${isOver ? "ring-2 ring-[var(--ink-green)]" : ""}`}>
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-medium t-dark">{status}</h3>
-        <span className="dark-chip px-2 py-1">{tasks.length}</span>
-      </div>
-      <div ref={setNodeRef} className="min-h-16 space-y-2 rounded-lg">
+    <section data-status={status} aria-label={`${status}, ${tasks.length} tasks`} className={`task-kanban-column ${isOver ? "is-over" : ""}`}>
+      <header className="task-kanban-column-header">
+        <span className="task-kanban-status-icon" aria-hidden="true"><Icon size={16} /></span>
+        <h3>{status}</h3>
+        <span className="task-kanban-count" aria-label={`${tasks.length} tasks`}>{tasks.length}</span>
+      </header>
+      <div ref={setNodeRef} className={`task-kanban-drop-zone ${isOver ? "is-over" : ""}`}>
         <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
-          {tasks.map((task) => <TaskCard key={task.id} task={task} projectName={projectNames.get(task.projectId) ?? "Project"} columns={columns} onStatusChange={onStatusChange} onComplete={onComplete} disabled={disabled} />)}
+          {tasks.map((task) => <TaskCard key={task.id} task={task} projectName={projectNames.get(task.projectId) ?? "Project"} projectScoped={projectScoped} onOpenTask={onOpenTask} disabled={disabled} timeZone={timeZone} today={today} />)}
         </SortableContext>
-        {tasks.length === 0 && <p className="p-3 text-xs t-dark-muted">{disabled ? "Choose a project to reorder tasks" : "Drop a task here"}</p>}
+        {tasks.length === 0 && <div className={`task-kanban-empty ${isOver ? "is-over" : ""}`}>
+          {isOver && draggingTaskTitle ? <><Plus size={17} aria-hidden="true" /><span>Drop “{draggingTaskTitle}” here</span></> : <><Plus size={17} aria-hidden="true" /><span>{disabled ? "Select a project to reorder" : "Drop task here"}</span></>}
+        </div>}
       </div>
-    </div>
+    </section>
   );
 }
 
-export function TaskKanbanBoard({ projectId, tasks, columns, onMove, onStatusChange, onComplete, projects, busy = false }: TaskKanbanBoardProps) {
+export function TaskKanbanBoard({ projectId, tasks, columns, onMove, onOpenTask, projects, busy = false, timeZone, today }: TaskKanbanBoardProps) {
+  const [draggingTaskTitle, setDraggingTaskTitle] = useState("");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 7 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
+    setDraggingTaskTitle("");
     if (!projectId || busy || !event.over) return;
-    const task = tasks.find((item) => item.id === String(event.active.id));
-    if (!task || event.active.id === event.over.id) return;
-    const overTask = tasks.find((item) => item.id === String(event.over?.id));
-    const destinationStatus = overTask?.status ?? columns.find((status) => `column:${status}` === event.over?.id);
-    if (!destinationStatus) return;
-
-    const groups = new Map(columns.map((status) => [status, tasks.filter((item) => item.status === status).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))]));
-    const originalSourceIds = (groups.get(task.status) ?? []).map((item) => item.id);
-    const sourceTaskIds = originalSourceIds.filter((id) => id !== task.id);
-    const destinationTaskIds = task.status === destinationStatus ? [...sourceTaskIds] : [...(groups.get(destinationStatus) ?? []).map((item) => item.id)];
-    const overIndex = overTask ? destinationTaskIds.indexOf(overTask.id) : destinationTaskIds.length;
-    destinationTaskIds.splice(Math.max(0, overIndex), 0, task.id);
-    if (task.status === destinationStatus && destinationTaskIds.every((id, index) => id === originalSourceIds[index])) return;
-    onMove({ taskId: task.id, sourceStatus: task.status, destinationStatus, sourceTaskIds, destinationTaskIds });
+    const activeRect = event.active.rect.current.translated ?? event.active.rect.current.initial;
+    const insertAfter = Boolean(activeRect && activeRect.top + activeRect.height / 2 > event.over.rect.top + event.over.rect.height / 2);
+    const move = buildTaskKanbanMove(tasks, columns, projectId, String(event.active.id), String(event.over.id), insertAfter);
+    if (move) onMove(move);
   };
 
   const projectNames = new Map(projects.map((project) => [project.id, project.name]));
+  const projectScoped = Boolean(projectId);
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-      <div className="grid gap-4 xl:grid-cols-3 2xl:grid-cols-7">
-        {columns.map((column) => (
-          <TaskColumn
-            key={column}
-            status={column}
-            tasks={tasks.filter((task) => task.status === column).sort((a, b) => projectId
-              ? (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-              : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())}
-            columns={columns}
-            projectNames={projectNames}
-            disabled={!projectId || busy}
-            onStatusChange={onStatusChange}
-            onComplete={onComplete}
-          />
-        ))}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      autoScroll
+      onDragStart={(event) => setDraggingTaskTitle(tasks.find((task) => task.id === String(event.active.id))?.title ?? "")}
+      onDragCancel={() => setDraggingTaskTitle("")}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="task-kanban-scroll" role="region" aria-label="Task Kanban board" tabIndex={0}>
+        <div className="task-kanban-columns">
+          {columns.map((column) => (
+            <TaskColumn
+              key={column}
+              status={column}
+              tasks={tasks.filter((task) => task.status === column).sort((a, b) => projectId
+                ? (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+                : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())}
+              projectNames={projectNames}
+              projectScoped={projectScoped}
+              disabled={!projectId || busy}
+              draggingTaskTitle={draggingTaskTitle}
+              onOpenTask={onOpenTask}
+              timeZone={timeZone}
+              today={today}
+            />
+          ))}
+        </div>
       </div>
     </DndContext>
   );

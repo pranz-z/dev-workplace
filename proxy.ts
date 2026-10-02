@@ -19,7 +19,6 @@ const redirectWithSessionCookies = (target: URL, sessionResponse: NextResponse) 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isPrivateRoute = isPrivatePath(pathname);
-  const isRootRoute = pathname === "/";
   const isLoginRoute = pathname === "/login";
 
   // Refresh the Supabase session on every matched request so browser and server cookies
@@ -59,13 +58,6 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("next", `${pathname}${search}`);
     return redirectWithSessionCookies(loginUrl, response);
-  }
-
-  // `/` stays public: signed-in users continue to the workspace, visitors see the portfolio.
-  if (isRootRoute) {
-    const origin = getApplicationOrigin();
-    if (!origin) return new NextResponse("Application origin is not configured.", { status: 503, headers: { "Cache-Control": "no-store" } });
-    return redirectWithSessionCookies(new URL(user ? "/app" : "/view", origin), response);
   }
 
   // A signed-in user never needs the login screen again.

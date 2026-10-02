@@ -6,11 +6,12 @@ import { ChatMessageBubble, ChatTypingIndicator, type ChatMessage } from "@/comp
 
 const suggestedQuestions = [
   "What does this developer specialize in?",
-  "What AI experience does he have?",
-  "Which technologies appear in public projects?",
+  "What professional experience does the developer have?",
+  "What AI systems has the developer built?",
+  "Which project best shows the developer's backend skills?",
 ];
 
-export function PublicAiConcierge() {
+export function PublicAiConcierge({ onAvailabilityChange }: { onAvailabilityChange?: (available: boolean) => void } = {}) {
   const [available, setAvailable] = useState(false);
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -23,10 +24,13 @@ export function PublicAiConcierge() {
     void fetch("/api/public-ai", { cache: "no-store" }).then(async (response) => {
       if (!response.ok) throw new Error("availability");
       const payload = await response.json() as { available?: boolean };
-      if (active) setAvailable(payload.available === true);
-    }).catch(() => { if (active) setAvailable(false); });
+      if (active) {
+        setAvailable(payload.available === true);
+        onAvailabilityChange?.(payload.available === true);
+      }
+    }).catch(() => { if (active) { setAvailable(false); onAvailabilityChange?.(false); } });
     return () => { active = false; };
-  }, []);
+  }, [onAvailabilityChange]);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, busy]);
 
@@ -53,7 +57,7 @@ export function PublicAiConcierge() {
 
   if (!available) return null;
 
-  return <section className="public-card p-5 md:p-6" aria-labelledby="public-ai-title">
+  return <section id="public-ai" className="public-card p-5 md:p-6" aria-labelledby="public-ai-title">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Public portfolio concierge</p>
@@ -66,7 +70,7 @@ export function PublicAiConcierge() {
       <ChatMessageBubble role="assistant" publicMode>Hi! Ask me about the developer&apos;s skills, experience, or public work.</ChatMessageBubble>
       {messages.map((item, index) => <div key={`${index}-${item.role}`} className={`flex flex-col gap-2 ${item.role === "user" ? "items-end" : "items-start"}`}>
         <ChatMessageBubble role={item.role} publicMode>{item.content}</ChatMessageBubble>
-        {item.relatedProjects && item.relatedProjects.length > 0 && <div className="flex flex-wrap gap-2">{item.relatedProjects.map((project) => <Link key={project.slug} href={`/view/project/${encodeURIComponent(project.slug)}`} className="public-link">View {project.title}</Link>)}</div>}
+        {item.relatedProjects && item.relatedProjects.length > 0 && <div className="flex flex-wrap gap-2">{item.relatedProjects.map((project) => <Link key={project.slug} href={`/projects/${encodeURIComponent(project.slug)}`} className="public-link">View {project.title}</Link>)}</div>}
       </div>)}
       {busy && <ChatTypingIndicator publicMode />}
     </div>

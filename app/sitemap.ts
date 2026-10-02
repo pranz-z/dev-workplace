@@ -10,7 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = getApplicationOrigin();
   if (!origin) return [];
 
-  const entries: MetadataRoute.Sitemap = [{ url: `${origin}/view` }];
+  const entries: MetadataRoute.Sitemap = [{ url: `${origin}/` }];
   try {
     const { url, key } = getSupabaseEnv();
     const supabase = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
@@ -21,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
     for (const project of (data ?? []) as PublicProjectCardRow[]) {
       if (project.visibility !== "Public") continue;
-      entries.push({ url: `${origin}/view/project/${encodeURIComponent(project.slug)}`, lastModified: project.updated_at });
+      entries.push({ url: `${origin}/projects/${encodeURIComponent(project.slug)}`, lastModified: project.updated_at });
     }
   } catch {
     // A public index page remains available when optional project metadata cannot load.

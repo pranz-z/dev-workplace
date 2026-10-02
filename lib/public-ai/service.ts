@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { PublicAiProfileRow, PublicProjectCardRow } from "@/data/database.types";
+import { getPublicProfessionalContent, publicProfessionalIntroduction, type PublicProfessionalContent } from "@/lib/portfolio/resume-content";
 
 export const MAX_QUESTION_LENGTH = 500;
 export const MAX_ANSWER_LENGTH = 1200;
@@ -23,6 +24,7 @@ export interface PublicDeveloperContext {
     contactOptions: string[];
   };
   publicTechnologies: string[];
+  professionalBackground?: Pick<PublicProfessionalContent, "experience" | "education" | "skillGroups" | "focusAreas">;
   publicProjects: Array<{
     slug: string;
     title: string;
@@ -69,6 +71,9 @@ export function buildPublicDeveloperContext(
   profile: PublicAiProfileRow,
   projects: PublicProjectCardRow[],
 ): PublicDeveloperContext {
+  const professionalProfile = { displayName: profile.display_name ?? "", headline: profile.headline, bio: profile.bio };
+  const professional = getPublicProfessionalContent(professionalProfile);
+  const introduction = publicProfessionalIntroduction(professionalProfile);
   const boundedProjects = projects
     .filter((project) => project.visibility === "Public")
     .sort((a, b) => Number(b.is_featured) - Number(a.is_featured) || b.updated_at.localeCompare(a.updated_at))
@@ -94,12 +99,18 @@ export function buildPublicDeveloperContext(
   return {
     developer: {
       name: boundedText(profile.display_name, 120) ?? "",
-      headline: boundedText(profile.headline, 240),
-      bio: boundedText(profile.bio, 1200),
+      headline: boundedText(introduction.headline, 240),
+      bio: boundedText(introduction.bio, 1200),
       contactOptions,
     },
     publicTechnologies,
     publicProjects: boundedProjects,
+    ...(professional ? { professionalBackground: {
+      experience: professional.experience,
+      education: professional.education,
+      skillGroups: professional.skillGroups,
+      focusAreas: professional.focusAreas,
+    } } : {}),
   };
 }
 
@@ -123,7 +134,7 @@ export function validatePublicAiAnswer(value: unknown, context: PublicDeveloperC
 export const PUBLIC_AI_SCOPE_REDIRECT = "I'm here to answer questions about the developer and their public portfolio.";
 
 export function isProfessionalPortfolioQuestion(question: string): boolean {
-  return /\b(developer|portfolio|project|projects|work|experience|skill|skills|technology|technologies|tech|speciali[sz]|professional|role|career|background|contact|email|linkedin|github|hire|hiring|education|strength|fit|candidate|resume|he|his|she|her|they|their)\b/i.test(question);
+  return /\b(developer|portfolio|project|projects|work|experience|skill|skills|technology|technologies|tech|speciali[sz]|professional|role|career|background|contact|email|linkedin|github|hire|hiring|education|strength|fit|candidate|resume|bmware|franz|he|his|she|her|they|their)\b/i.test(question);
 }
 
 export function getPublicAiDailyLimit(environment: NodeJS.ProcessEnv = process.env): number {

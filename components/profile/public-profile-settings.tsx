@@ -56,6 +56,7 @@ export function PublicProfileSettings() {
     }
     setSaving(true);
     const result = await updateProfile({
+      displayName: profile.displayName,
       bio: profile.bio ?? null,
       headline: profile.headline ?? null,
       publicContactEmail: profile.publicContactEmail ?? null,
@@ -76,7 +77,7 @@ export function PublicProfileSettings() {
   };
 
   const update = <K extends keyof Profile>(key: K, value: Profile[K]) => setProfile((current) => ({ ...current, [key]: value }));
-  const textField = (label: string, key: "headline" | "bio" | "publicContactEmail" | "publicGithubUrl" | "publicLinkedinUrl" | "publicWebsiteUrl", placeholder: string, type = "text") => (
+  const textField = (label: string, key: "displayName" | "headline" | "bio" | "publicContactEmail" | "publicGithubUrl" | "publicLinkedinUrl" | "publicWebsiteUrl", placeholder: string, type = "text") => (
     <label className="block text-sm t-dark-muted">{label}
       <input type={type} value={profile[key] ?? ""} onChange={(event) => update(key, event.target.value)} className="mt-1 w-full dark-chip px-3 py-2 text-sm" />
       {placeholder && <span className="mt-1 block text-xs t-dark-muted">{placeholder}</span>}
@@ -90,7 +91,7 @@ export function PublicProfileSettings() {
           <h3 id="public-profile-settings-title" className="text-lg font-semibold t-dark">Public portfolio profile</h3>
           <p className="mt-1 text-sm t-dark-muted">Only the fields below are included in the public profile. Your sign-in email and account username stay private.</p>
         </div>
-        <a href="/view" target="_blank" rel="noopener noreferrer" className="dark-chip px-3 py-2 text-sm">Preview public portfolio</a>
+        <a href="/" target="_blank" rel="noopener noreferrer" className="dark-chip px-3 py-2 text-sm">Preview public portfolio</a>
       </div>
       {loading ? <p role="status" className="mt-4 text-sm t-dark-muted">Loading profile settings…</p> : (
         <form onSubmit={(event) => void submit(event)} className="mt-4 space-y-4">
@@ -102,10 +103,12 @@ export function PublicProfileSettings() {
           </label>
           <div className="rounded-xl dark-inset p-3 text-xs t-dark-muted">
             <p className="font-medium t-dark">What the public assistant can see</p>
-            <p className="mt-1">Public display name, headline, bio, which public contact methods are available, technologies, and up to 6 featured-first public project titles, short summaries, types, and roles.</p>
+            <p className="mt-1">Public display name, headline, bio, which public contact methods are available, technologies, and up to 6 featured-first public project titles, short summaries, types, and roles. When your shared profile matches the portfolio owner, it also uses the approved professional experience, education, skills, and engineering-focus copy shown on the website.</p>
             <p className="mt-1">It cannot see private email or link values, tasks, notes, goals, plans, calendar, private repositories or GitHub activity, reports, or other private workspace data.</p>
           </div>
+          <p className="text-xs t-dark-muted">Approved resume experience, education, and skills appear for the matching public portfolio profile. Configured headline and bio take precedence over resume-derived defaults. Turning profile sharing off also hides that professional background.</p>
           <div className="grid gap-4 md:grid-cols-2">
+            {textField("Public display name", "displayName", "Your public professional name.")}
             {textField("Professional headline", "headline", "For example, your current role or specialization.")}
             {textField("Public bio", "bio", "A concise professional introduction.")}
             {textField("Public contact email", "publicContactEmail", "Separate from your Supabase sign-in email.", "email")}

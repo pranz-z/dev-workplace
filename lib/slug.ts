@@ -2,7 +2,7 @@
  * Slug rules shared by the workspace services and the database.
  *
  * A project `id` is an internal uuid and never appears in a URL. The public
- * route is /view/project/<slug>, and because that URL carries no owner segment
+ * route is /projects/<slug>, and because that URL carries no owner segment
  * the slug has to be globally unique - matching the `projects_slug_key`
  * constraint and the `projects_slug_format_check` in supabase/schema.sql.
  */

@@ -9,10 +9,15 @@
     "lint": "eslint",
     "test:accountability": "node --test data/accountabilityService.test.mjs data/accountabilityReports.test.mjs",
     "test:calendar": "node --test data/workspaceCalendar.test.mjs",
+    "test:focus-session": "node --test data/focusSession.test.mjs",
+    "test:workspace-shell": "node --test components/workspace/WorkspaceShell.test.mjs",
+    "test:task-kanban": "node --test data/taskKanban.test.mjs",
     "test:ai": "node --test lib/ai/ai.test.mjs",
     "test:public-ai": "node --test lib/public-ai/public-ai.test.mjs",
     "test:phase5e": "node --test lib/ai/phase5e.test.mjs",
-    "test:phase6a1": "node --test lib/security/content-security-policy.test.mjs lib/ai/phase6a1.test.mjs"
+    "test:phase6a1": "node --test lib/security/content-security-policy.test.mjs lib/ai/phase6a1.test.mjs",
+    "test:phase6a3": "node --test lib/portfolio-routes.test.mjs lib/auth/redirects.test.mjs lib/site-origin.test.mjs",
+    "test:portfolio": "node --test lib/portfolio/resume-content.test.mjs lib/portfolio-routes.test.mjs lib/public-ai/public-ai.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

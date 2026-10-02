@@ -9,7 +9,7 @@ export const DEFAULT_AUTH_REDIRECT = "/app";
 export function sanitizeNextPath(value: string | null | undefined, fallback: string = DEFAULT_AUTH_REDIRECT): string {
   if (!value) return fallback;
   const trimmed = value.trim();
-  if (!trimmed.startsWith("/") || trimmed.startsWith("//") || trimmed.startsWith("/\\")) return fallback;
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//") || /[\\\u0000-\u0020\u007f]/.test(trimmed)) return fallback;
   return trimmed;
 }
 

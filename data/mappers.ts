@@ -182,7 +182,7 @@ export function mapProjectSettingsRow(row: ProjectSettingsRow) {
   };
 }
 
-/** PublicProjectCardRow -> PublicProject, the shape the /view pages render. */
+/** PublicProjectCardRow -> PublicProject, the shape the public portfolio renders. */
 export function mapPublicProjectRow(row: PublicProjectCardRow): PublicProject {
   return {
     id: row.id,

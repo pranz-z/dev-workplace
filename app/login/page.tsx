@@ -65,7 +65,7 @@ function LoginPanel() {
             {errorMessage}
           </p>
         )}
-        <Link href="/view" className="mt-6 inline-flex text-sm font-semibold underline underline-offset-4 t-paper-muted">
+        <Link href="/" className="mt-6 inline-flex text-sm font-semibold underline underline-offset-4 t-paper-muted">
           Explore the public portfolio
         </Link>
       </section>

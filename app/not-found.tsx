@@ -6,7 +6,7 @@ export default function NotFound() {
       <section className="public-card w-full max-w-lg p-6 text-center">
         <h1 className="text-2xl font-bold text-[var(--ink)]">Page not found</h1>
         <p className="mt-3 text-sm text-[var(--muted)]">That page may have moved or is not publicly available.</p>
-        <Link href="/view" className="public-link mt-5">Back to portfolio</Link>
+        <Link href="/" className="public-link mt-5">Back to portfolio</Link>
       </section>
     </main>
   );
