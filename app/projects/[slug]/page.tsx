@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, FolderGit2, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PublicAccountabilityCard } from "@/components/accountability/public-accountability-card";
+import { PublicAiConcierge } from "@/components/public-ai/public-ai-concierge";
 import { listPublicProjectScreenshots } from "@/data/projectScreenshotService";
 import { getPublicProjectBySlug, toProjectViewFromPublicProject } from "@/data/projectService";
 import { isValidSlug } from "@/lib/slug";
@@ -214,6 +215,7 @@ export default function PublicProjectPage() {
           <button type="button" onClick={() => void copyLink()} className="public-link" aria-live="polite">{linkCopied ? "Link copied" : "Copy project link"}</button>
         </section>
       </main>
+      <PublicAiConcierge />
     </div>
   );
 }

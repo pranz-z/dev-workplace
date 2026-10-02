@@ -45,7 +45,6 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
   const projects = initialProjects;
   const profile = initialProfile;
   const professional = initialProfessionalContent;
-  const [publicAiAvailable, setPublicAiAvailable] = useState(false);
   const [covers, setCovers] = useState<Record<string, string>>({});
   const [selectedType, setSelectedType] = useState("All");
   const loadError = initialError;
@@ -130,7 +129,6 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link href="#projects" className="public-link">View Projects</Link>
                 {(contactEmail || socialLinks.length > 0) && <Link href="#contact" className="public-link">Contact me</Link>}
-                {publicAiAvailable && <Link href="#public-ai" className="public-link">Ask AI about me</Link>}
                 {status === "authenticated" && <Link href="/app" className="inline-flex items-center px-2 text-sm text-[var(--muted)] underline underline-offset-4">Open Workspace</Link>}
               </div>
             </div>
@@ -178,7 +176,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
           <h2 className="text-2xl font-bold text-[var(--ink)]">Professional focus</h2>
           <p className="mt-3 text-[var(--muted)]">{profile.headline}</p>
         </section>}
-        <PublicAiConcierge onAvailabilityChange={setPublicAiAvailable} />
+        <PublicAiConcierge />
         {(contactEmail || socialLinks.length > 0) && <section id="contact" className="public-card flex flex-wrap items-center justify-between gap-4 p-6">
           <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Contact</p><h2 className="mt-2 text-2xl font-bold text-[var(--ink)]">Let&apos;s connect</h2></div>
           <div className="flex flex-wrap gap-2">{contactEmail && <a className="public-link" href={`mailto:${contactEmail}`}>Email</a>}{socialLinks.map((item) => <a key={item.label} className="public-link" href={item.href} target="_blank" rel="noopener noreferrer">{item.label} <ArrowUpRight size={14} /></a>)}</div>

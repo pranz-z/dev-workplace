@@ -1274,6 +1274,20 @@ html[data-theme="dark"] .task-kanban-ai-handle { border-color: var(--edge-dark-s
 
 .public-shell section[id] { scroll-margin-top: 1.5rem; }
 
+.public-ai-concierge {
+  --ink: var(--text-dark);
+  --muted: var(--text-dark-muted);
+  --surface: var(--surface-cream);
+  --surface-strong: var(--surface-cream-hi);
+}
+
+html[data-theme="dark"] .public-ai-concierge {
+  --ink: var(--text-light);
+  --muted: var(--text-light-muted);
+  --surface: var(--surface-dark);
+  --surface-strong: var(--surface-dark-2);
+}
+
 .public-eyebrow {
   font-size: 0.7rem;
   font-weight: 700;
