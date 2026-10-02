@@ -3,6 +3,7 @@ export type AiErrorCode =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
   | "INVALID_INPUT"
+  | "INVALID_ATTACHMENT"
   | "RATE_LIMITED"
   | "MODEL_UNAVAILABLE"
   | "CONTENT_BLOCKED"
@@ -14,6 +15,7 @@ const safeMessages: Record<AiErrorCode, string> = {
   UNAUTHENTICATED: "Sign in to use the AI assistant.",
   FORBIDDEN: "That workspace item is not available.",
   INVALID_INPUT: "Check the request and try again.",
+  INVALID_ATTACHMENT: "One or more attachments are unsupported or exceed the allowed limits.",
   RATE_LIMITED: "The AI assistant has reached its current request limit. Try again later.",
   MODEL_UNAVAILABLE: "The configured Gemini model is temporarily unavailable. Try again later.",
   CONTENT_BLOCKED: "Gemini could not process this request. Review the selected content and try again.",
@@ -31,7 +33,7 @@ export class AiError extends Error {
     this.code = code;
     this.status = code === "UNAUTHENTICATED" ? 401
       : code === "FORBIDDEN" ? 403
-        : code === "INVALID_INPUT" || code === "MALFORMED_OUTPUT" ? 400
+      : code === "INVALID_INPUT" || code === "INVALID_ATTACHMENT" || code === "MALFORMED_OUTPUT" ? 400
           : code === "AI_NOT_CONFIGURED" || code === "MODEL_UNAVAILABLE" ? 503
             : code === "RATE_LIMITED" ? 429 : 502;
   }

@@ -41,6 +41,9 @@ import { TaskKanbanBoard } from "@/components/tasks/TaskKanbanBoard";
 import { PublicAccountabilitySettings } from "@/components/projects/public-accountability-settings";
 import { PublicProfileSettings } from "@/components/profile/public-profile-settings";
 import { AiAssistant, AiSettingsStatus } from "@/components/ai/AiAssistant";
+import { WorkspaceAiChat } from "@/components/ai/WorkspaceAiChat";
+import { WorkspaceGreeting } from "@/components/workspace/WorkspaceGreeting";
+import { WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload } from "@/lib/ai/chat-drag";
 import { hasLinkedGithubRepository } from "@/data/githubRepositoryLinkService";
 import { buildSeedState } from "@/data/mockData";
 import { calculateProjectAccountability } from "@/data/accountabilityService";
@@ -706,6 +709,8 @@ export default function Home() {
     <button
       key={project.id}
       type="button"
+      draggable={authStatus === "authenticated" && workspaceStatus === "ready"}
+      onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "project", id: project.id })); event.dataTransfer.effectAllowed = "copy"; }}
       onClick={() => {
         setSelectedProjectId(project.id);
         setActiveView("projects");
@@ -1449,9 +1454,7 @@ export default function Home() {
       <div className="hero-paper tilt-left p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="hero-script text-[32px] leading-none">Good afternoon, {firstName} ✦</h3>
-            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.2em] t-paper-muted">Let&apos;s build something cool.</p>
-            <h1 className="mt-3 text-3xl font-extrabold tracking-tight t-paper text-shadow-paper">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</h1>
+            {authStatus === "authenticated" ? <WorkspaceGreeting userId={user!.id} name={firstName} /> : <div><h3 className="hero-script text-[32px] leading-none">Hello, {firstName} ✦</h3><p className="mt-2 text-[11px] font-bold uppercase tracking-[0.2em] t-paper-muted">Let&apos;s build something cool.</p><h1 className="mt-3 text-3xl font-extrabold tracking-tight t-paper text-shadow-paper">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</h1></div>}
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={handleCreateProject} className="ink-button primary px-3 py-2 text-sm font-semibold">
@@ -2027,7 +2030,7 @@ export default function Home() {
                   </div>
                 </div>
                 {visibleProjectTasks.length > 0 ? visibleProjectTasks.map((task) => (
-                  <div key={task.id} className="flex items-start justify-between gap-4 dark-inset p-3">
+                  <div key={task.id} draggable={authStatus === "authenticated" && workspaceStatus === "ready"} onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "task", id: task.id })); event.dataTransfer.effectAllowed = "copy"; }} className="flex items-start justify-between gap-4 dark-inset p-3">
                     <div>
                       <p className="font-medium t-dark">{task.title}</p>
                       <p className="mt-1 text-xs t-dark-muted">{task.description}</p>
@@ -2139,6 +2142,8 @@ export default function Home() {
                 <button
                   key={project.id}
                   type="button"
+                  draggable={authStatus === "authenticated" && workspaceStatus === "ready"}
+                  onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "project", id: project.id })); event.dataTransfer.effectAllowed = "copy"; }}
                   onClick={() => openProjectDetail(project)}
                   className="flex w-full flex-col gap-2 dark-inset p-3 text-left md:flex-row md:items-center md:justify-between"
                 >
@@ -2227,7 +2232,7 @@ export default function Home() {
         <div className="space-y-3 dark-panel p-4">
           {tasks.length === 0 && <p className="text-sm t-dark-muted">No tasks yet. Add a project before creating a task.</p>}
           {tasks.map((task) => (
-            <div key={task.id} className="flex flex-col gap-3 dark-inset p-3 md:flex-row md:items-center md:justify-between">
+            <div key={task.id} draggable={authStatus === "authenticated" && workspaceStatus === "ready"} onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "task", id: task.id })); event.dataTransfer.effectAllowed = "copy"; }} className="flex flex-col gap-3 dark-inset p-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="font-medium t-dark">{task.title}</p>
                 <div className="mt-1 flex flex-wrap gap-2 text-[10px] t-dark-muted">
@@ -2266,7 +2271,7 @@ export default function Home() {
             <div key={plan.id} className="dark-panel p-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold t-dark">{plan.title}</h3>
-                <span className="dark-chip px-2 py-1">{percent}%</span>
+                <div className="flex items-center gap-2"><span className="dark-chip px-2 py-1">{percent}%</span>{authStatus === "authenticated" && workspaceStatus === "ready" && <button type="button" draggable onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "plan", id: plan.id })); event.dataTransfer.effectAllowed = "copy"; }} aria-label={`Drag ${plan.title} into Workspace AI context`} title={`Drag ${plan.title} into Workspace AI`} className="dark-chip cursor-grab p-1.5 active:cursor-grabbing"><Sparkles size={14} /></button>}</div>
               </div>
               <p className="mt-3 text-sm t-dark-muted">{plan.goal}</p>
               <p className="mt-3 eyebrow t-dark-soft">Deadline: {formatDisplayDate(plan.deadline)}</p>
@@ -2578,6 +2583,7 @@ export default function Home() {
             {workspaceError && workspaceStatus !== "error" && <div role="alert" className="mb-4 flex items-center justify-between gap-3 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}<button type="button" onClick={() => setWorkspaceError("")} aria-label="Dismiss error"><X size={14} /></button></div>}
             {((authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id) || (authStatus === "unauthenticated" && workspaceStatus === "mock")) && renderPage()}
           </main>
+          {authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id && <WorkspaceAiChat projects={projects} tasks={tasks} plans={plans} />}
         </div>
       </div>
 

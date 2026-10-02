@@ -12,8 +12,9 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Sparkles } from "lucide-react";
 import type { Task, TaskStatus } from "@/types";
+import { WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload } from "@/lib/ai/chat-drag";
 
 interface TaskKanbanBoardProps {
   projectId: string;
@@ -42,6 +43,7 @@ function TaskCard({ task, projectName, columns, onStatusChange, onComplete, disa
       className="dark-inset p-3"
     >
       <div className="flex items-start gap-2">
+        <button type="button" draggable onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "task", id: task.id })); event.dataTransfer.effectAllowed = "copy"; }} aria-label={`Drag ${task.title} into Workspace AI context`} title={`Drag ${task.title} into Workspace AI`} className="dark-chip cursor-grab p-1 active:cursor-grabbing"><Sparkles size={14} /></button>
         {!disabled && <button
           type="button"
           {...attributes}

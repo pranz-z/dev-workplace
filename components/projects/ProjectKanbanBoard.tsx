@@ -12,8 +12,9 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Sparkles } from "lucide-react";
 import { WORKFLOW_PIPELINE } from "@/lib/projectProgress";
+import { WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload } from "@/lib/ai/chat-drag";
 import type { Project, WorkflowPhase } from "@/types";
 
 // The existing Projects Kanban intentionally shows the ordered pipeline except
@@ -71,6 +72,7 @@ function ProjectCard({ project, selected, disabled, onSelect }: {
           <GripVertical size={17} />
         </button>
       )}
+      <button type="button" draggable onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "project", id: project.id })); event.dataTransfer.effectAllowed = "copy"; }} aria-label={`Drag ${project.name} into Workspace AI context`} title={`Drag ${project.name} into Workspace AI`} className="dark-chip cursor-grab p-1.5 active:cursor-grabbing"><Sparkles size={14} /></button>
     </article>
   );
 }
