@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  Bell,
   Briefcase,
   CalendarDays,
   Check,
@@ -14,7 +13,6 @@ import {
   Globe,
   LayoutDashboard,
   ListTodo,
-  Menu,
   MessageSquareText,
   Moon,
   NotebookPen,
@@ -42,6 +40,10 @@ import { PublicAccountabilitySettings } from "@/components/projects/public-accou
 import { PublicProfileSettings } from "@/components/profile/public-profile-settings";
 import { AiAssistant, AiSettingsStatus } from "@/components/ai/AiAssistant";
 import { WorkspaceAiChat } from "@/components/ai/WorkspaceAiChat";
+import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
+import { WorkspaceDialog } from "@/components/workspace/WorkspaceDialog";
+import { getProfileTimeZone } from "@/data/accountabilityDataService";
+import { isValidTimeZone } from "@/data/accountabilityReports";
 import { WorkspaceGreeting } from "@/components/workspace/WorkspaceGreeting";
 import { WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload } from "@/lib/ai/chat-drag";
 import { hasLinkedGithubRepository } from "@/data/githubRepositoryLinkService";
@@ -49,7 +51,7 @@ import { buildSeedState } from "@/data/mockData";
 import { calculateProjectAccountability } from "@/data/accountabilityService";
 import { AccountabilityWorkspace } from "@/components/accountability/accountability-workspace";
 import { calculateProjectProgress } from "@/lib/projectProgress";
-import { calendarDatePatch, formatCalendarDate, taskCalendarDate, type WorkspaceCalendarEvent } from "@/data/workspaceCalendar";
+import { filterTaskView, localCalendarDate, calendarDatePatch, formatCalendarDate, taskCalendarDate, type WorkspaceCalendarEvent } from "@/data/workspaceCalendar";
 import { loadWorkspaceData } from "@/data/workspaceService";
 import { completeTask, createTask, deleteTask, listTasks, reopenTask, reorderProjectTasks, setTaskStatus, updateTask } from "@/data/taskService";
 import { createPlan, deletePlan, listPlans, setPlanStatus, updatePlan } from "@/data/planService";
@@ -333,7 +335,15 @@ export default function Home() {
   const calendarWriteLock = useRef(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [githubImportOpen, setGithubImportOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
+  const [contextQuery, setContextQuery] = useState("");
+  const [accountabilityTab, setAccountabilityTab] = useState<"Overview" | "Goals" | "Weekly" | "Monthly">("Overview");
+  const [profileTimeZone, setProfileTimeZone] = useState<{ userId: string; timeZone: string } | null>(null);
+  const workspaceTimeZone = authStatus === "authenticated" && user?.id === profileTimeZone?.userId
+    ? profileTimeZone?.timeZone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")
+    : Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const [workspaceNow, setWorkspaceNow] = useState(() => new Date());
   const [showcaseMode, setShowcaseMode] = useState<"workspace" | "showcase">("workspace");
   const [searchQuery, setSearchQuery] = useState("");
   const [focusMinutes, setFocusMinutes] = useState(25);
@@ -379,6 +389,13 @@ export default function Home() {
       setIsSavingEditor(false);
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    if (authStatus === "authenticated" && user?.id) void getProfileTimeZone().then((zone) => { if (active && isValidTimeZone(zone)) setProfileTimeZone({ userId: user.id, timeZone: zone! }); }).catch(() => {});
+    const timer = window.setInterval(() => setWorkspaceNow(new Date()), 60_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [authStatus, user?.id]);
 
   const firstName = useMemo(() => {
     const metadata = user?.user_metadata ?? {};
@@ -624,9 +641,9 @@ export default function Home() {
   );
 
   const completedToday = useMemo(() => {
-    const today = new Date().toDateString();
-    return tasks.filter((task) => task.completedAt && new Date(task.completedAt).toDateString() === today);
-  }, [tasks]);
+    const today = localCalendarDate(workspaceNow, workspaceTimeZone);
+    return tasks.filter((task) => task.completedAt && taskCalendarDate(task.completedAt, workspaceTimeZone) === today);
+  }, [tasks, workspaceNow, workspaceTimeZone]);
 
   const upcomingItems = useMemo(() => {
     const items = [...tasks]
@@ -645,11 +662,11 @@ export default function Home() {
           projectId: milestone.projectId,
         })),
       )
-      .filter((item) => item.date)
-      .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
+      .filter((item) => item.date && item.date >= localCalendarDate(workspaceNow, workspaceTimeZone))
+      .sort((a, b) => a.date!.localeCompare(b.date!))
       .slice(0, 5);
     return items;
-  }, [tasks, milestones]);
+  }, [tasks, milestones, workspaceNow, workspaceTimeZone]);
 
   const projectAccountability = useMemo(() => projects.map((project) => ({
     project,
@@ -1679,7 +1696,7 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`prio prio-${task.priority.toLowerCase()}`}>{task.priority}</span>
-                  <button type="button" onClick={() => handleDeleteTask(task.id)} className="t-dark-muted rounded-lg p-1 transition hover:text-[var(--accent-coral)]">
+                  <button type="button" aria-label={`Delete ${task.title}`} onClick={() => handleDeleteTask(task.id)} className="t-dark-muted rounded-lg p-1 transition hover:text-[var(--accent-coral)]">
                     <X size={14} />
                   </button>
                 </div>
@@ -1710,6 +1727,7 @@ export default function Home() {
   );
 
   const openProjectDetail = (project: Project) => {
+    setOpenProjectIds((current) => [...current.filter((id) => id !== project.id), project.id].slice(-8));
     setSelectedProjectId(project.id);
     setProjectTab("Overview");
     setActiveView("projects");
@@ -2077,7 +2095,7 @@ export default function Home() {
                           {(["pending", "active", "completed"] as const).map((status) => <option key={status}>{status}</option>)}
                         </select>
                         <button type="button" onClick={() => handleEditMilestone(milestone)} className="dark-chip px-2 py-1 text-xs">Edit</button>
-                        <button type="button" onClick={() => void removeMilestone(milestone.id)} className="dark-chip p-1.5"><X size={13} /></button>
+                        <button type="button" aria-label={`Delete ${milestone.title}`} onClick={() => void removeMilestone(milestone.id)} className="dark-chip p-1.5"><X size={13} /></button>
                       </div>
                     </div>
                   )}
@@ -2179,6 +2197,8 @@ export default function Home() {
     </div>
   );
 
+  const visibleTasks = filterTaskView(tasks, taskView, localCalendarDate(workspaceNow, workspaceTimeZone), workspaceTimeZone, taskBoardProjectId);
+
   const renderTasksPage = () => (
     <div className="space-y-6">
       <div className="dark-panel p-4">
@@ -2187,7 +2207,7 @@ export default function Home() {
             <p className="eyebrow t-mood">Execution</p>
             <h2 className="mt-2 text-2xl font-semibold t-dark">Task management</h2>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => handleCreateTask()} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New task</button>
             {(["list", "kanban", "today", "upcoming"] as const).map((view) => (
               <button
@@ -2228,29 +2248,30 @@ export default function Home() {
         </div>
       )}
 
-      {taskView === "list" && (
+      {taskView !== "kanban" && (
         <div className="space-y-3 dark-panel p-4">
-          {tasks.length === 0 && <p className="text-sm t-dark-muted">No tasks yet. Add a project before creating a task.</p>}
-          {tasks.map((task) => (
+          {visibleTasks.length === 0 && <p role="status" className="text-sm t-dark-muted">{taskView === "today" ? "No incomplete tasks due today." : taskView === "upcoming" ? "No upcoming tasks with a due date." : "No tasks match this project. Create a task to get started."}</p>}
+          {visibleTasks.map((task) => (
             <div key={task.id} draggable={authStatus === "authenticated" && workspaceStatus === "ready"} onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "task", id: task.id })); event.dataTransfer.effectAllowed = "copy"; }} className="flex flex-col gap-3 dark-inset p-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="font-medium t-dark">{task.title}</p>
+                <button type="button" onClick={() => handleEditTask(task)} className="text-left font-medium t-dark hover:underline">{task.title}</button>
                 <div className="mt-1 flex flex-wrap gap-2 text-[10px] t-dark-muted">
                   <span>{projects.find((project) => project.id === task.projectId)?.name}</span>
                   <span>•</span>
                   <span>{formatDisplayDate(task.dueDate)}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className={`${priorityColors[task.priority]}`}>{task.priority}</span>
                 <select
+                  aria-label={`Status for ${task.title}`}
                   value={task.status}
                   onChange={(event) => updateTaskStatus(task.id, event.target.value as Task["status"])}
                   className="rounded-lg border dark-inset px-2 py-1 text-xs t-dark-soft"
                 >
                   {taskColumns.map((column) => <option key={column} value={column}>{column}</option>)}
                 </select>
-                <button type="button" onClick={() => handleDeleteTask(task.id)} className="dark-chip p-1.5 hover:text-[var(--accent-coral)]"><X size={13} /></button>
+                <button type="button" aria-label={`Delete ${task.title}`} onClick={() => handleDeleteTask(task.id)} className="dark-chip p-1.5 hover:text-[var(--accent-coral)]"><X size={13} /></button>
               </div>
             </div>
           ))}
@@ -2365,13 +2386,13 @@ export default function Home() {
     const documentationProject = projects.find((project) => project.id === noteProjectFilter);
     return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className={`grid gap-6 ${learningItems.length ? "xl:grid-cols-2" : ""}`}>
         <div className="dark-panel p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-lg font-semibold t-dark">{documentationProject ? `${documentationProject.name} documentation` : "Notes"}</h3>{documentationProject && <p className="mt-1 text-xs t-dark-muted">Project documentation and notes</p>}</div><div className="flex flex-wrap gap-2">{documentationProject && <button type="button" onClick={() => setNoteProjectFilter("")} className="dark-chip px-3 py-2 text-sm">All notes</button>}<button type="button" onClick={() => documentationProject ? setNoteEditor({ title: "Documentation", content: "", projectId: documentationProject.id }) : handleCreateNote()} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> {documentationProject ? "Add documentation" : "New note"}</button></div></div>
           <div className="mt-4 space-y-3">
             {visibleNotes.map((note) => (
               <div key={note.id} className="dark-inset p-3">
-                <div className="flex items-start justify-between gap-2"><p className="font-medium t-dark">{note.title}</p><div className="flex flex-wrap gap-1">{authStatus === "authenticated" && workspaceStatus === "ready" && <AiAssistant key={`note-ai-${note.id}`} mode="note" project={projects.find((item) => item.id === note.projectId) ?? selectedProject ?? projects[0]} note={note} projects={projects} onAddTasks={addAiTasks} onSetNextAction={(projectId, nextAction) => applyAiProjectPatch(projectId, { nextAction })} onApplyDescription={(projectId, description) => applyAiProjectPatch(projectId, { description })} onApplyCaseStudy={(projectId, patch) => applyAiProjectPatch(projectId, patch)} onApplyNoteSummary={applyAiNoteSummary} />}<button type="button" onClick={() => handleEditNote(note)} className="dark-chip px-2 py-1 text-xs">Edit</button><button type="button" onClick={() => void removeNote(note.id)} className="dark-chip p-1.5"><X size={13} /></button></div></div>
+                <div className="flex items-start justify-between gap-2"><p className="font-medium t-dark">{note.title}</p><div className="flex flex-wrap gap-1">{authStatus === "authenticated" && workspaceStatus === "ready" && <AiAssistant key={`note-ai-${note.id}`} mode="note" project={projects.find((item) => item.id === note.projectId) ?? selectedProject ?? projects[0]} note={note} projects={projects} onAddTasks={addAiTasks} onSetNextAction={(projectId, nextAction) => applyAiProjectPatch(projectId, { nextAction })} onApplyDescription={(projectId, description) => applyAiProjectPatch(projectId, { description })} onApplyCaseStudy={(projectId, patch) => applyAiProjectPatch(projectId, patch)} onApplyNoteSummary={applyAiNoteSummary} />}<button type="button" onClick={() => handleEditNote(note)} className="dark-chip px-2 py-1 text-xs">Edit</button><button type="button" aria-label={`Delete ${note.title}`} onClick={() => void removeNote(note.id)} className="dark-chip p-1.5"><X size={13} /></button></div></div>
                 <p className="mt-2 text-sm t-dark-muted">{note.content}</p>
               </div>
             ))}
@@ -2379,7 +2400,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="dark-panel p-4">
+        {learningItems.length > 0 && <div className="dark-panel p-4">
           <h3 className="text-lg font-semibold t-dark">Learning</h3>
           <div className="mt-4 space-y-3">
             {learningItems.map((item) => (
@@ -2393,7 +2414,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
     );
@@ -2402,8 +2423,8 @@ export default function Home() {
   const renderTechPage = () => (
     <div className="space-y-4">
       <form onSubmit={(event) => void handleTechnologySave(event)} className="dark-panel flex flex-col gap-2 p-4 sm:flex-row">
-        <input value={technologyName} onChange={(event) => setTechnologyName(event.target.value)} required placeholder="Technology name" className="dark-chip min-w-0 flex-1 px-3 py-2 text-sm" />
-        <select value={technologyProjectId} onChange={(event) => setTechnologyProjectId(event.target.value)} className="dark-chip px-3 py-2 text-sm">
+        <input aria-label="Technology name" value={technologyName} onChange={(event) => setTechnologyName(event.target.value)} required placeholder="Technology name" className="dark-chip min-w-0 flex-1 px-3 py-2 text-sm" />
+        <select aria-label="Project for technology" value={technologyProjectId} onChange={(event) => setTechnologyProjectId(event.target.value)} className="dark-chip px-3 py-2 text-sm">
           <option value="">Create without linking</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select>
         <button type="submit" className="ink-button primary px-3 py-2 text-sm">Add technology</button>
@@ -2473,7 +2494,7 @@ export default function Home() {
         return renderPlansPage();
       case "accountability":
         return authStatus === "authenticated" && workspaceStatus === "ready"
-          ? <AccountabilityWorkspace projects={projects} tasks={tasks} milestones={milestones} plans={plans} />
+          ? <AccountabilityWorkspace projects={projects} tasks={tasks} milestones={milestones} plans={plans} selectedTab={accountabilityTab} onTabChange={setAccountabilityTab} />
           : <section className="dark-panel p-5"><h1 className="text-xl font-semibold t-dark">Private accountability</h1><p className="mt-2 text-sm t-dark-muted">Sign in and load your Supabase workspace to view private reports and goals.</p></section>;
       case "github":
         return renderGitHubPage();
@@ -2492,114 +2513,59 @@ export default function Home() {
     }
   };
 
+  const workspaceAvailable = (authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id) || (authStatus === "unauthenticated" && workspaceStatus === "mock");
+  const navItems = navGroups.flatMap((group) => [...group.items]).filter((item) => !unavailableViews.has(item.key as ViewName));
+  const renderContext = () => {
+    if (!workspaceAvailable) return <p className="text-sm t-dark-muted">Your workspace is loading.</p>;
+    const action = (label: string, click: () => void) => <button key={label} type="button" onClick={click} className="workspace-context-action">{label}</button>;
+    if (activeView === "projects" || activeView === "github") return <div className="space-y-3">
+      {action(activeView === "projects" ? "+ New project" : "Browse repositories", activeView === "projects" ? handleCreateProject : () => setGithubImportOpen(true))}
+      {activeView === "github" && <p className="text-xs t-dark-muted">GitHub sign-in verifies your identity. The GitHub App separately grants repository access.</p>}
+      <input aria-label="Find a project" placeholder="Find a project" value={contextQuery} onChange={(event) => setContextQuery(event.target.value)} className="dark-chip w-full min-w-0 px-3 py-2 text-sm" />
+      {projects.filter((project) => project.name.toLowerCase().includes(contextQuery.toLowerCase())).map((project) => <button key={project.id} type="button" aria-current={selectedProject?.id === project.id ? "true" : undefined} onClick={() => { openProjectDetail(project); if (activeView === "github") setProjectTab("GitHub"); }} className="workspace-context-action"><span className="block truncate">{project.name}</span><span className="text-xs t-dark-muted">{project.currentPhase.toLowerCase().replaceAll("_", " ")}</span></button>)}
+      {projects.length === 0 && <p className="text-sm t-dark-muted">Create a project to organize your work.</p>}
+    </div>;
+    if (activeView === "tasks") return <div className="space-y-3">{action("+ New task", () => handleCreateTask("", taskBoardProjectId || undefined))}<label className="block text-xs">Project<select aria-label="Filter tasks by project" value={taskBoardProjectId} onChange={(event) => setTaskBoardProjectId(event.target.value)} className="dark-chip mt-2 w-full min-w-0 p-2"><option value="">All projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>{(["list", "kanban", "today", "upcoming"] as const).map((view) => <button key={view} type="button" aria-pressed={taskView === view} onClick={() => setTaskView(view)} className="workspace-context-action capitalize">{view}</button>)}<p className="text-xs t-dark-muted">Today and Upcoming use your profile timezone. Edit dates in the task editor or Calendar.</p></div>;
+    if (activeView === "notes") return <div className="space-y-3">{action("+ New note", handleCreateNote)}<label className="block text-xs">Project<select value={noteProjectFilter} onChange={(event) => setNoteProjectFilter(event.target.value)} className="dark-chip mt-2 w-full min-w-0 p-2"><option value="">All notes</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>{notes.filter((note) => !noteProjectFilter || note.projectId === noteProjectFilter).map((note) => <button key={note.id} type="button" onClick={() => handleEditNote(note)} className="workspace-context-action">{note.title}</button>)}</div>;
+    if (activeView === "plans") return <div className="space-y-3">{action("+ New plan", handleCreatePlan)}{plans.map((plan) => <button key={plan.id} type="button" onClick={() => handleEditPlan(plan)} className="workspace-context-action">{plan.title}</button>)}<p className="text-xs t-dark-muted">Checklists turn plans into small, explicit steps.</p></div>;
+    if (activeView === "accountability") return <div>{(["Overview", "Goals", "Weekly", "Monthly"] as const).map((tab) => <button key={tab} type="button" aria-pressed={accountabilityTab === tab} onClick={() => setAccountabilityTab(tab)} className="workspace-context-action">{tab}</button>)}<p className="mt-3 text-xs t-dark-muted">Health describes current evidence. Goals and reports help you reflect on progress.</p></div>;
+    if (activeView === "calendar") return <div className="space-y-3">{action("+ New task", () => handleCreateTask())}<p className="text-sm t-dark-muted">{tasks.filter((task) => !task.dueDate && task.status !== "Completed").length} incomplete tasks have no date.</p><p className="text-xs t-dark-muted">Use the calendar’s project and type filters. Select a date to inspect all events, or edit an event’s date without dragging.</p>{action("Open tasks", () => setActiveView("tasks"))}</div>;
+    if (activeView === "settings" || activeView === "tech") return <p className="text-sm t-dark-muted">{activeView === "settings" ? "Manage your account, public profile, and assistant configuration. Public sharing is explicit." : "Manage technologies and their project links."}</p>;
+    return <div className="space-y-3">{action("Current work", () => setActiveView("today"))}{action("Projects", () => setActiveView("projects"))}{action("Calendar", () => setActiveView("calendar"))}{action("+ New project", handleCreateProject)}<p className="text-xs t-dark-muted">{projects.length} projects · {tasks.filter((task) => task.status !== "Completed").length} incomplete tasks</p></div>;
+  };
+  const projectTabs = [...new Set([...openProjectIds, ...(selectedProject ? [selectedProject.id] : [])])].map((id) => projects.find((project) => project.id === id)).filter((project): project is Project => Boolean(project));
+
   return (
     <div className="app-shell min-h-screen text-[var(--ink)]">
-      <div className="mx-auto flex max-w-[1700px]">
-        <aside className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} workspace-sidebar fixed inset-y-0 left-0 z-40 w-72 p-4 transition duration-200 lg:static lg:w-72`}>
-          <div className="flex items-center justify-between border-b border-[var(--edge-cream)] pb-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--edge-cream)] bg-[var(--lavender)] text-[var(--ink-lavender)]"><Code2 size={20} /></div>
-              <div>
-                <p className="nav-label">Workspace</p>
-                <p className="font-semibold text-[var(--text-desk)]">Dev Office</p>
-              </div>
-            </div>
-            <button type="button" onClick={() => setSidebarOpen(false)} className="rounded-xl border border-[var(--edge-cream)] p-1.5 text-[var(--text-desk-muted)] lg:hidden">
-              <X size={14} />
-            </button>
-          </div>
-
-          <div className="mt-6 space-y-6">
-            {navGroups.map((group) => (
-              <div key={group.label}>
-                <p className="nav-label mb-2">{group.label}</p>
-                <div className="space-y-1.5">
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = activeView === item.key;
-                    const unavailable = unavailableViews.has(item.key as ViewName);
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        disabled={unavailable}
-                        title={unavailable ? `${item.label} is not available in this phase.` : undefined}
-                        onClick={() => {
-                          setActiveView(item.key as ViewName);
-                          setSidebarOpen(false);
-                        }}
-                        className={`nav-item px-3 py-2.5 text-left text-sm ${active ? "active" : ""}`}
-                      >
-                        <Icon size={15} />
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
-
-        <div className="flex-1">
-          <header className="workspace-header sticky top-0 z-20 px-4 py-3 lg:px-6">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-xl border border-[var(--edge-cream)] bg-[var(--surface-cream)] p-2 text-[var(--text-desk)] lg:hidden">
-                  <Menu size={16} />
-                </button>
-                <div className="hidden items-center gap-2 rounded-2xl border border-[var(--edge-cream)] bg-[var(--surface-cream)] px-3 py-2 text-sm text-[var(--text-desk-muted)] md:flex">
-                  <Search size={14} />
-                  <span>Search workspace</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setSearchOpen(true)} className="rounded-xl border border-[var(--edge-cream)] bg-[var(--surface-cream)] p-2 text-[var(--text-desk)]">
-                  <Search size={15} />
-                </button>
-                <button type="button" disabled title="Notifications are not available yet." className="rounded-xl border border-[var(--edge-cream)] bg-[var(--surface-cream)] p-2 text-[var(--text-desk)]">
-                  <Bell size={15} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setThemeMode((current) => current === "light" ? "dark" : current === "dark" ? "system" : "light")}
-                  className="rounded-xl border border-[var(--edge-cream)] bg-[var(--surface-cream)] p-2 text-[var(--text-desk)]"
-                  aria-label="Toggle theme"
-                  title={`Theme: ${themeMode}`}
-                >
-                  {themeMode === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-                </button>
-                <Link href="/view" className="rounded-xl border border-[var(--edge-cream)] bg-[var(--surface-cream)] px-3 py-2 text-sm font-medium text-[var(--text-desk)]">Public View</Link>
-                <UserMenu onOpenSettings={() => setActiveView("settings")} />
-              </div>
-            </div>
-          </header>
-
-          <main className="p-4 lg:p-6">
+      <WorkspaceShell items={navItems} active={activeView} onNavigate={(key) => setActiveView(key as ViewName)} context={renderContext()}
+        actions={<>
+          <button type="button" onClick={() => setSearchOpen(true)} aria-label="Search workspace" title="Search workspace (Ctrl/Cmd+K)" className="dark-chip inline-flex items-center gap-2 p-2"><Search size={16} /><span className="hidden xl:inline text-xs">Search workspace</span></button>
+          <button type="button" onClick={() => setThemeMode((current) => current === "light" ? "dark" : current === "dark" ? "system" : "light")} className="dark-chip p-2" aria-label={`Change theme, currently ${themeMode}`} title={`Theme: ${themeMode}`}>{themeMode === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
+          <Link href="/view" aria-label="Open public portfolio" title="Public portfolio" className="dark-chip inline-flex items-center gap-2 p-2"><Globe size={16} /><span className="hidden xl:inline text-xs">Public view</span></Link>
+          <UserMenu onOpenSettings={() => setActiveView("settings")} />
+        </>}
+        tabs={workspaceAvailable && activeView === "projects" && projectTabs.length > 0 ? <nav aria-label="Open projects" className="workspace-document-tabs">{projectTabs.map((project) => <div key={project.id} className={`workspace-document-tab ${selectedProject?.id === project.id ? "active" : ""}`}><button type="button" aria-current={selectedProject?.id === project.id ? "page" : undefined} onClick={() => openProjectDetail(project)} className="truncate px-3 py-2">{project.name}</button><button type="button" aria-label={`Close ${project.name} tab`} onClick={() => { const remaining = projectTabs.filter((item) => item.id !== project.id); setOpenProjectIds(remaining.map((item) => item.id)); if (selectedProject?.id === project.id) { setSelectedProjectId(remaining.at(-1)?.id ?? ""); if (!remaining.length) setActiveView("dashboard"); } }} className="p-2"><X size={13} /></button></div>)}</nav> : null}
+        ai={authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id ? <WorkspaceAiChat key={user.id} projects={projects} tasks={tasks} plans={plans} open={aiOpen} onOpenChange={setAiOpen} /> : null}>
             {workspaceStatus === "checking" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Loading your workspace...</div>}
             {workspaceStatus === "error" && <div className="mb-4 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}</div>}
             {workspaceStatus === "mock" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Prototype mode: showing local workspace data. Sign in with GitHub to sync with Supabase.</div>}
             {workspaceError && workspaceStatus !== "error" && <div role="alert" className="mb-4 flex items-center justify-between gap-3 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}<button type="button" onClick={() => setWorkspaceError("")} aria-label="Dismiss error"><X size={14} /></button></div>}
             {((authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id) || (authStatus === "unauthenticated" && workspaceStatus === "mock")) && renderPage()}
-          </main>
-          {authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id && <WorkspaceAiChat projects={projects} tasks={tasks} plans={plans} />}
-        </div>
-      </div>
+      </WorkspaceShell>
 
       {searchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--scrim)] p-4 pt-20 backdrop-blur-sm">
+        <WorkspaceDialog label="Search workspace" onClose={() => setSearchOpen(false)}>
           <div className="w-full max-w-2xl dark-panel p-4 shadow-[var(--shadow-dark-lift)]">
             <div className="flex items-center gap-3 dark-inset p-3">
               <Search size={15} className="t-dark-muted" />
               <input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search projects, tasks, plans, notes..."
+                aria-label="Search projects, tasks, plans, notes" placeholder="Search projects, tasks, plans, notes..."
                 className="w-full bg-transparent text-sm t-dark placeholder:text-[var(--text-light-soft)] focus:outline-none"
                 autoFocus
               />
-              <button type="button" onClick={() => setSearchOpen(false)} className="t-dark-muted hover:text-[var(--ink)]"><X size={15} /></button>
+              <button type="button" aria-label="Close search" onClick={() => setSearchOpen(false)} className="t-dark-muted hover:text-[var(--ink)]"><X size={15} /></button>
             </div>
 
             <div className="mt-4 space-y-2">
@@ -2611,7 +2577,19 @@ export default function Home() {
                     onClick={() => {
                       setSearchOpen(false);
                       setSearchQuery("");
-                      setActiveView(result.kind === "Project" ? "projects" : result.kind === "Task" ? "tasks" : result.kind === "Plan" ? "plans" : "notes");
+                      if (result.kind === "Project") {
+                        const project = projects.find((item) => item.id === result.id);
+                        if (project) openProjectDetail(project);
+                      } else if (result.kind === "Task") {
+                        const task = tasks.find((item) => item.id === result.id);
+                        if (task) { setTaskBoardProjectId(task.projectId); setTaskView("list"); setActiveView("tasks"); }
+                      } else if (result.kind === "Plan") {
+                        const plan = plans.find((item) => item.id === result.id);
+                        setActiveView("plans"); if (plan) handleEditPlan(plan);
+                      } else {
+                        const note = notes.find((item) => item.id === result.id);
+                        setActiveView("notes"); if (note) handleEditNote(note);
+                      }
                     }}
                     className="flex w-full items-center justify-between dark-inset p-3 text-left hover:border-[var(--accent-peach)]"
                   >
@@ -2630,12 +2608,12 @@ export default function Home() {
               )}
             </div>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {privateProjectConfirmation && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[var(--scrim)] p-4 backdrop-blur-sm">
-          <div role="dialog" aria-modal="true" aria-labelledby="private-project-title" className="dark-panel w-full max-w-md p-5 shadow-[var(--shadow-dark-lift)]">
+        <WorkspaceDialog label="Project visibility confirmation" onClose={() => { setPrivateProjectConfirmation(null); setWorkspaceError(""); }} className="z-[60]">
+          <div className="dark-panel w-full max-w-md p-5 shadow-[var(--shadow-dark-lift)]">
             <p className="eyebrow t-mood">Project visibility</p>
             <h2 id="private-project-title" className="mt-2 text-xl font-semibold t-dark">Make this project private?</h2>
             <p className="mt-3 text-sm leading-6 t-dark-muted">It will no longer be accessible from your public portfolio or existing shared links.</p>
@@ -2645,11 +2623,11 @@ export default function Home() {
               <button type="button" onClick={() => void saveProjectVisibility(privateProjectConfirmation, "Private")} disabled={isSavingVisibility} className="ink-button coral px-3 py-2 text-sm">{isSavingVisibility ? "Saving..." : "Make Private"}</button>
             </div>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {(projectEditor || taskEditor || planEditor || milestoneEditor || noteEditor) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)] p-4 backdrop-blur-sm">
+        <WorkspaceDialog label="Workspace editor" onClose={closeWorkspaceEditor}>
           <div className="dark-panel max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5 shadow-[var(--shadow-dark-lift)]">
             <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold t-dark">{projectEditor ? `${projectEditor.id ? "Edit" : "New"} project` : taskEditor ? `${taskEditor.id ? "Edit" : "New"} task` : planEditor ? `${planEditor.id ? "Edit" : "New"} plan` : milestoneEditor ? `${milestoneEditor.id ? "Edit" : "New"} milestone` : `${noteEditor?.id ? "Edit" : "New"} note`}</h2><button type="button" onClick={closeWorkspaceEditor} className="dark-chip p-2" aria-label="Close editor" disabled={isSavingEditor}><X size={15} /></button></div>
             {workspaceError && <p role="alert" className="mb-3 text-sm text-[var(--accent-peach)]">{workspaceError}</p>}
@@ -2698,26 +2676,26 @@ export default function Home() {
               <div className="flex justify-end gap-2"><button type="button" onClick={closeWorkspaceEditor} disabled={isSavingEditor} className="dark-chip px-3 py-2 text-sm">Cancel</button><button type="submit" disabled={isSavingEditor} className="ink-button primary px-3 py-2 text-sm">{isSavingEditor ? "Saving..." : "Save note"}</button></div>
             </form>}
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {githubImportOpen && authStatus === "authenticated" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-4 backdrop-blur-sm">
+        <WorkspaceDialog label="GitHub repository browser" onClose={() => setGithubImportOpen(false)}>
           <div className="my-6 w-full max-w-5xl dark-panel p-5 shadow-[var(--shadow-dark-lift)]">
             <GithubRepositoryBrowser projects={projects} onClose={() => setGithubImportOpen(false)} onLinked={() => window.location.reload()} />
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {githubImportOpen && authStatus !== "authenticated" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)] p-4 backdrop-blur-sm">
+        <WorkspaceDialog label="Repository browser in prototype mode" onClose={() => setGithubImportOpen(false)}>
           <div className="w-full max-w-3xl dark-panel p-5 shadow-[var(--shadow-dark-lift)]">
             <div className="flex items-center justify-between">
               <div>
                 <p className="eyebrow t-mood">Import from GitHub</p>
                 <h3 className="mt-2 text-2xl font-semibold t-dark">Repository browser</h3>
               </div>
-              <button type="button" onClick={() => setGithubImportOpen(false)} className="dark-chip p-2 hover:text-[var(--ink)]"><X size={15} /></button>
+              <button type="button" aria-label="Close repository browser" onClick={() => setGithubImportOpen(false)} className="dark-chip p-2 hover:text-[var(--ink)]"><X size={15} /></button>
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -2744,7 +2722,7 @@ export default function Home() {
               ))}
             </div>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
     </div>
   );

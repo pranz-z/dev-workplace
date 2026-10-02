@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { getMissingSupabaseEnvVars } from "./lib/supabase/env";
+import { buildContentSecurityPolicy } from "./lib/security/content-security-policy";
 
 const missingPublicEnvVars = getMissingSupabaseEnvVars();
 
@@ -19,7 +20,7 @@ const nextConfig: NextConfig = {
     return [{
       source: "/:path*",
       headers: [
-        { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
+        { key: "Content-Security-Policy", value: buildContentSecurityPolicy({ development: process.env.NODE_ENV !== "production", supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL }) },
         { key: "X-Frame-Options", value: "DENY" },
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

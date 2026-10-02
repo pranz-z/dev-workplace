@@ -27,7 +27,8 @@ export async function validateChatFiles(files: File[]): Promise<ChatFile[]> {
     if (!expectedMime) throw new AiError("INVALID_ATTACHMENT");
     const allowedTextMime = file.type.startsWith("text/") || ["application/json", "text/json", "application/javascript", "application/typescript", "text/javascript", "text/typescript", "application/xml"].includes(file.type);
     if (file.type && (BINARY_MIME_BY_EXTENSION[extension] ? file.type !== expectedMime : !allowedTextMime)) throw new AiError("INVALID_ATTACHMENT");
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
     if (BINARY_MIME_BY_EXTENSION[extension]) {
       if (extension === "pdf" && new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") throw new AiError("INVALID_ATTACHMENT");
       if (extension === "png" && !(bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71)) throw new AiError("INVALID_ATTACHMENT");
@@ -42,7 +43,7 @@ export async function validateChatFiles(files: File[]): Promise<ChatFile[]> {
       result.push({ name: safeDisplayFilename(file.name), mimeType: expectedMime, data: "", text, size: file.size });
       continue;
     }
-    result.push({ name: safeDisplayFilename(file.name), mimeType: expectedMime, data: Buffer.from(bytes).toString("base64"), size: file.size });
+    result.push({ name: safeDisplayFilename(file.name), mimeType: expectedMime, data: Buffer.from(buffer).toString("base64"), size: file.size });
   }
   return result;
 }

@@ -54,6 +54,17 @@ export function taskCalendarDate(value: string | undefined, timeZone: string): s
   return localCalendarDate(timestamp, timeZone);
 }
 
+/** Task views use the same date-only/timestamp interpretation as Calendar. */
+export function filterTaskView(tasks: Task[], view: "list" | "kanban" | "today" | "upcoming", today: string, timeZone: string, projectId = ""): Task[] {
+  return tasks.filter((task) => {
+    if (projectId && task.projectId !== projectId) return false;
+    if (view === "list" || view === "kanban") return true;
+    if (task.status === "Completed") return false;
+    const date = taskCalendarDate(task.dueDate, timeZone);
+    return date !== null && (view === "today" ? date === today : date > today);
+  });
+}
+
 export function normalizeCalendarEvents(
   projects: Project[],
   tasks: Task[],

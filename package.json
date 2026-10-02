@@ -11,7 +11,8 @@
     "test:calendar": "node --test data/workspaceCalendar.test.mjs",
     "test:ai": "node --test lib/ai/ai.test.mjs",
     "test:public-ai": "node --test lib/public-ai/public-ai.test.mjs",
-    "test:phase5e": "node --test lib/ai/phase5e.test.mjs"
+    "test:phase5e": "node --test lib/ai/phase5e.test.mjs",
+    "test:phase6a1": "node --test lib/security/content-security-policy.test.mjs lib/ai/phase6a1.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

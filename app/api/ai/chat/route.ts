@@ -8,17 +8,21 @@ import { generatePrivateChatResponse } from "@/lib/ai/chat-gemini";
 import { requireAuthenticatedAiUser } from "@/lib/ai/auth";
 import { getGeminiConfiguration } from "@/lib/ai/config";
 import { getPrivateAiRateLimits } from "@/lib/ai/rate-limit";
+import { acquirePrivateAiLease, releasePrivateAiLease } from "@/lib/ai/private-concurrency";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function jsonError(error: AiError) {
   return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.status, headers: { "Cache-Control": "no-store" } });
 }
 
 async function boundedFormData(request: Request): Promise<FormData> {
+  const contentType = request.headers.get("content-type");
+  if (!contentType?.toLowerCase().startsWith("multipart/form-data;")) throw new AiError("INVALID_INPUT");
   const length = Number(request.headers.get("content-length") ?? 0);
   if (Number.isFinite(length) && length > MAX_CHAT_MULTIPART_BYTES) throw new AiError("INVALID_ATTACHMENT");
   const reader = request.body?.getReader();
@@ -35,12 +39,22 @@ async function boundedFormData(request: Request): Promise<FormData> {
     }
     chunks.push(value);
   }
-  const bytes = new Uint8Array(total);
+  let bytes = new Uint8Array(total);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-  const contentType = request.headers.get("content-type");
-  if (!contentType?.toLowerCase().startsWith("multipart/form-data;")) throw new AiError("INVALID_INPUT");
-  return new Request(request.url, { method: "POST", headers: { "content-type": contentType }, body: bytes }).formData();
+  chunks.length = 0;
+  const boundedRequest = new Request(request.url, { method: "POST", headers: { "content-type": contentType }, body: bytes });
+  bytes = new Uint8Array(0);
+  return boundedRequest.formData();
+}
+
+async function parseChatForm(request: Request) {
+  const form = await boundedFormData(request);
+  if (form.getAll("request").length !== 1 || [...form.keys()].some((key) => key !== "request" && key !== "files")) throw new AiError("INVALID_INPUT");
+  const body = parseChatRequest(JSON.parse(String(form.get("request") ?? "")) as unknown);
+  const files = form.getAll("files").filter((item): item is File => typeof item !== "string" && typeof item.arrayBuffer === "function");
+  if (files.length !== form.getAll("files").length) throw new AiError("INVALID_ATTACHMENT");
+  return { body, files };
 }
 
 export async function POST(request: Request) {
@@ -50,17 +64,6 @@ export async function POST(request: Request) {
   try { userId = (await requireAuthenticatedAiUser(supabase)).id; }
   catch (error) { return jsonError(error instanceof AiError ? error : new AiError("UNAUTHENTICATED")); }
 
-  let body;
-  let files: File[];
-  try {
-    const form = await boundedFormData(request);
-    if (form.getAll("request").length !== 1 || [...form.keys()].some((key) => key !== "request" && key !== "files")) throw new AiError("INVALID_INPUT");
-    body = parseChatRequest(JSON.parse(String(form.get("request") ?? "")) as unknown);
-    files = form.getAll("files").filter((item): item is File => typeof item !== "string" && typeof item.arrayBuffer === "function");
-    if (files.length !== form.getAll("files").length) throw new AiError("INVALID_ATTACHMENT");
-  } catch (error) {
-    return jsonError(error instanceof AiError ? error : new AiError("INVALID_INPUT"));
-  }
   try {
     const { requestsPerMinute, dailyLimit } = getPrivateAiRateLimits();
     const { data: allowed, error } = await getSupabaseAdminClient().rpc("consume_private_ai_rate_limit", {
@@ -71,13 +74,30 @@ export async function POST(request: Request) {
       throw new AiError("UPSTREAM_ERROR");
     }
     if (!allowed) throw new AiError("RATE_LIMITED");
-    if (!getGeminiConfiguration().configured) throw new AiError("AI_NOT_CONFIGURED");
-    const [context, attachments] = await Promise.all([
-      buildPrivateChatContext(supabase, userId, body.workspaceContext),
-      validateChatFiles(files),
-    ]);
-    const answer = await generatePrivateChatResponse(body.message, body.history, context, attachments);
-    return NextResponse.json({ answer }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    const normalized = error instanceof AiError ? error : new AiError("UPSTREAM_ERROR");
+    if (!(error instanceof AiError)) console.error("[ai-chat] request failed", { operation: "consume_private_ai_rate_limit", category: normalized.code });
+    return jsonError(normalized);
+  }
+
+  try {
+    const leaseId = await acquirePrivateAiLease(userId);
+    if (!leaseId) return jsonError(new AiError("RATE_LIMITED"));
+    try {
+      const parsed = await parseChatForm(request);
+      const body = parsed.body;
+      const submittedFiles = parsed.files;
+      if (!getGeminiConfiguration().configured) throw new AiError("AI_NOT_CONFIGURED");
+      const [context, attachments] = await Promise.all([
+        buildPrivateChatContext(supabase, userId, body.workspaceContext),
+        validateChatFiles(submittedFiles),
+      ]);
+      submittedFiles.length = 0;
+      const answer = await generatePrivateChatResponse(body.message, body.history, context, attachments);
+      return NextResponse.json({ answer }, { headers: { "Cache-Control": "no-store" } });
+    } finally {
+      await releasePrivateAiLease(userId, leaseId);
+    }
   } catch (error) {
     const normalized = error instanceof AiError ? error : new AiError("UPSTREAM_ERROR");
     if (!(error instanceof AiError)) console.error("[ai-chat] request failed", { operation: "chat", category: normalized.code });

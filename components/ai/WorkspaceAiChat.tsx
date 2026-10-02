@@ -6,6 +6,7 @@ import type { Plan, Project, Task } from "@/types";
 import { ChatMessageBubble, ChatTypingIndicator, type ChatMessage } from "@/components/ai/ChatPresentation";
 import { MAX_CHAT_ENTITIES, MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, MAX_CHAT_TOTAL_FILE_BYTES, MAX_CHAT_HISTORY_MESSAGES, MAX_CHAT_MESSAGE_LENGTH, type WorkspaceEntityRef } from "@/lib/ai/chat-contract";
 import { parseWorkspaceEntityDragPayload, WORKSPACE_AI_DRAG_TYPE } from "@/lib/ai/chat-drag";
+import { PanelResizeHandle } from "@/components/workspace/PanelResizeHandle";
 
 const ACCEPT = ".txt,.md,.markdown,.json,.csv,.ts,.tsx,.js,.jsx,.mjs,.cjs,.py,.html,.css,.scss,.sql,.yaml,.yml,.toml,.xml,.java,.go,.rs,.sh,.bash,.c,.h,.cpp,.hpp,.cs,.php,.rb,.swift,.kt,.vue,.svelte,.pdf,.png,.jpg,.jpeg,.webp";
 const supportedText = new Set(ACCEPT.split(",").filter((item) => ![".pdf", ".png", ".jpg", ".jpeg", ".webp"].includes(item)));
@@ -16,10 +17,9 @@ function supportedFile(file: File): boolean {
   return supportedText.has(extension) || imageOrPdf;
 }
 
-interface Props { projects: Project[]; tasks: Task[]; plans: Plan[] }
+interface Props { projects: Project[]; tasks: Task[]; plans: Plan[]; open: boolean; onOpenChange: (open: boolean) => void }
 
-export function WorkspaceAiChat({ projects, tasks, plans }: Props) {
-  const [open, setOpen] = useState(false);
+export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [context, setContext] = useState<WorkspaceEntityRef[]>([]);
@@ -30,7 +30,9 @@ export function WorkspaceAiChat({ projects, tasks, plans }: Props) {
   const [contextType, setContextType] = useState<WorkspaceEntityRef["type"]>("project");
   const [pickerId, setPickerId] = useState("");
   const [query, setQuery] = useState("");
+  const [panelWidth, setPanelWidth] = useState(352);
   const requestSequence = useRef(0);
+  const controller = useRef<AbortController | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -44,15 +46,16 @@ export function WorkspaceAiChat({ projects, tasks, plans }: Props) {
   const entityContext = context;
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, busy, open]);
+  useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     const onDragEnter = (event: globalThis.DragEvent) => {
-      if (Array.from(event.dataTransfer?.types ?? []).some((type) => type === "Files" || type === WORKSPACE_AI_DRAG_TYPE)) { setDragging(true); setOpen(true); }
+      if (Array.from(event.dataTransfer?.types ?? []).some((type) => type === "Files" || type === WORKSPACE_AI_DRAG_TYPE)) { setDragging(true); onOpenChange(true); }
     };
     const onDragEnd = () => setDragging(false);
     window.addEventListener("dragenter", onDragEnter);
     window.addEventListener("dragend", onDragEnd);
     return () => { window.removeEventListener("dragenter", onDragEnter); window.removeEventListener("dragend", onDragEnd); };
-  }, []);
+  }, [onOpenChange]);
 
   const addEntity = (entity: WorkspaceEntityRef) => {
     setError("");
@@ -79,6 +82,7 @@ export function WorkspaceAiChat({ projects, tasks, plans }: Props) {
   const handleDrop = (event: DragEvent) => {
     event.preventDefault();
     setDragging(false);
+    if (busy) return;
     const entityJson = event.dataTransfer.getData(WORKSPACE_AI_DRAG_TYPE);
     if (entityJson) {
       const entity = parseWorkspaceEntityDragPayload(entityJson);
@@ -88,13 +92,17 @@ export function WorkspaceAiChat({ projects, tasks, plans }: Props) {
     addFiles(Array.from(event.dataTransfer.files));
   };
 
-  const clearChat = () => { requestSequence.current += 1; setBusy(false); setMessages([]); setContext([]); setFiles([]); setMessage(""); setError(""); };
+  const clearChat = () => { requestSequence.current += 1; controller.current?.abort(); controller.current = null; setBusy(false); setMessages([]); setContext([]); setFiles([]); setMessage(""); setError(""); };
 
   const send = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!message.trim() || busy) return;
     const question = message.trim();
+    const previousMessages = messages;
     const sequence = ++requestSequence.current;
+    const abortController = new AbortController();
+    controller.current = abortController;
+    const timeout = window.setTimeout(() => abortController.abort(), 75_000);
     const prior = messages.slice(-MAX_CHAT_HISTORY_MESSAGES);
     const submittedFiles = [...files];
     setMessages((current) => [...current, { role: "user" as const, content: question }].slice(-MAX_CHAT_HISTORY_MESSAGES * 2));
@@ -103,7 +111,7 @@ export function WorkspaceAiChat({ projects, tasks, plans }: Props) {
       const form = new FormData();
       form.append("request", JSON.stringify({ message: question, history: prior, workspaceContext: entityContext }));
       submittedFiles.forEach((file) => form.append("files", file, file.name));
-      const response = await fetch("/api/ai/chat", { method: "POST", body: form, cache: "no-store" });
+      const response = await fetch("/api/ai/chat", { method: "POST", body: form, cache: "no-store", signal: abortController.signal });
       const payload = await response.json() as { answer?: string; error?: { message?: string } };
       if (!response.ok || typeof payload.answer !== "string") throw new Error(payload.error?.message || "The workspace assistant is temporarily unavailable.");
       if (sequence === requestSequence.current) {
@@ -111,15 +119,20 @@ export function WorkspaceAiChat({ projects, tasks, plans }: Props) {
         setFiles([]);
       }
     } catch (caught) {
-      if (sequence === requestSequence.current) setError(caught instanceof Error ? caught.message : "The workspace assistant is temporarily unavailable.");
-    } finally { if (sequence === requestSequence.current) setBusy(false); }
+      if (sequence === requestSequence.current) {
+        setMessages(previousMessages);
+        setMessage((draft) => draft || question);
+        setError(abortController.signal.aborted ? "The request timed out or was cancelled. Your draft is ready to retry." : caught instanceof Error ? caught.message : "The workspace assistant is temporarily unavailable.");
+      }
+    } finally { window.clearTimeout(timeout); if (controller.current === abortController) controller.current = null; if (sequence === requestSequence.current) setBusy(false); }
   };
 
-  const panel = <section onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }} onDrop={handleDrop} aria-label="Workspace AI chat" className={`fixed z-50 flex flex-col overflow-hidden border border-[var(--edge-dark)] bg-[var(--surface-dark)] shadow-[var(--shadow-dark-lift)] ${open ? "inset-x-0 bottom-0 h-[82dvh] rounded-t-3xl md:inset-auto md:bottom-6 md:right-6 md:h-[min(78vh,680px)] md:w-[min(92vw,440px)] md:rounded-3xl" : "bottom-4 right-4 h-14 w-14 rounded-full"}`}>
-    {!open ? <button type="button" onClick={() => setOpen(true)} aria-label="Open Workspace AI chat" className="flex h-full w-full items-center justify-center gap-1 rounded-full t-dark"><Sparkles size={17} /><span className="text-xs font-bold">AI</span></button> : <>
+  const panel = <section style={{ "--ai-panel-width": `${panelWidth}px` } as React.CSSProperties} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }} onDrop={handleDrop} aria-label="Workspace AI chat" className={`workspace-ai-panel ${open ? "is-open" : ""}`}>
+    {open && <PanelResizeHandle reverse label="Workspace AI panel width" value={panelWidth} min={300} max={520} onChange={setPanelWidth} />}
+    {!open ? <button type="button" onClick={() => onOpenChange(true)} aria-label="Open Workspace AI chat" className="flex h-full w-full items-center justify-center gap-1 rounded-full t-dark"><Sparkles size={17} /><span className="text-xs font-bold">AI</span></button> : <>
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--edge-dark)] p-4">
         <div><p className="eyebrow t-mood">Private workspace assistant</p><h2 className="mt-1 text-lg font-semibold t-dark">Workspace AI</h2><p className="mt-1 text-xs t-dark-muted">Only the message, attached context, and files are sent when you send.</p></div>
-        <div className="flex gap-1"><button type="button" title="Clear chat" aria-label="Clear chat" onClick={clearChat} className="dark-chip p-2"><Trash2 size={15} /></button><button type="button" title="Minimize chat" aria-label="Minimize chat" onClick={() => setOpen(false)} className="dark-chip p-2"><X size={15} /></button></div>
+        <div className="flex gap-1"><button type="button" title="Clear chat" aria-label="Clear chat" onClick={clearChat} className="dark-chip p-2"><Trash2 size={15} /></button><button type="button" title="Minimize chat" aria-label="Minimize chat" onClick={() => onOpenChange(false)} className="dark-chip p-2"><X size={15} /></button></div>
       </header>
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
         {messages.length === 0 && <ChatMessageBubble role="assistant">How can I help with your workspace?</ChatMessageBubble>}
@@ -139,8 +152,8 @@ export function WorkspaceAiChat({ projects, tasks, plans }: Props) {
         </div>
         <p className="text-[10px] leading-4 t-dark-muted">Files stay on this device until you send. Sent files go directly to Gemini for this request and are not saved by this app.</p>
         <form onSubmit={(event) => void send(event)} className="flex items-end gap-2">
-          <input ref={fileInput} type="file" multiple accept={ACCEPT} className="hidden" onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
-          <button type="button" title="Attach file" aria-label="Attach file" onClick={() => fileInput.current?.click()} className="dark-chip p-2"><Paperclip size={16} /></button>
+          <input ref={fileInput} type="file" multiple accept={ACCEPT} disabled={busy} className="hidden" onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
+          <button type="button" title="Attach file" aria-label="Attach file" disabled={busy} onClick={() => fileInput.current?.click()} className="dark-chip p-2 disabled:opacity-50"><Paperclip size={16} /></button>
           <textarea aria-label="Message Workspace AI" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={MAX_CHAT_MESSAGE_LENGTH} rows={2} placeholder="Ask about your workspace…" className="min-w-0 flex-1 resize-none rounded-2xl dark-inset px-3 py-2 text-sm t-dark" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
           <button type="submit" disabled={busy || !message.trim()} aria-label="Send message" className="ink-button primary p-2 disabled:opacity-50">{busy ? <span className="px-1 text-xs">…</span> : <Send size={16} />}</button>
         </form>

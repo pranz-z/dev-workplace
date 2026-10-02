@@ -8,6 +8,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 const {
   calendarDatePatch,
   filterCalendarEvents,
+  filterTaskView,
   formatCalendarDate,
   getCalendarSummary,
   isCalendarEventOverdue,
@@ -52,6 +53,21 @@ test("date-only task values and date labels do not shift with timezone", () => {
   assert.equal(formatCalendarDate("2026-10-02", { dateStyle: "long" }), "October 2, 2026");
   assert.equal(localCalendarDate(new Date("2026-10-02T00:30:00Z"), "America/Los_Angeles"), "2026-10-01");
   assert.equal(localCalendarDate(new Date("2026-10-02T00:30:00Z"), "Asia/Manila"), "2026-10-02");
+});
+
+test("Today and Upcoming task views use calendar dates, exclude completed or undated work, and honor project filters", () => {
+  const tasks = [
+    task("today", "p1", "2026-10-02"),
+    task("earlier", "p1", "2026-10-01"),
+    task("later", "p2", "2026-10-03"),
+    task("done", "p1", "2026-10-02", "Completed"),
+    task("unscheduled", "p1", ""),
+    task("timestamp", "p1", "2026-10-02T23:30:00.000Z"),
+  ];
+  assert.deepEqual(filterTaskView(tasks, "today", "2026-10-02", "Asia/Manila").map((item) => item.id), ["today"]);
+  assert.deepEqual(filterTaskView(tasks, "upcoming", "2026-10-02", "Asia/Manila").map((item) => item.id), ["later", "timestamp"]);
+  assert.deepEqual(filterTaskView(tasks, "upcoming", "2026-10-02", "Asia/Manila", "p1").map((item) => item.id), ["timestamp"]);
+  assert.equal(filterTaskView(tasks, "list", "2026-10-02", "Asia/Manila").length, tasks.length);
 });
 
 test("timed task timestamps use the profile timezone while date-input timestamps stay date-only", () => {
