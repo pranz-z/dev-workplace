@@ -1,6 +1,6 @@
-import type { Plan, PlanItem, PlanStatus } from "@/types";
+import type { Plan, PlanStatus } from "@/types";
 import { getWorkspaceContext, isUuid } from "@/data/context";
-import { mapPlanItemRow, mapPlanRow } from "@/data/mappers";
+import { mapPlanRow } from "@/data/mappers";
 import type { PlanItemRow, PlanRow } from "@/data/database.types";
 import {
   DELETE_FAILED_MESSAGE,

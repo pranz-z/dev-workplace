@@ -56,14 +56,14 @@ function readConstraintName(error: PostgresError): string | null {
  */
 export function describeDatabaseError(error: unknown, fallback: string): string {
   if (!error || typeof error !== "object") {
-    console.error("[data] unexpected failure", error);
+    console.error("[data] unexpected failure", { category: "unknown" });
     return fallback;
   }
 
   const postgresError = error as PostgresError;
   const code = postgresError.code;
   const constraint = readConstraintName(postgresError);
-  const technical = `${code ?? "unknown"}: ${postgresError.message ?? "no message"}`;
+  const technical = { code: code ?? "unknown", constraint: constraint ?? undefined };
 
   if (code === "42501") {
     console.error("[data] blocked by row level security", technical);

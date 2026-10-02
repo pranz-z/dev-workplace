@@ -27,7 +27,7 @@ function LoginPanel() {
   const nextPath = sanitizeNextPath(searchParams.get("next"));
   const callbackErrorCode = searchParams.get("error");
   const missingEnvVars = getMissingSupabaseEnvVars();
-  const configMessage = missingEnvVars.length > 0 ? `Supabase is not configured. Add ${missingEnvVars.join(", ")} to .env.local (see .env.example).` : "";
+  const configMessage = missingEnvVars.length > 0 ? `Supabase is not configured. Set or correct ${missingEnvVars.join(", ")} in .env.local (see .env.example).` : "";
   const urlErrorMessage = callbackErrorCode ? AUTH_ERROR_MESSAGES[callbackErrorCode] ?? GENERIC_ERROR_MESSAGE : "";
   const errorMessage = error || urlErrorMessage || configMessage;
 
@@ -41,8 +41,8 @@ function LoginPanel() {
     try {
       const result = await signInWithGithub(nextPath);
       if (!result.configured) setError(configMessage || "Supabase is not configured yet.");
-    } catch (cause) {
-      console.error("[login] GitHub sign-in could not start.", cause);
+    } catch {
+      console.error("[login] GitHub sign-in could not start.", { operation: "start_github_sign_in" });
       setError("GitHub sign-in could not be completed. Please try again.");
     } finally {
       setLoading(false);

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { exchangeGithubUserCode, findUserAccessibleInstallation, GithubIntegrationError } from "@/data/githubAppService";
 import { requireGithubUser } from "@/lib/github/api";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getSiteUrlOverride } from "@/lib/supabase/env";
+import { getApplicationOrigin } from "@/lib/site-origin";
 
 const cookieNames = ["github_app_oauth_state", "github_app_oauth_verifier", "github_app_pending_installation"];
 
@@ -25,6 +25,8 @@ function logAssociationFailure(operation: string, error: unknown) {
 }
 
 export async function GET(request: NextRequest) {
+  const origin = getApplicationOrigin();
+  if (!origin) return NextResponse.json({ error: "GitHub authorization is unavailable." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   const { searchParams } = request.nextUrl;
   const code = searchParams.get("code");
   const state = searchParams.get("state");
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
   const verifier = request.cookies.get(cookieNames[1])?.value;
   const installationId = Number(request.cookies.get(cookieNames[2])?.value);
   const finish = (destination: string) => {
-    const response = NextResponse.redirect(new URL(destination, request.url));
+    const response = NextResponse.redirect(new URL(destination, origin));
     for (const name of cookieNames) response.cookies.set(name, "", { path: "/api/github/oauth-callback", maxAge: 0 });
     return response;
   };
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
 
   let operation = "exchange_github_user_code";
   try {
-    const redirectUri = new URL("/api/github/oauth-callback", getSiteUrlOverride() ?? request.nextUrl.origin).toString();
+    const redirectUri = new URL("/api/github/oauth-callback", origin).toString();
     const userToken = await exchangeGithubUserCode(code, redirectUri, verifier);
     operation = "verify_user_access_to_installation";
     const installation = await findUserAccessibleInstallation(userToken, installationId);

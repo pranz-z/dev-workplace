@@ -14,7 +14,7 @@ const safeMessages: Record<AiErrorCode, string> = {
   UNAUTHENTICATED: "Sign in to use the AI assistant.",
   FORBIDDEN: "That workspace item is not available.",
   INVALID_INPUT: "Check the request and try again.",
-  RATE_LIMITED: "Gemini is temporarily rate-limited or the configured quota has been reached. Try again later.",
+  RATE_LIMITED: "The AI assistant has reached its current request limit. Try again later.",
   MODEL_UNAVAILABLE: "The configured Gemini model is temporarily unavailable. Try again later.",
   CONTENT_BLOCKED: "Gemini could not process this request. Review the selected content and try again.",
   MALFORMED_OUTPUT: "Gemini returned a response that could not be safely used. Please regenerate.",

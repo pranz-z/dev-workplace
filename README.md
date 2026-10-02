@@ -52,7 +52,7 @@ Then open http://localhost:3000
 
 **Authentication vs repository access:** Supabase GitHub OAuth verifies user identity. Repository access uses a separate GitHub App installation selected by the user. Repository listing, import, project attachment, unlink, and metadata refresh are read-oriented; `/api/github/write` remains disabled (`501`).
 
-**Fail-fast environment handling:** production builds and server starts throw a clear `Missing NEXT_PUBLIC_SUPABASE_URL` error when the environment is absent, the Supabase client factories refuse to create an invalid client, and private routes always redirect to `/login` instead of falling back to mock data. Development only warns so the public pages stay browsable without Supabase.
+**Fail-closed environment handling:** missing or malformed Supabase browser configuration is reported by variable name only, client factories refuse to create invalid clients, and private routes stay locked instead of falling back to mock data. Development warns so public pages can still be browsed without Supabase.
 
 No service-role key is needed by the browser. Keep privileged secrets out of `NEXT_PUBLIC_*` variables.
 
@@ -168,3 +168,51 @@ Never place Supabase service-role keys, GitHub client secrets, or GitHub App pri
 2. Rank the workflows that feel truly valuable.
 3. Decide which parts belong in the production MVP.
 4. Complete the GitHub App setup above and test repository selection with a real installation.
+
+## Phase 6A production readiness
+
+### Prerequisites and environment
+
+Use a production Supabase project, an HTTPS production domain, and separate GitHub Apps/provider credentials for production and local development where callback URLs differ. Do not put server-only values in `NEXT_PUBLIC_*` variables. Configure these in Vercel by environment:
+
+- **Production:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SITE_URL` (the canonical HTTPS origin), and the server-only `SUPABASE_SERVICE_ROLE_KEY`, `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and `PUBLIC_AI_RATE_LIMIT_SALT` when their features are enabled. `PUBLIC_AI_DAILY_LIMIT`, `PRIVATE_AI_REQUESTS_PER_MINUTE`, and `PRIVATE_AI_DAILY_LIMIT` are optional and default to 25, 10, and 100 respectively.
+- **Preview:** use a separate non-production Supabase project and separate GitHub App credentials if GitHub integration is enabled. Vercel preview origins resolve from `VERCEL_URL`; add the exact preview callback origin (or an owner-approved Vercel preview pattern) to Supabase's redirect allowlist. For a preview alias, set `NEXT_PUBLIC_SITE_URL` to that canonical HTTPS origin. Avoid production service-role and Gemini credentials unless the preview explicitly uses production data and access has been reviewed.
+- **Development:** copy `.env.example` to `.env.local`; use development Supabase/GitHub credentials. `NEXT_PUBLIC_SITE_URL` may be empty and defaults to `http://localhost:3000`.
+
+`SUPABASE_SERVICE_ROLE_KEY` is used by trusted server routes only. GitHub private keys/secrets, Gemini API keys, and both AI rate-limit secrets remain server-only. The private AI limiter migration is `supabase/migrations/20261002140000_phase6a_private_ai_rate_limit.sql`; review and apply it through the normal migration workflow before enabling the private AI endpoint in production. Never edit already-applied migration files. No external monitoring vendor is configured; use Vercel function/runtime logs and add an observability provider later only after choosing one.
+
+### Supabase Dashboard checklist (manual)
+
+1. Set **Authentication → URL Configuration → Site URL** to `https://YOUR_DOMAIN`.
+2. Add the exact redirect `https://YOUR_DOMAIN/auth/callback` to the redirect allowlist. Retain `http://localhost:3000/auth/callback` only for development as needed.
+3. Keep the Supabase GitHub OAuth provider's callback at `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`; GitHub identity OAuth terminates at Supabase before returning to the app.
+4. Confirm the Phase 3A–5D migration history is present, review and apply the new Phase 6A migration, then verify `npx supabase migration list` and `npx supabase db push --dry-run`. Do not run a reset against the hosted project.
+5. Keep the `project-screenshots` bucket private. Public images are exposed only through explicit public metadata and short-lived signed URLs; do not change bucket visibility to public.
+6. Run the RLS and public-AI SQL tests against a disposable/local database when available; never use a destructive reset on production.
+
+### GitHub App checklist (manual)
+
+For the production App, set **Setup URL** to `https://YOUR_DOMAIN/api/github/setup` and **User authorization callback URL** to `https://YOUR_DOMAIN/api/github/oauth-callback`. Keep the required read-only repository permissions (`Metadata`, `Contents`, `Pull requests`, and `Issues`) and keep webhooks disabled. GitHub App callback settings can conflict with local URLs; use a separate development App rather than changing production URLs during local testing. Set the production App ID, slug, client ID, client secret, and private key only in Vercel's Production environment.
+
+### Gemini checklist (manual)
+
+Set `GEMINI_API_KEY` and the owner-validated `GEMINI_MODEL` as Vercel server-only variables. Do not hardcode or silently substitute a model. If public AI is enabled, also set `PUBLIC_AI_RATE_LIMIT_SALT` to a random secret of at least 32 characters; choose `PUBLIC_AI_DAILY_LIMIT` from 1–100 if needed. Private AI defaults to 10 requests per user per UTC minute and 100 per UTC day; optional overrides are bounded to 1–20 and 1–1000. Private AI counters contain no prompts or responses.
+
+### Build and deployment preparation
+
+1. Configure the Vercel project to use this repository and the standard Next.js build (`npm run build`). No custom `vercel.json` is required.
+2. Add environment variables separately for Production, Preview, and Development; do not copy production secrets into previews by default.
+3. Apply reviewed migrations using the project's deployment process, then verify the remote migration list and dry run.
+4. Run `npx tsc --noEmit`, `npm run lint`, `npm run test:accountability`, `npm run test:calendar`, `npm run test:ai`, `npm run test:public-ai`, and `npm run build` before an owner-triggered production deployment.
+5. Configure the manual dashboard values above and perform the post-deployment checks below. This repository does not deploy automatically.
+
+### Phase 6B production smoke checklist
+
+- [ ] Public `/view`, a public project, an explicitly public screenshot, public repository link, opt-in public accountability, and opt-in public AI work while signed out; verify the public AI limit and safe unavailable/error state.
+- [ ] Login, logout, session refresh, and a signed-out protected-route redirect work.
+- [ ] Create and edit a project, task, milestone, plan, note, and goal; verify task and project Kanban drag/drop and Calendar rescheduling persist.
+- [ ] Connect/install GitHub, browse repositories, attach/import a repository, load activity, then revoke/remove repository access and verify it fails safely.
+- [ ] Use a private AI action, apply a selected result, and verify Notes/GitHub context is included only when explicitly selected; verify per-user private rate limits.
+- [ ] Submit a signed-out public AI question and verify public rate-limit/error behavior.
+- [ ] Verify private projects and screenshots are inaccessible anonymously, unlisted projects are absent from listing/sitemap, private repositories are not exposed, and goals/reports/private accountability remain private.
+- [ ] Confirm browser responses include security headers, public pages have canonical metadata, `/robots.txt` and `/sitemap.xml` exclude private routes and unlisted projects, and no browser bundle contains server credentials.

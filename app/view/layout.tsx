@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import { getApplicationOrigin } from "@/lib/site-origin";
 
-const origin = process.env.NEXT_PUBLIC_SITE_URL;
-const siteUrl = (() => { try { return origin ? new URL(origin).origin : undefined; } catch { return undefined; } })();
+const siteUrl = getApplicationOrigin() ?? undefined;
 
 export const metadata: Metadata = {
   title: "Developer Portfolio",

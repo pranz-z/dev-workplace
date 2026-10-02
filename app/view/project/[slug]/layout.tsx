@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { PublicProjectCardRow, PublicProjectScreenshotRow } from "@/data/database.types";
+import { getApplicationOrigin } from "@/lib/site-origin";
 
-const origin = process.env.NEXT_PUBLIC_SITE_URL;
-const siteUrl = (() => { try { return origin ? new URL(origin).origin : undefined; } catch { return undefined; } })();
+const siteUrl = getApplicationOrigin() ?? undefined;
 
 export async function generateMetadata({ params }: LayoutProps<"/view/project/[slug]">): Promise<Metadata> {
   const { slug } = await params;
@@ -24,6 +24,7 @@ export async function generateMetadata({ params }: LayoutProps<"/view/project/[s
   return {
     title: `${project.title} | Developer Portfolio`,
     description,
+    ...(project.visibility === "Unlisted" ? { robots: { index: false, follow: false } } : {}),
     ...(canonical ? { alternates: { canonical } } : {}),
     openGraph: {
       title: `${project.title} | Developer Portfolio`,

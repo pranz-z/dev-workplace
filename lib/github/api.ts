@@ -12,6 +12,7 @@ export async function requireGithubUser() {
 
 export function githubErrorResponse(error: unknown) {
   if (error instanceof GithubIntegrationError) return NextResponse.json({ error: error.message }, { status: error.status });
-  console.error("[github] repository integration request failed", error instanceof Error ? error.message : "unknown error");
+  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "unknown";
+  console.error("[github] repository integration request failed", { code });
   return NextResponse.json({ error: "GitHub repository access could not be completed. Try again shortly." }, { status: 502 });
 }

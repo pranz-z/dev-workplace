@@ -12,7 +12,7 @@ export async function hasLinkedGithubRepository(projectId: string): Promise<bool
     .eq("project_id", projectId)
     .maybeSingle();
   if (error) {
-    console.error("[data] project GitHub link check failed", { operation: "check_project_github_link", code: error.code, message: error.message, details: error.details, hint: error.hint });
+    console.error("[data] project GitHub link check failed", { operation: "check_project_github_link", code: error.code ?? "unknown" });
     throw new Error("Couldn't check this project's GitHub connection.");
   }
   return Boolean(data);

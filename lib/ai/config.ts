@@ -1,3 +1,5 @@
+import "server-only";
+
 export interface GeminiConfiguration {
   configured: boolean;
   model: string | null;

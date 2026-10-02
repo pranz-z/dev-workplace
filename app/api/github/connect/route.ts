@@ -2,8 +2,11 @@ import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { getGithubAppConfig, GithubIntegrationError } from "@/data/githubAppService";
 import { requireGithubUser } from "@/lib/github/api";
+import { getApplicationOrigin } from "@/lib/site-origin";
 
 export async function GET(request: NextRequest) {
+  const origin = getApplicationOrigin();
+  if (!origin) return NextResponse.json({ error: "GitHub setup is unavailable." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   const auth = await requireGithubUser();
   if ("response" in auth) return auth.response;
   try {
@@ -22,6 +25,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     const message = error instanceof GithubIntegrationError ? error.message : "GitHub repository access is not configured.";
-    return NextResponse.redirect(new URL(`/app?github_error=${encodeURIComponent(message)}`, request.url));
+    return NextResponse.redirect(new URL(`/app?github_error=${encodeURIComponent(message)}`, origin));
   }
 }

@@ -21,7 +21,7 @@ export async function getWorkspaceContext(): Promise<WorkspaceContext | null> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) {
-    console.error("[data] no authenticated session for this write", error?.message ?? "missing user");
+    console.error("[data] no authenticated session for this write", { code: error?.code ?? "missing_user" });
     return null;
   }
 

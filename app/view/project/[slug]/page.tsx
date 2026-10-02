@@ -70,9 +70,9 @@ export default function PublicProjectPage() {
         : null);
       setLoadError(false);
       setResolvedSlug(slug);
-    }).catch((error: unknown) => {
+    }).catch(() => {
       if (!current) return;
-      console.error("[public-project] public_project_by_slug lookup failed", error);
+      console.error("[public-project] public_project_by_slug lookup failed", { operation: "load_public_project" });
       setProject(null);
       setAccountability(null);
       setLoadError(true);
@@ -195,7 +195,7 @@ export default function PublicProjectPage() {
           <div><p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Shared project images</p><h2 id="project-gallery-title" className="mt-2 text-3xl font-black text-[var(--ink)]">Gallery</h2></div>
           <div className="grid gap-4 md:grid-cols-2">{screenshots.map((screenshot) => <figure key={screenshot.id} className="public-card overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={screenshot.signedUrl} alt={screenshot.caption || `${displayProject.name} screenshot`} className="aspect-video w-full object-cover" />
+            <img src={screenshot.signedUrl} alt={screenshot.caption || `${displayProject.name} screenshot`} loading="lazy" decoding="async" className="aspect-video w-full object-cover" />
             {screenshot.caption && <figcaption className="p-3 text-sm text-[var(--muted)]">{screenshot.caption}</figcaption>}
           </figure>)}</div>
         </section>}

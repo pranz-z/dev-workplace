@@ -152,7 +152,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
       {error && <p role="status" className="mt-3 text-sm text-rose-300">{error}</p>}
       {linkedForProject && <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm t-dark-muted">
         <span>{linkedForProject.private ? "Private" : "Public"}</span><span>{linkedForProject.language ?? "Language not specified"}</span><span>Default branch: {linkedForProject.defaultBranch}</span><span>Updated {linkedForProject.updatedAt ? dateLabel(linkedForProject.updatedAt) : "unknown"}</span>
-        <a href={linkedForProject.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[var(--ink-coral)]">Open GitHub <ExternalLink size={13} /></a>
+        <a href={linkedForProject.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--ink-coral)]">Open GitHub <ExternalLink size={13} /></a>
       </div>}
       {!linkedForProject && error && <button type="button" onClick={() => void refresh()} className="mt-2 text-sm text-[var(--ink-coral)]">Refresh repository status</button>}
       </section>
@@ -189,7 +189,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
               <button type="button" disabled={busy} onClick={() => void linkRepository(repository, "import")} className="ink-button primary rounded-xl px-3 py-2 text-sm">Import as project</button>
               {availableProjects.length > 0 && <><select value={attachProjectIds[repository.id] ?? ""} onChange={(event) => setAttachProjectIds((current) => ({ ...current, [repository.id]: event.target.value }))} className="dark-chip min-w-40 px-2 py-2 text-sm" aria-label={`Project to attach ${repository.fullName}`}><option value="">Choose project…</option>{availableProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><button type="button" disabled={busy || !attachProjectIds[repository.id]} onClick={() => void linkRepository(repository, "attach", attachProjectIds[repository.id])} className="dark-chip px-3 py-2 text-sm">Attach</button></>}
             </>}
-            <a href={repository.url} target="_blank" rel="noreferrer" className="dark-chip inline-flex items-center gap-1 px-3 py-2 text-sm">Preview <ExternalLink size={13} /></a>
+            <a href={repository.url} target="_blank" rel="noopener noreferrer" className="dark-chip inline-flex items-center gap-1 px-3 py-2 text-sm">Preview <ExternalLink size={13} /></a>
           </div>
           {repositoryErrors[repository.id] && <p role="alert" className="mt-3 text-sm text-rose-300">{repositoryErrors[repository.id]}</p>}
           {selected?.id === repository.id && <div className="mt-3 rounded-xl bg-black/10 p-3 text-sm t-dark-muted"><p className="font-medium t-dark">Repository preview</p><p className="mt-1">{repository.description || "No description provided by GitHub."}</p><p className="mt-2">{repository.private ? "Private repository" : "Public repository"} · {repository.language ?? "Primary language not specified"} · default branch {repository.defaultBranch} · updated {dateLabel(repository.updatedAt)}</p></div>}

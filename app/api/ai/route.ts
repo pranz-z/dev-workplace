@@ -7,6 +7,8 @@ import { generateStructuredResponse } from "@/lib/ai/gemini";
 import { systemInstructionFor } from "@/lib/ai/prompts";
 import { parseAiRequest, validateAiOutput } from "@/lib/ai/schemas";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getPrivateAiRateLimits } from "@/lib/ai/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,6 +66,22 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   let category = "success";
   try {
+    const { requestsPerMinute, dailyLimit } = getPrivateAiRateLimits();
+    const { data: allowed, error: rateLimitError } = await getSupabaseAdminClient().rpc("consume_private_ai_rate_limit", {
+      p_user_id: userId,
+      p_minute_limit: requestsPerMinute,
+      p_daily_limit: dailyLimit,
+    });
+    if (rateLimitError) {
+      console.error("[ai] persistent rate limit failed", { operation: "consume_private_ai_rate_limit", code: rateLimitError.code ?? "unknown" });
+      throw new AiError("UPSTREAM_ERROR");
+    }
+    if (typeof allowed !== "boolean") {
+      console.error("[ai] persistent rate limit returned an invalid result", { operation: "consume_private_ai_rate_limit" });
+      throw new AiError("UPSTREAM_ERROR");
+    }
+    if (!allowed) throw new AiError("RATE_LIMITED");
+
     const context = await buildAiContext(supabase, userId, body);
     const rawOutput = await generateStructuredResponse(body.action, systemInstructionFor(body.action), context);
     const output = validateAiOutput(body.action, rawOutput);

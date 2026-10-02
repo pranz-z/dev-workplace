@@ -2,9 +2,11 @@ import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { createGithubPkcePair, getGithubAppConfig, getInstallation, GithubIntegrationError } from "@/data/githubAppService";
 import { requireGithubUser } from "@/lib/github/api";
-import { getSiteUrlOverride } from "@/lib/supabase/env";
+import { getApplicationOrigin } from "@/lib/site-origin";
 
 export async function GET(request: NextRequest) {
+  const origin = getApplicationOrigin();
+  if (!origin) return NextResponse.json({ error: "GitHub setup is unavailable." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   const { searchParams } = request.nextUrl;
   const state = searchParams.get("state");
   const installationId = Number(searchParams.get("installation_id"));
@@ -17,10 +19,10 @@ export async function GET(request: NextRequest) {
   };
 
   if (!state || !cookieState || state !== cookieState || !Number.isSafeInteger(installationId) || installationId <= 0 || !["install", "update"].includes(setupAction ?? "")) {
-    return finish(new URL("/app?github_error=The%20GitHub%20setup%20could%20not%20be%20verified.%20Please%20connect%20again.", request.url));
+    return finish(new URL("/app?github_error=The%20GitHub%20setup%20could%20not%20be%20verified.%20Please%20connect%20again.", origin));
   }
   const auth = await requireGithubUser();
-  if ("response" in auth) return finish(new URL("/login?next=%2Fapp", request.url));
+  if ("response" in auth) return finish(new URL("/login?next=%2Fapp", origin));
 
   try {
     const installation = await getInstallation(installationId);
@@ -28,7 +30,7 @@ export async function GET(request: NextRequest) {
     const { clientId } = getGithubAppConfig();
     const state = randomBytes(32).toString("base64url");
     const { verifier, challenge } = createGithubPkcePair();
-    const callbackUrl = new URL("/api/github/oauth-callback", getSiteUrlOverride() ?? request.nextUrl.origin);
+    const callbackUrl = new URL("/api/github/oauth-callback", origin);
     const oauthUrl = new URL("https://github.com/login/oauth/authorize");
     oauthUrl.searchParams.set("client_id", clientId);
     oauthUrl.searchParams.set("redirect_uri", callbackUrl.toString());
@@ -44,6 +46,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     const message = error instanceof GithubIntegrationError ? error.message : "GitHub installation could not be saved. Please try connecting again.";
-    return finish(new URL(`/app?github_error=${encodeURIComponent(message)}`, request.url));
+    return finish(new URL(`/app?github_error=${encodeURIComponent(message)}`, origin));
   }
 }

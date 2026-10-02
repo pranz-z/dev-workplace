@@ -11,13 +11,9 @@ const privateNoStore = { "Cache-Control": "private, no-store" };
 
 function logDatabaseError(operation: string, error: unknown) {
   const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
-  const safe = (value: unknown) => typeof value === "string" ? value.slice(0, 300) : undefined;
   console.error("[github] activity database lookup failed", {
     operation,
-    code: safe(record.code),
-    message: safe(record.message),
-    details: safe(record.details),
-    hint: safe(record.hint),
+    code: typeof record.code === "string" ? record.code : "unknown",
   });
 }
 
@@ -88,7 +84,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json(activity, { headers: privateNoStore });
     } catch (error) {
       if (error instanceof GithubIntegrationError) return jsonError(error.message, error.status);
-      console.error("[github] bounded report activity request failed", error instanceof Error ? error.message.slice(0, 300) : "Unknown error");
+      const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "unknown";
+      console.error("[github] bounded report activity request failed", { code });
       return jsonError("GitHub activity is temporarily unavailable. Try again shortly.", 502);
     }
   }
@@ -108,7 +105,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json(activity, { headers: privateNoStore });
   } catch (error) {
     if (error instanceof GithubIntegrationError) return jsonError(error.message, error.status);
-    console.error("[github] repository activity request failed", error instanceof Error ? error.message.slice(0, 300) : "Unknown error");
+    const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "unknown";
+    console.error("[github] repository activity request failed", { code });
     return jsonError("GitHub activity is temporarily unavailable. Try again shortly.", 502);
   }
 }

@@ -1,12 +1,11 @@
 import type { NextConfig } from "next";
+import { getMissingSupabaseEnvVars } from "./lib/supabase/env";
 
-const REQUIRED_PUBLIC_ENV_VARS = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"] as const;
-
-const missingPublicEnvVars = REQUIRED_PUBLIC_ENV_VARS.filter((name) => !process.env[name]?.trim());
+const missingPublicEnvVars = getMissingSupabaseEnvVars();
 
 if (missingPublicEnvVars.length > 0) {
   const guidance = [
-    `Missing ${missingPublicEnvVars.join(", ")}.`,
+    `Missing or malformed ${missingPublicEnvVars.join(", ")}.`,
     "Copy .env.example to .env.local and add the Supabase project values (never commit real values).",
     "Private workspace routes stay locked and Supabase-backed data stays disabled until the environment is configured.",
   ].join(" ");
@@ -16,7 +15,22 @@ if (missingPublicEnvVars.length > 0) {
 }
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async headers() {
+    return [{
+      source: "/:path*",
+      headers: [
+        { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ...(process.env.NODE_ENV === "production" ? [{ key: "Strict-Transport-Security", value: "max-age=31536000" }] : []),
+      ],
+    }, {
+      source: "/api/:path*",
+      headers: [{ key: "Cache-Control", value: "no-store" }],
+    }];
+  },
 };
 
 export default nextConfig;

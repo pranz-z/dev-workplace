@@ -275,9 +275,9 @@ export async function updateProject(projectId: string, patch: ProjectPatch): Pro
     context.supabase.from("milestones").select("status").eq("project_id", row.id),
     context.supabase.from("project_technologies").select("technologies ( name )").eq("project_id", row.id),
   ]);
-  if (taskRows.error) console.error("[data] couldn't reload tasks after project update", taskRows.error.message);
-  if (milestoneRows.error) console.error("[data] couldn't reload milestones after project update", milestoneRows.error.message);
-  if (linkRows.error) console.error("[data] couldn't reload technologies after project update", linkRows.error.message);
+  if (taskRows.error) console.error("[data] couldn't reload tasks after project update", { code: taskRows.error.code ?? "unknown" });
+  if (milestoneRows.error) console.error("[data] couldn't reload milestones after project update", { code: milestoneRows.error.code ?? "unknown" });
+  if (linkRows.error) console.error("[data] couldn't reload technologies after project update", { code: linkRows.error.code ?? "unknown" });
 
   const technologyNames = ((linkRows.data ?? []) as unknown as Array<{ technologies: { name: string } | null }>)
     .map((link) => link.technologies?.name)

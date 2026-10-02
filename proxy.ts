@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { sanitizeNextPath } from "@/lib/auth/redirects";
 import { getSupabaseEnv, isSupabaseConfigured } from "@/lib/supabase/env";
+import { getApplicationOrigin } from "@/lib/site-origin";
 
 const PRIVATE_PATH_PREFIX = "/app";
 
@@ -44,28 +45,34 @@ export async function proxy(request: NextRequest) {
     try {
       const { data } = await supabase.auth.getUser();
       user = data.user ?? null;
-    } catch (error) {
+    } catch {
       // Fail closed: an unverifiable session never unlocks a private route.
-      console.error("[proxy] Supabase session check failed; treating the request as signed out.", error);
+      console.error("[proxy] Supabase session check failed; treating the request as signed out.");
       user = null;
     }
   }
 
   // Private workspace protection happens here, server-side, never through React state alone.
   if (isPrivateRoute && !user) {
-    const loginUrl = new URL("/login", request.url);
+    const origin = getApplicationOrigin();
+    if (!origin) return new NextResponse("Application origin is not configured.", { status: 503, headers: { "Cache-Control": "no-store" } });
+    const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("next", `${pathname}${search}`);
     return redirectWithSessionCookies(loginUrl, response);
   }
 
   // `/` stays public: signed-in users continue to the workspace, visitors see the portfolio.
   if (isRootRoute) {
-    return redirectWithSessionCookies(new URL(user ? "/app" : "/view", request.url), response);
+    const origin = getApplicationOrigin();
+    if (!origin) return new NextResponse("Application origin is not configured.", { status: 503, headers: { "Cache-Control": "no-store" } });
+    return redirectWithSessionCookies(new URL(user ? "/app" : "/view", origin), response);
   }
 
   // A signed-in user never needs the login screen again.
   if (isLoginRoute && user) {
-    return redirectWithSessionCookies(new URL(sanitizeNextPath(request.nextUrl.searchParams.get("next")), request.url), response);
+    const origin = getApplicationOrigin();
+    if (!origin) return new NextResponse("Application origin is not configured.", { status: 503, headers: { "Cache-Control": "no-store" } });
+    return redirectWithSessionCookies(new URL(sanitizeNextPath(request.nextUrl.searchParams.get("next")), origin), response);
   }
 
   return response;

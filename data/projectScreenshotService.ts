@@ -5,6 +5,11 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 const BUCKET = "project-screenshots";
+
+function logScreenshotFailure(operation: string, error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "unknown";
+  console.error("[data] project screenshot operation failed", { operation, code });
+}
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -68,7 +73,7 @@ export async function listProjectScreenshots(projectId: string): Promise<Project
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
   if (error) {
-    console.error("[data] project screenshots list failed", { operation: "list_project_screenshots", code: error.code, message: error.message, details: error.details, hint: error.hint });
+    logScreenshotFailure("list_project_screenshots", error);
     throw new Error("Couldn't load project screenshots. Apply the project screenshot migration and check the Supabase Storage policies.");
   }
 
@@ -76,7 +81,7 @@ export async function listProjectScreenshots(projectId: string): Promise<Project
   const screenshots = await Promise.all(rows.map(async (row) => {
     const { data: signed, error: signedUrlError } = await context.supabase.storage.from(BUCKET).createSignedUrl(row.storage_path, 60 * 60);
     if (signedUrlError) {
-      console.error("[data] project screenshot URL failed", { operation: "sign_project_screenshot", message: signedUrlError.message });
+      logScreenshotFailure("sign_project_screenshot", signedUrlError);
       throw new Error("Couldn't open a saved screenshot. Check the project screenshot Storage policies.");
     }
     return mapScreenshot(row, signed.signedUrl);
@@ -113,7 +118,7 @@ export async function addProjectScreenshot(
     upsert: false,
   });
   if (uploadError) {
-    console.error("[data] project screenshot upload failed", { operation: "upload_project_screenshot", message: uploadError.message });
+    logScreenshotFailure("upload_project_screenshot", uploadError);
     return serviceFail("Couldn't upload the screenshot. Apply the project screenshot migration and check the Supabase Storage policies.");
   }
 
@@ -124,16 +129,16 @@ export async function addProjectScreenshot(
     .single();
 
   if (error) {
-    console.error("[data] project screenshot metadata insert failed", { operation: "insert_project_screenshot", code: error.code, message: error.message, details: error.details, hint: error.hint });
+    logScreenshotFailure("insert_project_screenshot_metadata", error);
     const { error: cleanupError } = await context.supabase.storage.from(BUCKET).remove([storagePath]);
-    if (cleanupError) console.error("[data] project screenshot cleanup failed", { operation: "cleanup_project_screenshot_upload", message: cleanupError.message });
+    if (cleanupError) logScreenshotFailure("cleanup_project_screenshot_upload", cleanupError);
     return serviceFail(describeDatabaseError(error, "Couldn't save the screenshot details."));
   }
 
   const row = data as unknown as ProjectScreenshotRow;
   const { data: signed, error: signedUrlError } = await context.supabase.storage.from(BUCKET).createSignedUrl(storagePath, 60 * 60);
   if (signedUrlError) {
-    console.error("[data] project screenshot URL failed", { operation: "sign_project_screenshot", message: signedUrlError.message });
+    logScreenshotFailure("sign_project_screenshot", signedUrlError);
     return serviceFail("Screenshot saved, but couldn't open it. Refresh the project and check the Storage policies.");
   }
   return serviceOk(mapScreenshot(row, signed.signedUrl));
@@ -196,7 +201,7 @@ export async function deleteProjectScreenshot(projectId: string, screenshotId: s
 
   const { error: storageError } = await context.supabase.storage.from(BUCKET).remove([row.storage_path]);
   if (storageError) {
-    console.error("[data] project screenshot removal failed", { operation: "remove_project_screenshot_file", message: storageError.message });
+    logScreenshotFailure("remove_project_screenshot_file", storageError);
     return serviceFail("Couldn't remove the screenshot file. Check the project screenshot Storage policies.");
   }
 
@@ -206,7 +211,7 @@ export async function deleteProjectScreenshot(projectId: string, screenshotId: s
     .eq("id", screenshotId)
     .eq("project_id", projectId);
   if (error) {
-    console.error("[data] project screenshot metadata removal failed", { operation: "delete_project_screenshot_metadata", code: error.code, message: error.message, details: error.details, hint: error.hint });
+    logScreenshotFailure("delete_project_screenshot_metadata", error);
     return serviceFail(describeDatabaseError(error, "Couldn't remove the screenshot details."));
   }
   return serviceOk({ id: screenshotId });

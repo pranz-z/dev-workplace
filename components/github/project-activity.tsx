@@ -21,7 +21,7 @@ const displayDate = (value: string | null) => value
   : "Not available";
 
 function ActivityLink({ href, children }: { href: string; children: ReactNode }) {
-  return <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[var(--ink-coral)] hover:underline">
+  return <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--ink-coral)] hover:underline">
     {children}<ExternalLink size={12} />
   </a>;
 }

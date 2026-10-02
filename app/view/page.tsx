@@ -158,7 +158,7 @@ function ProjectCard({ project, featured = false, coverUrl }: { project: ReturnT
   return <article className="public-card flex min-w-0 flex-col p-5">
     {coverUrl ? <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={coverUrl} alt={`${project.name} project preview`} className="mb-4 aspect-video w-full rounded-2xl border border-[var(--public-border)] object-cover" />
+      <img src={coverUrl} alt={`${project.name} project preview`} loading="lazy" decoding="async" className="mb-4 aspect-video w-full rounded-2xl border border-[var(--public-border)] object-cover" />
     </> : <div aria-hidden="true" className="mb-4 flex aspect-video items-end rounded-2xl border border-[var(--public-border)] bg-[linear-gradient(135deg,var(--surface-strong),var(--surface))] p-4"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">{project.type}</span></div>}
     <div className="flex items-center justify-between gap-3"><span className="rounded-full border border-[var(--public-border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--ink)]">{project.type}</span><span className="text-xs text-[var(--muted)]">{project.status}</span></div>
     <h3 className="mt-4 text-2xl font-bold text-[var(--ink)]">{project.name}</h3>

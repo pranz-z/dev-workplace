@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { PublicAiProfileRow, PublicProjectCardRow } from "@/data/database.types";
 
 export const MAX_QUESTION_LENGTH = 500;

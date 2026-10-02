@@ -176,7 +176,7 @@ const navGroups = [
 
 const workflowStages = ["Planning", "Research", "Development", "Testing", "Deployment", "Maintenance", "Completed"] as const;
 
-const unavailableViews = new Set<ViewName>(["resume", "portfolio"]);
+const unavailableViews = new Set<ViewName>(["learning", "applications", "resume", "freelance", "portfolio"]);
 
 /* Status + priority pills are token-driven (.badge / .prio) so they keep the
  * same pastel identity and dark-ink-on-pastel contrast in light AND dark. */
@@ -368,8 +368,8 @@ export default function Home() {
     setIsSavingEditor(true);
     try {
       await save();
-    } catch (error) {
-      console.error("[workspace] editor save failed", error);
+    } catch {
+      console.error("[workspace] editor save failed", { category: "save_failed" });
       setWorkspaceError("Couldn't save changes. Check your connection and try again.");
     } finally {
       editorSaveLock.current = false;
@@ -779,8 +779,8 @@ export default function Home() {
         Unlisted: "Visibility is Unlisted. The project is available by direct link but hidden from the public listing.",
       };
       setShareNotice({ projectId: project.id, message: messages[visibility] });
-    } catch (error) {
-      console.error("[workspace] could not update project visibility", error);
+    } catch {
+      console.error("[workspace] could not update project visibility", { category: "visibility_update_failed" });
       setWorkspaceError("Couldn't save the visibility change. Refresh and try again.");
     } finally {
       visibilitySaveLock.current = false;
@@ -804,8 +804,8 @@ export default function Home() {
     try {
       await navigator.clipboard.writeText(url);
       setShareNotice({ projectId: project.id, message: "Public project link copied." });
-    } catch (error) {
-      console.error("[workspace] could not copy public project link", error);
+    } catch {
+      console.error("[workspace] could not copy public project link", { category: "copy_link_failed" });
       setWorkspaceError("Couldn't copy the public link. Use Share Public View to open it.");
     }
   };
@@ -886,8 +886,8 @@ export default function Home() {
       } else {
         setWorkspaceError(result.error);
       }
-    } catch (error) {
-      console.error("[workspace] project update failed", error);
+    } catch {
+      console.error("[workspace] project update failed", { category: "project_update_failed" });
       setWorkspaceError("Couldn't save changes. Refresh and try again.");
     }
   };
@@ -1227,8 +1227,8 @@ export default function Home() {
       const [nextTechnologies, names] = await Promise.all([listTechnologies(), listProjectTechnologyNames()]);
       setTechnologies(nextTechnologies);
       setProjects((current) => current.map((project) => ({ ...project, technologies: names.get(project.id) ?? [] })));
-    } catch (error) {
-      console.error("[workspace] technology refresh failed", error);
+    } catch {
+      console.error("[workspace] technology refresh failed", { category: "technology_refresh_failed" });
       setWorkspaceError("The technology was saved, but the list could not be refreshed.");
     }
   };
