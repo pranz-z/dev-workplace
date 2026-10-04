@@ -6,25 +6,28 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getApplicationOrigin } from "@/lib/site-origin";
 import { getPublicProfessionalContent, publicProfessionalIntroduction } from "@/lib/portfolio/resume-content";
 import { publicPortfolioProject } from "@/lib/portfolio/project-card";
+import type { PortfolioContent } from "@/lib/portfolio/content";
 
 const loadPublicPortfolio = cache(async () => {
   try {
     const supabase = await getSupabaseServerClient();
     if (supabase) {
-      const [profileResult, projectsResult] = await Promise.all([
+      const [profileResult, projectsResult, portfolioResult] = await Promise.all([
         supabase.rpc("public_profile"),
         supabase.rpc("public_project_list"),
+        supabase.rpc("public_portfolio"),
       ]);
       return {
         profile: !profileResult.error ? ((profileResult.data ?? []) as PublicProfileRow[])[0] : undefined,
         projects: !projectsResult.error ? (projectsResult.data ?? []) as PublicProjectCardRow[] : [],
-        error: Boolean(profileResult.error || projectsResult.error),
+        portfolio: !portfolioResult.error ? portfolioResult.data as PortfolioContent | null : null,
+        error: Boolean(profileResult.error || projectsResult.error || portfolioResult.error),
       };
     }
   } catch {
     // Keep useful site chrome and generic metadata when public data is unavailable.
   }
-  return { profile: undefined, projects: [], error: true };
+  return { profile: undefined, projects: [], portfolio: null, error: true };
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -45,7 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PortfolioHome() {
-  const { profile, projects, error } = await loadPublicPortfolio();
+  const { profile, projects, portfolio, error } = await loadPublicPortfolio();
   const publicProfile = profile ? {
     displayName: profile.display_name ?? "",
     headline: profile.headline ?? undefined,
@@ -61,5 +64,5 @@ export default async function PortfolioHome() {
     return project ? [project] : [];
   });
   return <PublicPortfolio initialProjects={publicProjects} initialError={error} initialProfile={publicProfile}
-    initialProfessionalContent={getPublicProfessionalContent(publicProfile)} introduction={publicProfessionalIntroduction(publicProfile)} />;
+    initialProfessionalContent={getPublicProfessionalContent({ portfolio })} introduction={publicProfessionalIntroduction(publicProfile)} />;
 }

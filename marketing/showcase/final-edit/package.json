@@ -1,0 +1,22 @@
+{
+  "name": "developer-workplace-reference-showcase",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio src/index.tsx",
+    "render": "powershell -NoProfile -ExecutionPolicy Bypass -File renders/render.ps1",
+    "render:composition": "remotion render src/index.tsx DeveloperWorkplaceShowcase renders/developer-workplace-reference-style-handdrawn.mp4 --codec=h264 --pixel-format=yuv420p --crf=18",
+    "render:preview": "remotion render src/index.tsx DeveloperWorkplaceShowcase renders/preview.mp4 --codec=h264 --pixel-format=yuv420p --crf=20 --scale=0.5"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.532",
+    "@remotion/media": "4.0.532",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "remotion": "4.0.532"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.8",
+    "typescript": "5.9.3"
+  }
+}

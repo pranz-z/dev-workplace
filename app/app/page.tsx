@@ -38,7 +38,7 @@ import { SortableList } from "@/components/dnd/SortableList";
 import { TaskKanbanBoard } from "@/components/tasks/TaskKanbanBoard";
 import { adjustFocusDuration, adjustPausedFocusSession, createFocusSession, DEFAULT_FOCUS_DURATION_MINUTES, FOCUS_DURATION_PRESETS, FOCUS_DURATION_STEP_MINUTES, formatFocusDuration, getEligibleFocusTasks, getFocusRemainingSeconds, getFocusTimestamp, MAX_FOCUS_DURATION_MINUTES, MIN_FOCUS_DURATION_MINUTES, parseFocusDuration, pauseFocusSession, readFocusSessionSnapshot, resumeFocusSession, type FocusSession } from "@/data/focusSession";
 import { PublicAccountabilitySettings } from "@/components/projects/public-accountability-settings";
-import { PublicProfileSettings } from "@/components/profile/public-profile-settings";
+import { PortfolioEditor, portfolioTabs } from "@/components/portfolio/PortfolioEditor";
 import { AiAssistant, AiSettingsStatus } from "@/components/ai/AiAssistant";
 import { WorkspaceAiChat } from "@/components/ai/WorkspaceAiChat";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
@@ -183,7 +183,7 @@ const navGroups = [
 
 const workflowStages = ["Planning", "Research", "Development", "Testing", "Deployment", "Maintenance", "Completed"] as const;
 
-const unavailableViews = new Set<ViewName>(["learning", "applications", "resume", "freelance", "portfolio"]);
+const unavailableViews = new Set<ViewName>(["learning", "applications", "resume", "freelance"]);
 
 /* Status + priority pills are token-driven (.badge / .prio) so they keep the
  * same pastel identity and dark-ink-on-pastel contrast in light AND dark. */
@@ -322,6 +322,8 @@ export default function Home() {
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [technologies, setTechnologies] = useState<TechnologyItem[]>([]);
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
+  const [portfolioTab, setPortfolioTab] = useState<typeof portfolioTabs[number]>("Overview");
+  const [portfolioOpened, setPortfolioOpened] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [projectTab, setProjectTab] = useState("Overview");
   const [projectTaskFilter, setProjectTaskFilter] = useState<"all" | "testing">("all");
@@ -2609,7 +2611,7 @@ export default function Home() {
       </div>
       <button type="button" onClick={() => void handleSignOut()} className="mt-4 ink-button coral px-3 py-2 text-sm">Sign out</button>
       {signOutError && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{signOutError}</p>}
-      {authStatus === "authenticated" && workspaceStatus === "ready" && <PublicProfileSettings />}
+      {authStatus === "authenticated" && workspaceStatus === "ready" && <button type="button" className="dark-chip mt-6 px-4 py-3" onClick={() => { setPortfolioOpened(true); setActiveView("portfolio"); }}>Manage public portfolio</button>}
     </div>
   );
 
@@ -2651,6 +2653,8 @@ export default function Home() {
         return renderTechPage();
       case "settings":
         return renderSettingsPage();
+      case "portfolio":
+        return authStatus === "authenticated" ? null : <p>Sign in to manage your portfolio.</p>;
       default:
         return renderDashboard();
     }
@@ -2660,6 +2664,7 @@ export default function Home() {
   const navItems = navGroups.flatMap((group) => [...group.items]).filter((item) => !unavailableViews.has(item.key as ViewName));
   const renderContext = () => {
     if (!workspaceAvailable) return <p className="text-sm t-dark-muted">Your workspace is loading.</p>;
+    if (activeView === "portfolio") return <div className="space-y-2">{portfolioTabs.map((tab) => <button key={tab} type="button" className="workspace-context-action" aria-current={portfolioTab === tab ? "page" : undefined} onClick={() => setPortfolioTab(tab)}>{tab}</button>)}</div>;
     const action = (label: string, click: () => void) => <button key={label} type="button" onClick={click} className="workspace-context-action">{label}</button>;
     if (activeView === "projects" || activeView === "github") return <div className="space-y-3">
       {action(activeView === "projects" ? "+ New project" : "Browse repositories", activeView === "projects" ? handleCreateProject : () => setGithubImportOpen(true))}
@@ -2680,7 +2685,7 @@ export default function Home() {
 
   return (
     <div className="app-shell min-h-screen text-[var(--ink)]">
-      <WorkspaceShell items={navItems} active={activeView} onNavigate={(key) => setActiveView(key as ViewName)} context={renderContext()}
+      <WorkspaceShell items={navItems} active={activeView} onNavigate={(key) => { if (key === "portfolio") setPortfolioOpened(true); setActiveView(key as ViewName); }} context={renderContext()}
         actions={<>
           <button type="button" onClick={() => setSearchOpen(true)} aria-label="Search workspace" title="Search workspace (Ctrl/Cmd+K)" className="dark-chip inline-flex items-center gap-2 p-2"><Search size={16} /><span className="hidden xl:inline text-xs">Search workspace</span></button>
           <button type="button" onClick={() => setThemeMode((current) => current === "light" ? "dark" : current === "dark" ? "system" : "light")} className="dark-chip p-2" aria-label={`Change theme, currently ${themeMode}`} title={`Theme: ${themeMode}`}>{themeMode === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
@@ -2697,6 +2702,7 @@ export default function Home() {
             {workspaceStatus === "mock" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Prototype mode: showing local workspace data. Sign in with GitHub to sync with Supabase.</div>}
             {workspaceError && workspaceStatus !== "error" && <div role="alert" className="mb-4 flex items-center justify-between gap-3 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}<button type="button" onClick={() => setWorkspaceError("")} aria-label="Dismiss error"><X size={14} /></button></div>}
             {((authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id) || (authStatus === "unauthenticated" && workspaceStatus === "mock")) && renderPage()}
+            {portfolioOpened && authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id && <div hidden={activeView !== "portfolio"}><PortfolioEditor key={user.id} tab={portfolioTab} onTabChange={setPortfolioTab} /></div>}
       </WorkspaceShell>
 
       {searchOpen && (

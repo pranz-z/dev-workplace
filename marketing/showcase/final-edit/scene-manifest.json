@@ -1,0 +1,207 @@
+{
+  "title": "Developer Workplace — LinkedIn 30-second showcase",
+  "status": "validated final master",
+  "output": "renders/developer-workplace-reference-style-handdrawn.mp4",
+  "duration_seconds": 30,
+  "frame_count": 900,
+  "frame_rate": "30/1",
+  "width": 1920,
+  "height": 1080,
+  "video_codec": "h264",
+  "pixel_format": "yuv420p",
+  "color_range": "tv",
+  "audio": {
+    "included": false
+  },
+  "captions": {
+    "included": false
+  },
+  "scenes": [
+    {
+      "number": 1,
+      "title": "Portfolio opening",
+      "timeline": {
+        "in_seconds": 0,
+        "out_seconds": 4
+      },
+      "sources": [
+        {
+          "file": "../output/review/01-portfolio.jpg",
+          "use": "portfolio hero still"
+        },
+        {
+          "file": "../output/final/01-portfolio.mp4",
+          "in_seconds": 5.9,
+          "out_seconds": 9.7
+        }
+      ],
+      "treatment": "Real portfolio hero still dissolves to matching footage; eased paper-frame push."
+    },
+    {
+      "number": 2,
+      "title": "Project discovery",
+      "timeline": {
+        "in_seconds": 4,
+        "out_seconds": 7
+      },
+      "sources": [
+        {
+          "file": "../output/final/01-portfolio.mp4",
+          "in_seconds": 8.7,
+          "out_seconds": 11.7
+        }
+      ],
+      "treatment": "Real portfolio project view with a slow downward pan."
+    },
+    {
+      "number": 3,
+      "title": "Public AI",
+      "timeline": {
+        "in_seconds": 7,
+        "out_seconds": 10
+      },
+      "sources": [
+        {
+          "file": "../output/final/08-public-ai.mp4",
+          "in_seconds": 9.1,
+          "out_seconds": 12.1
+        }
+      ],
+      "treatment": "Real public portfolio AI concierge with a restrained push."
+    },
+    {
+      "number": 4,
+      "title": "Public to private",
+      "timeline": {
+        "in_seconds": 10,
+        "out_seconds": 13
+      },
+      "sources": [
+        {
+          "file": "../output/final/08-public-ai.mp4",
+          "in_seconds": 11.4,
+          "out_seconds": 14.4
+        },
+        {
+          "file": "../output/final/02-workspace.mp4",
+          "in_seconds": 1.5,
+          "out_seconds": 3.15
+        },
+        {
+          "file": "assets/source/02-workspace-detail.jpg",
+          "use": "dashboard hold"
+        }
+      ],
+      "treatment": "Public layer recedes to reveal a shallow dashboard strip; content below the greeting and summary metrics is masked."
+    },
+    {
+      "number": 5,
+      "title": "Workspace and Kanban",
+      "timeline": {
+        "in_seconds": 13,
+        "out_seconds": 17
+      },
+      "sources": [
+        {
+          "file": "../output/final/02-workspace.mp4",
+          "in_seconds": 1.5,
+          "out_seconds": 3.15
+        },
+        {
+          "file": "assets/source/02-workspace-detail.jpg",
+          "use": "dashboard hold"
+        },
+        {
+          "file": "../output/final/03-kanban.mp4",
+          "in_seconds": 2.65,
+          "out_seconds": 6.65
+        }
+      ],
+      "treatment": "Dashboard holds briefly, then a localized wipe reveals Kanban headers and lanes; task cards are masked."
+    },
+    {
+      "number": 6,
+      "title": "GitHub integration",
+      "timeline": {
+        "in_seconds": 17,
+        "out_seconds": 20
+      },
+      "sources": [
+        {
+          "file": "../output/final/05-github.mp4",
+          "in_seconds": 6,
+          "out_seconds": 9
+        }
+      ],
+      "treatment": "Source-space crop of only the public Developer Workplace repository card."
+    },
+    {
+      "number": 7,
+      "title": "Workspace AI",
+      "timeline": {
+        "in_seconds": 20,
+        "out_seconds": 26
+      },
+      "sources": [
+        {
+          "file": "../output/final/06-workspace-ai.mp4",
+          "in_seconds": 12.12,
+          "out_seconds": 15.25
+        },
+        {
+          "file": "assets/source/06-workspace-ai-detail.jpg",
+          "hold_in_seconds": 23.07,
+          "hold_out_seconds": 26
+        }
+      ],
+      "treatment": "Real project context chip and exact prompt; authentic Gemini response lead-in remains visible while later response details are masked; final response frame holds."
+    },
+    {
+      "number": 8,
+      "title": "Portfolio return",
+      "timeline": {
+        "in_seconds": 26,
+        "out_seconds": 30
+      },
+      "sources": [
+        {
+          "file": "../output/final/09-outro.mp4",
+          "in_seconds": 2,
+          "out_seconds": 5
+        },
+        {
+          "file": "../output/review/01-portfolio.jpg",
+          "use": "final hero hold"
+        },
+        {
+          "file": "assets/source/06-workspace-ai-detail.jpg",
+          "use": "receding AI window with the same privacy masks"
+        }
+      ],
+      "treatment": "AI window recedes over the real portfolio; recorded outro resolves to a clean hero hold."
+    }
+  ],
+  "sources_omitted": [
+    "../output/final/04-calendar.mp4",
+    "../output/final/07-focus.mp4",
+    "../output/final/developer-workplace-full-demo.mp4"
+  ],
+  "privacy_review": {
+    "status": "pass",
+    "sampled_timeline_seconds": [
+      0,
+      3,
+      6,
+      9,
+      12,
+      15,
+      18,
+      21,
+      24,
+      27,
+      29.9
+    ],
+    "notes": "Workspace lower content and Kanban task cards are veiled. GitHub shows only the public Developer Workplace card. Workspace AI shows its project context chip, question, and only the response lead-in identifying the project; subsequent private response details are covered."
+  },
+  "no_deploy_no_commit": true
+}

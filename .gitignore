@@ -40,6 +40,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Private authentication state and generated showcase recordings
+/marketing/showcase/.auth/
+/marketing/showcase/.tools/
+/marketing/showcase/output/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

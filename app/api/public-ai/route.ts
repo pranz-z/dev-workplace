@@ -22,9 +22,13 @@ function getPublicProjectionClient() {
 const handlers = createPublicAiHandlers({
   ...publicAiEnvironmentDependencies(),
   async readProfile() {
-    const { data, error } = await getPublicProjectionClient().rpc("public_ai_profile");
-    if (error) throw error;
-    return ((data ?? []) as PublicAiProfileRow[])[0] ?? null;
+    const [profile, portfolio] = await Promise.all([
+      getPublicProjectionClient().rpc("public_ai_profile"),
+      getPublicProjectionClient().rpc("public_portfolio"),
+    ]);
+    if (profile.error || portfolio.error) throw profile.error || portfolio.error;
+    const row = ((profile.data ?? []) as PublicAiProfileRow[])[0];
+    return row ? { ...row, portfolio: portfolio.data } : null;
   },
   async readProjects() {
     const { data, error } = await getPublicProjectionClient().rpc("public_ai_project_list");

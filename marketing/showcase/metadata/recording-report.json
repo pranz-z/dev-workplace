@@ -1,0 +1,240 @@
+{
+  "baseURL": "https://frami-devplace.vercel.app",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "targetFps": 30,
+  "authentication": "owner storage state available (gitignored)",
+  "demoEntities": {
+    "kanban": "Read-only current board; no task status or order changed.",
+    "calendar": "Current month view; no task date changed.",
+    "github": "Read-only authorized public repository cards; no GitHub writes.",
+    "focus": "General focus session; no task attached; browser session state restored.",
+    "publicAi": "Public portfolio knowledge only; no private attachment.",
+    "workspaceAiProject": "dev-workplace"
+  },
+  "mutations": [
+    {
+      "resource": "browser focus-session snapshot",
+      "originalState": "captured from authenticated tab sessionStorage",
+      "temporaryState": "one temporary focus session, then ended",
+      "restorationResult": "restored exact prior sessionStorage values"
+    },
+    {
+      "resource": "browser focus-session snapshot",
+      "originalState": "captured from authenticated tab sessionStorage",
+      "temporaryState": "one temporary focus session, then ended",
+      "restorationResult": "restored exact prior sessionStorage values"
+    },
+    {
+      "resource": "browser focus-session snapshot",
+      "originalState": "captured from authenticated tab sessionStorage",
+      "temporaryState": "one temporary focus session, then ended",
+      "restorationResult": "restored exact prior sessionStorage values"
+    },
+    {
+      "resource": "browser focus-session snapshot",
+      "originalState": "captured from authenticated tab sessionStorage",
+      "temporaryState": "one temporary focus session, then ended",
+      "restorationResult": "restored exact prior sessionStorage values"
+    }
+  ],
+  "scenes": {
+    "portfolio": {
+      "status": "recorded",
+      "file": "01-portfolio.webm",
+      "durationSeconds": 13.94,
+      "restored": true,
+      "mutationJournal": []
+    },
+    "workspace": {
+      "status": "recorded",
+      "file": "02-workspace.webm",
+      "durationSeconds": 7.53,
+      "restored": true,
+      "mutationJournal": []
+    },
+    "kanban": {
+      "status": "recorded",
+      "file": "03-kanban.webm",
+      "durationSeconds": 7.51,
+      "restored": true,
+      "mutationJournal": []
+    },
+    "calendar": {
+      "status": "recorded",
+      "file": "04-calendar.webm",
+      "durationSeconds": 7.3,
+      "restored": true,
+      "mutationJournal": []
+    },
+    "github": {
+      "status": "recorded",
+      "file": "05-github.webm",
+      "durationSeconds": 8.89,
+      "restored": true,
+      "mutationJournal": []
+    },
+    "workspace-ai": {
+      "status": "recorded",
+      "file": "06-workspace-ai.webm",
+      "durationSeconds": 17.35,
+      "restored": true,
+      "mutationJournal": []
+    },
+    "focus": {
+      "status": "recorded",
+      "file": "07-focus.webm",
+      "durationSeconds": 10.98,
+      "restored": true,
+      "mutationJournal": []
+    },
+    "public-ai": {
+      "status": "recorded",
+      "file": "08-public-ai.webm",
+      "durationSeconds": 13.97,
+      "restored": true,
+      "mutationJournal": []
+    },
+    "outro": {
+      "status": "recorded",
+      "file": "09-outro.webm",
+      "durationSeconds": 7.62,
+      "restored": true,
+      "mutationJournal": []
+    }
+  },
+  "fullDemo": {
+    "status": "recorded",
+    "file": "developer-workplace-full-demo.webm",
+    "durationSeconds": 85.33,
+    "failures": []
+  },
+  "ffmpeg": "available; WebM converted to H.264 MP4 at 30 fps using CRF 19 and yuv420p",
+  "privacyReview": "Scene 06 and full-walkthrough frames were visually inspected. Scene 06 shows only the approved project context chip and its Gemini response; authenticated workspace screens in the full walkthrough and contact sheet hide private workspace details. The separate pre-existing scene clips were not re-recorded. Owner review is recommended before external use. Scene 01 was re-recorded from the public portfolio on 2026-10-04, trimmed past the blank load interval, and visually reviewed across six sampled frames.",
+  "workspaceAi": "success",
+  "publicAi": "success",
+  "videoSpecs": {
+    "portfolio": {
+      "file": "01-portfolio.mp4",
+      "durationSeconds": 7.93,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "pixelFormat": "yuv420p",
+      "sizeBytes": 3886085,
+      "conversion": "converted",
+      "sourceTrimSeconds": 5.0
+    },
+    "workspace": {
+      "file": "02-workspace.mp4",
+      "durationSeconds": 6.23,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "sizeBytes": 889212,
+      "conversion": "success"
+    },
+    "kanban": {
+      "file": "03-kanban.mp4",
+      "durationSeconds": 6.63,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "sizeBytes": 378545,
+      "conversion": "success"
+    },
+    "calendar": {
+      "file": "04-calendar.mp4",
+      "durationSeconds": 6.33,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "sizeBytes": 598941,
+      "conversion": "success"
+    },
+    "github": {
+      "file": "05-github.mp4",
+      "durationSeconds": 9.07,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "sizeBytes": 1153339,
+      "conversion": "success"
+    },
+    "workspace-ai": {
+      "file": "06-workspace-ai.mp4",
+      "durationSeconds": 15.37,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "sizeBytes": 438601,
+      "conversion": "success"
+    },
+    "focus": {
+      "file": "07-focus.mp4",
+      "durationSeconds": 10.4,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "sizeBytes": 822293,
+      "conversion": "success"
+    },
+    "public-ai": {
+      "file": "08-public-ai.mp4",
+      "durationSeconds": 14.4,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "sizeBytes": 954455,
+      "conversion": "success"
+    },
+    "outro": {
+      "file": "09-outro.mp4",
+      "durationSeconds": 8.03,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "sizeBytes": 591353,
+      "conversion": "success"
+    },
+    "fullDemo": {
+      "file": "developer-workplace-full-demo.mp4",
+      "durationSeconds": 85.77,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": "30/1",
+      "codec": "h264",
+      "sizeBytes": 10726166,
+      "conversion": "success"
+    }
+  },
+  "reviewImages": [
+    "01-portfolio.jpg",
+    "06-workspace-ai.jpg",
+    "08-public-ai.jpg",
+    "09-outro.jpg",
+    "developer-workplace-full-demo.jpg",
+    "contact-sheet.jpg"
+  ],
+  "contactSheet": "created",
+  "portfolioRefresh": {
+    "status": "recorded and reviewed",
+    "rawFile": "01-portfolio.webm",
+    "finalFile": "01-portfolio.mp4",
+    "sourceTrimSeconds": 5.0,
+    "reviewImage": "01-portfolio.jpg",
+    "contactSheet": "01-portfolio-contact.jpg",
+    "privacy": "public portfolio content only"
+  }
+}

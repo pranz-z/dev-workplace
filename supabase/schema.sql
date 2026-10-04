@@ -31,7 +31,8 @@
 --      by the Data API (see [api].schemas in config.toml), and return an explicit
 --      safe column list. The list can only ever return visibility = 'Public' rows;
 --      the detail lookup additionally allows Unlisted by exact slug (share link)
---      and can therefore never be used to enumerate unlisted projects.
+--      and can therefore never be used to enumerate unlisted projects. Both are
+--      scoped to the single owner in private.portfolio_site_config; NULL fails closed.
 --   4. Views with `security_invoker = true` were evaluated and rejected for the
 --      public path: any view over the base table requires granting the calling
 --      roles direct column access to `projects`, which cannot express "all columns
@@ -131,6 +132,24 @@ alter table public.profiles add column if not exists time_zone text;
 alter table public.profiles add column if not exists created_at timestamptz not null default now();
 alter table public.profiles add column if not exists updated_at timestamptz not null default now();
 
+-- The public site has one operator-designated owner. NULL disables the public
+-- profile and project projections until an administrator configures an owner.
+create table if not exists private.portfolio_site_config (
+  singleton boolean primary key default true check (singleton),
+  owner_id uuid references public.profiles(id) on delete set null
+);
+alter table private.portfolio_site_config enable row level security;
+revoke all on table private.portfolio_site_config from public, anon, authenticated, service_role;
+insert into private.portfolio_site_config (singleton, owner_id) values (true, null)
+  on conflict (singleton) do nothing;
+create or replace function private.canonical_portfolio_owner_id()
+returns uuid language sql stable security invoker set search_path = '' as $$
+  select config.owner_id from private.portfolio_site_config config where config.singleton;
+$$;
+revoke all on function private.canonical_portfolio_owner_id() from public, anon, authenticated, service_role;
+comment on table private.portfolio_site_config is
+  'Trusted single-owner public site configuration. Set owner_id with an administrative database role; NULL disables public portfolio projections.';
+
 -- Phase 1 declared `username text unique` (case sensitive). Replace it with a
 -- case-insensitive unique index so "@Pranz" and "@pranz" cannot both exist.
 alter table public.profiles drop constraint if exists profiles_username_key;
@@ -139,6 +158,20 @@ create unique index if not exists profiles_username_lower_key on public.profiles
 drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at before update on public.profiles
   for each row execute function private.set_updated_at();
+
+create or replace function private.protect_profile_system_metadata()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  if new.id is distinct from old.id or new.created_at is distinct from old.created_at then
+    raise exception 'Profile id and created_at are system-managed' using errcode = '22023';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.protect_profile_system_metadata() from public;
+drop trigger if exists profiles_protect_system_metadata on public.profiles;
+create trigger profiles_protect_system_metadata before update on public.profiles
+  for each row execute function private.protect_profile_system_metadata();
 
 -- -----------------------------------------------------------------------------
 -- projects
@@ -937,7 +970,8 @@ create or replace function private.can_read_public_project_screenshot(p_object_n
 returns boolean language sql security definer stable set search_path = '' as $$
   select exists (
     select 1 from public.project_screenshots s join public.projects p on p.id = s.project_id
-    where s.storage_path = p_object_name and s.is_public and p.visibility in ('Public', 'Unlisted')
+    where p.user_id = private.canonical_portfolio_owner_id()
+      and s.storage_path = p_object_name and s.is_public and p.visibility in ('Public', 'Unlisted')
   );
 $$;
 revoke all on function private.can_read_public_project_screenshot(text) from public;
@@ -1087,6 +1121,7 @@ as $$
     left join task_stats ts on ts.project_id = p.id
     left join milestone_stats ms on ms.project_id = p.id
     where (p.visibility = 'Public' or (p_include_unlisted and p.visibility = 'Unlisted'))
+      and p.user_id = private.canonical_portfolio_owner_id()
       and (p_slug is null or p.slug = p_slug)
   ),
   -- Deterministic progress, identical to lib/projectProgress.ts:
@@ -1174,7 +1209,8 @@ language sql security definer stable set search_path = '' as $$
   select p.display_name, p.headline, p.bio, p.avatar_url,
     case when p.show_public_contact_email then p.public_contact_email end,
     p.public_github_url, p.public_linkedin_url, p.public_website_url
-  from public.profiles p where p.public_profile_enabled order by p.created_at limit 1;
+  from public.profiles p
+  where p.id = private.canonical_portfolio_owner_id() and p.public_profile_enabled;
 $$;
 
 -- The public concierge has separate opt-in projections. Its context builder
@@ -1187,8 +1223,8 @@ language sql security definer stable set search_path = '' as $$
     case when p.show_public_contact_email then p.public_contact_email end,
     p.public_github_url, p.public_linkedin_url, p.public_website_url
   from public.profiles p
-  where p.public_profile_enabled and p.public_ai_assistant_enabled
-  order by p.created_at, p.id limit 1;
+  where p.id = private.canonical_portfolio_owner_id()
+    and p.public_profile_enabled and p.public_ai_assistant_enabled;
 $$;
 
 create or replace function public.public_ai_project_list()
@@ -1196,8 +1232,8 @@ returns setof public.public_project_card
 language sql security definer stable set search_path = '' as $$
   with active_profile as (
     select p.id from public.profiles p
-    where p.public_profile_enabled and p.public_ai_assistant_enabled
-    order by p.created_at, p.id limit 1
+    where p.id = private.canonical_portfolio_owner_id()
+      and p.public_profile_enabled and p.public_ai_assistant_enabled
   )
   select projected.*
   from private.public_project_rows(null, false) projected
@@ -1293,7 +1329,8 @@ returns table (id uuid, project_slug text, storage_path text, caption text, crea
 language sql security definer stable set search_path = '' as $$
   select s.id, p.slug, s.storage_path, s.caption, s.created_at
   from public.project_screenshots s join public.projects p on p.id = s.project_id
-  where s.is_public
+  where p.user_id = private.canonical_portfolio_owner_id()
+    and s.is_public
     and ((p_slug is null and p.visibility = 'Public') or (p.slug = p_slug and p.visibility in ('Public', 'Unlisted')))
     and (p_slug is not null or s.id = (
       select cover.id from public.project_screenshots cover where cover.project_id = p.id and cover.is_public

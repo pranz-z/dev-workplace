@@ -1,0 +1,6 @@
+I built my own developer workspace—and connected it directly to my portfolio.
+It showcases my projects, experience, skills, and resume, while visitors can ask an AI about my work.
+Behind it is the workspace I actually use for projects, Kanban, calendars, GitHub, and development progress.
+The private AI assistant reasons from verified project context while keeping public and private data separate.
+Built with Next.js, TypeScript, Supabase, PostgreSQL, Gemini, and GitHub.
+This is Developer Workplace.

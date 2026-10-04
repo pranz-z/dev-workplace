@@ -169,6 +169,7 @@ export interface PublicProfileRow {
 }
 
 export interface PublicAiProfileRow {
+  portfolio?: import("@/lib/portfolio/content").PortfolioContent | null;
   display_name: string | null;
   headline: string | null;
   bio: string | null;

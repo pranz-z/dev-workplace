@@ -1,0 +1,9 @@
+node_modules/
+public/recordings/*.mp4
+renders/*.mp4
+renders/*.jpg
+renders/*.png
+
+public/stills/*.jpg
+renders/contact-frames/*.jpg
+renders/contact-sheet-frames/*.jpg

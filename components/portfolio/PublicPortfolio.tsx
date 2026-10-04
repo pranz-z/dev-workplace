@@ -30,7 +30,7 @@ function safeEmail(value?: string) {
   return value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : undefined;
 }
 
-export default function PublicViewerPage({ initialProjects, initialProfile, initialError, initialProfessionalContent, introduction }: {
+export default function PublicViewerPage({ initialProjects, initialProfile, initialError, initialProfessionalContent, introduction: legacyIntroduction }: {
   initialProjects: PublicPortfolioProject[];
   initialProfile: PublicProfile | null;
   initialError: boolean;
@@ -46,6 +46,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
   const projects = initialProjects;
   const profile = initialProfile;
   const professional = initialProfessionalContent;
+  const introduction = professional ? { name: professional.hero.name, headline: professional.hero.headline, bio: professional.bio } : legacyIntroduction;
   const [covers, setCovers] = useState<Record<string, string>>({});
   const [selectedType, setSelectedType] = useState("All");
   const loadError = initialError;
@@ -78,20 +79,23 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
   const visibleProjects = selectedType === "All" ? publicProjects : publicProjects.filter((project) => project.type === selectedType);
   const technologyCount = new Set(publicProjects.flatMap((project) => project.technologies)).size;
   const technologies = [...new Set(publicProjects.flatMap((project) => project.technologies))].sort((a, b) => a.localeCompare(b));
-  const socialLinks = [
+  const socialLinks = professional ? professional.links.flatMap((link) => {
+    const href = safeExternalUrl(link.url); return href ? [{ label: link.label, href }] : [];
+  }) : [
     { label: "GitHub", href: safeExternalUrl(profile?.githubUrl) },
     { label: "LinkedIn", href: safeExternalUrl(profile?.linkedinUrl) },
     { label: "Website", href: safeExternalUrl(profile?.websiteUrl) },
   ].filter((item): item is { label: string; href: string } => Boolean(item.href));
-  const displayName = profile?.displayName?.trim();
-  const contactEmail = safeEmail(profile?.contactEmail);
+  const displayName = introduction.name?.trim();
+  const contactEmail = safeEmail(professional ? professional.contact.email : profile?.contactEmail);
+  const avatar = professional ? professional.hero.avatar : profile?.avatarUrl;
   const navigation = [
-    { href: "#projects", label: "Projects", enabled: true },
-    { href: "#about", label: "About", enabled: Boolean(profile?.bio || professional) },
-    { href: "#experience", label: "Experience", enabled: Boolean(professional) },
-    { href: "#skills", label: "Skills", enabled: Boolean(technologies.length > 0 || professional) },
-    { href: "#education", label: "Education", enabled: Boolean(professional) },
-    { href: "#contact", label: "Contact", enabled: Boolean(contactEmail || socialLinks.length > 0) },
+    { href: "#projects", label: "Projects", enabled: professional?.sections.projects.enabled ?? true },
+    { href: "#about", label: "About", enabled: professional ? professional.sections.about.enabled && Boolean(professional.about.body || professional.about.secondary) : Boolean(profile?.bio) },
+    { href: "#experience", label: "Experience", enabled: Boolean(professional?.experience.length) },
+    { href: "#skills", label: "Skills", enabled: professional ? Boolean(professional.toolkit.length) : technologies.length > 0 },
+    { href: "#education", label: "Education", enabled: Boolean(professional?.education.length) },
+    { href: "#contact", label: "Contact", enabled: Boolean(contactEmail || socialLinks.length > 0 || professional?.contact.phone || professional?.contact.location) },
   ].filter((item) => item.enabled);
 
   return (
@@ -116,37 +120,38 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
 
       <main className="mx-auto max-w-6xl space-y-10 px-4 pb-16">
         {(loadError || supabaseMissing) && <p role="alert" className="public-card p-4 text-sm text-[var(--muted)]">The public portfolio could not be loaded right now.</p>}
-        <section className="public-hero p-6 md:p-10">
+        {(professional?.sections.hero.enabled ?? true) && <section className="public-hero p-6 md:p-10">
           <div className="hero-note"><span className="handwritten">A notebook of things I build</span><SketchDoodle kind="arrow" /></div>
           <div className="flex flex-col gap-6 md:flex-row md:items-center">
-            {profile?.avatarUrl && <>
+            {avatar && <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={profile.avatarUrl} alt="" className="h-16 w-16 rounded-2xl border border-[var(--public-border)] object-cover md:h-24 md:w-24 md:rounded-3xl" />
+              <img src={avatar} alt="" className="h-16 w-16 rounded-2xl border border-[var(--public-border)] object-cover md:h-24 md:w-24 md:rounded-3xl" />
             </>}
             <div className="min-w-0">
               <h1 className="break-words text-3xl font-black tracking-tight text-[var(--ink)] sm:text-4xl md:text-6xl">{displayName || "Selected work"}</h1>
               {introduction.headline && <p className="mt-4 text-xl font-bold leading-snug text-[var(--ink)] md:text-2xl"><span className="marker-highlight">{introduction.headline}</span></p>}
               <SketchDoodle className="hero-underline" />
-              {introduction.bio && <p className="mt-4 max-w-3xl text-base leading-7 text-[var(--muted)]">{introduction.bio.split(/\n\s*\n/)[0]}</p>}
-              {professional && <p className="mt-4 text-sm text-[var(--muted)]">{professional.heroContext}</p>}
+              {professional?.hero.description && <p className="mt-4 max-w-3xl text-base leading-7 text-[var(--muted)]">{professional.hero.description}</p>}
+              {introduction.bio && <p className="mt-4 max-w-3xl whitespace-pre-line text-base leading-7 text-[var(--muted)]">{introduction.bio}</p>}
+              {professional?.hero.tagline && <p className="mt-4 text-sm text-[var(--muted)]">{professional.hero.tagline}</p>}
               <div className="mt-6 flex flex-wrap gap-3">
-                <Link href="#projects" className="public-link primary">View Projects <ArrowUpRight size={16} /></Link>
+                {(professional?.sections.projects.enabled ?? true) && <Link href="#projects" className="public-link primary">View Projects <ArrowUpRight size={16} /></Link>}
                 <a href="/resume/Franz_Michael_Cayanan_Resume.pdf" download className="public-link">Download Resume</a>
                 {(contactEmail || socialLinks.length > 0) && <Link href="#contact" className="public-link">Contact me</Link>}
                 {status === "authenticated" && <Link href="/app" className="inline-flex items-center px-2 text-sm text-[var(--muted)] underline underline-offset-4">Open Workspace</Link>}
               </div>
             </div>
           </div>
-          {professional ? <div className="mt-7 border-t border-[var(--public-border)] pt-4"><p className="public-eyebrow">Core application stack</p><p className="mt-2 text-sm leading-7 text-[var(--muted)]">{professional.heroStack.join(" · ")}</p></div> : publicProjects.length > 0 && <div className="mt-8 flex flex-wrap gap-3 border-t border-[var(--public-border)] pt-5 text-sm text-[var(--muted)]" aria-label="Public portfolio facts">
+          {professional ? professional.stack.length > 0 && <div className="mt-7 border-t border-[var(--public-border)] pt-4"><p className="public-eyebrow">Core application stack</p><p className="mt-2 text-sm leading-7 text-[var(--muted)]">{professional.stack.map((item) => item.name).join(" · ")}</p></div> : publicProjects.length > 0 && <div className="mt-8 flex flex-wrap gap-3 border-t border-[var(--public-border)] pt-5 text-sm text-[var(--muted)]" aria-label="Public portfolio facts">
             <span>{publicProjects.length} public {publicProjects.length === 1 ? "project" : "projects"}</span>
             <span aria-hidden="true">·</span><span>{publicProjects.filter((project) => project.status === "Completed").length} completed</span>
             <span aria-hidden="true">·</span><span>{technologyCount} project technologies</span>
           </div>}
-        </section>
+        </section>}
 
-        <section id="projects" className="space-y-5">
+        {(professional?.sections.projects.enabled ?? true) && <section id="projects" className="space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Selected work</p><h2 className="mt-2 text-3xl font-black tracking-tight text-[var(--ink)]">Projects</h2></div>
+            <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Selected work</p><h2 className="mt-2 text-3xl font-black tracking-tight text-[var(--ink)]">{professional?.projects.title || "Projects"}</h2>{professional?.projects.intro && <p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{professional.projects.intro}</p>}</div>
             {types.length > 1 && <div className="flex max-w-full flex-wrap gap-2" aria-label="Filter projects by type">
               {["All", ...types].map((type) => <button key={type} type="button" aria-pressed={selectedType === type} onClick={() => setSelectedType(type)} className={`rounded-full border px-3 py-2 text-xs ${selectedType === type ? "border-[var(--ink)] bg-[var(--ink)] text-[var(--surface)]" : "border-[var(--public-border)] bg-[var(--surface)] text-[var(--muted)]"}`}>{type}</button>)}
             </div>}
@@ -159,12 +164,12 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
           </div>
           {publicProjects.length === 0 && <p className="public-card p-5 text-sm text-[var(--muted)]">No public projects are available yet.</p>}
           {publicProjects.length > 0 && visibleProjects.length === 0 && <p className="public-card p-5 text-sm text-[var(--muted)]">No projects match this type.</p>}
-        </section>
+        </section>}
 
-        {(profile?.bio || professional) && <section id="about" className="public-card p-6 md:p-8">
+        {(professional ? professional.sections.about.enabled && Boolean(professional.about.body || professional.about.secondary) : profile?.bio) && <section id="about" className="public-card p-6 md:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">About</p>
-          <h2 className="mt-2 text-3xl font-black text-[var(--ink)]">{professional ? "Connecting software, systems & AI" : "About my work"}</h2>
-          {(profile?.bio ? profile.bio.split(/\n\s*\n/) : professional?.about ?? []).map((paragraph, index) => <p key={index} className="mt-4 max-w-3xl text-base leading-7 text-[var(--muted)]">{paragraph}</p>)}
+          <h2 className="mt-2 text-3xl font-black text-[var(--ink)]">{professional?.about.title || "About my work"}</h2>
+          {(professional ? [professional.about.body, professional.about.secondary].filter(Boolean) : profile?.bio?.split(/\n\s*\n/) ?? []).map((paragraph, index) => <p key={index} className="mt-4 max-w-3xl whitespace-pre-line text-base leading-7 text-[var(--muted)]">{paragraph}</p>)}
         </section>}
         {professional && <ProfessionalExperience content={professional} />}
         {professional ? <ProfessionalSkills content={professional} projectTechnologies={technologies} /> : technologies.length > 0 && <section id="skills" className="public-card p-6 md:p-8">
@@ -181,13 +186,14 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
           <p className="mt-3 text-[var(--muted)]">{profile.headline}</p>
         </section>}
         <PublicAiConcierge />
-        {(contactEmail || socialLinks.length > 0) && <section id="contact" className="public-card flex flex-wrap items-center justify-between gap-4 p-6">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Contact</p><h2 className="mt-2 text-2xl font-bold text-[var(--ink)]">Let&apos;s connect</h2></div>
-          <div className="flex flex-wrap gap-2">{contactEmail && <a className="public-link" href={`mailto:${contactEmail}`}>Email</a>}{socialLinks.map((item) => <a key={item.label} className="public-link" href={item.href} target="_blank" rel="noopener noreferrer">{item.label} <ArrowUpRight size={14} /></a>)}</div>
+        {(contactEmail || socialLinks.length > 0 || professional?.contact.phone || professional?.contact.location) && <section id="contact" className="public-card flex flex-wrap items-center justify-between gap-4 p-6">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Contact</p><h2 className="mt-2 text-2xl font-bold text-[var(--ink)]">{professional?.contact.cta || "Let's connect"}</h2>{professional?.contact.note && <p className="mt-3 whitespace-pre-line text-sm text-[var(--muted)]">{professional.contact.note}</p>}{professional?.contact.location && <p className="mt-3 text-sm text-[var(--muted)]">{professional.contact.location}</p>}</div>
+          <div className="flex max-w-full flex-wrap gap-2">{contactEmail && <a className="public-link break-all" href={`mailto:${contactEmail}`}>Email</a>}{professional?.contact.phone && <a className="public-link" href={`tel:${professional.contact.phone.replace(/[^+0-9]/g, "")}`}>{professional.contact.phone}</a>}{socialLinks.map((item, index) => <a key={`${index}-${item.label}`} className="public-link break-all" href={item.href} target="_blank" rel="noopener noreferrer">{item.label} <ArrowUpRight size={14} /></a>)}</div>
         </section>}
       </main>
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 pb-8 text-sm text-[var(--muted)]">
         <p>{displayName || "Developer portfolio"} · {new Date().getFullYear()}</p>
+        {professional && !professional.sections.hero.enabled && <a href="/resume/Franz_Michael_Cayanan_Resume.pdf" download className="public-link">Download Resume</a>}
         {status === "authenticated" ? <Link href="/app" className="underline underline-offset-4">Open Workspace</Link> : <Link href="/login" className="underline underline-offset-4">Sign in</Link>}
       </footer>
     </div>

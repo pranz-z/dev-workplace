@@ -1,0 +1,36 @@
+1
+00:00:00,180 --> 00:00:03,450
+I built my own developer workspace—and
+connected it directly to my portfolio.
+
+2
+00:00:04,720 --> 00:00:08,420
+It showcases my projects, experience, skills,
+and resume, while visitors can ask an AI about my work.
+
+3
+00:00:08,850 --> 00:00:10,550
+Behind it is the workspace I actually use for projects,
+
+4
+00:00:11,050 --> 00:00:13,480
+Kanban, calendars, GitHub, and development progress.
+
+5
+00:00:13,720 --> 00:00:16,700
+The private AI assistant reasons from verified project
+context while keeping public and private data separate.
+
+6
+00:00:17,150 --> 00:00:22,180
+Built with Next.js, TypeScript, Supabase,
+PostgreSQL, Gemini, and GitHub.
+
+7
+00:00:22,650 --> 00:00:28,200
+This is Developer Workplace.
+
+8
+00:00:28,200 --> 00:00:30,000
+Developer Workplace · Full-Stack · AI
+frami-devplace.vercel.app

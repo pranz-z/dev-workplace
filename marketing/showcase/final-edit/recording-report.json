@@ -1,0 +1,93 @@
+{
+  "status": "validated",
+  "output": "renders/developer-workplace-reference-style-handdrawn.mp4",
+  "output_size_bytes": 13068896,
+  "creative_approach": "Silent, reference-informed edit using authentic portfolio and workspace recordings, warm paper framing, gentle camera motion, and localized transitions.",
+  "technical_validation": {
+    "width": {
+      "expected": 1920,
+      "actual": 1920,
+      "status": "pass"
+    },
+    "height": {
+      "expected": 1080,
+      "actual": 1080,
+      "status": "pass"
+    },
+    "frame_rate": {
+      "expected": "30/1",
+      "actual": "30/1",
+      "status": "pass"
+    },
+    "frame_count": {
+      "expected": 900,
+      "actual": 900,
+      "status": "pass"
+    },
+    "video_codec": {
+      "expected": "h264",
+      "actual": "h264",
+      "status": "pass"
+    },
+    "pixel_format": {
+      "expected": "yuv420p",
+      "actual": "yuv420p",
+      "color_range": "tv",
+      "status": "pass"
+    },
+    "duration_seconds": {
+      "expected": 30,
+      "actual": 30,
+      "status": "pass"
+    },
+    "audio": {
+      "expected": "none",
+      "actual": "none",
+      "status": "pass"
+    },
+    "full_decode": "pass"
+  },
+  "sources_used": [
+    "01-portfolio.mp4",
+    "08-public-ai.mp4",
+    "02-workspace.mp4",
+    "03-kanban.mp4",
+    "05-github.mp4",
+    "06-workspace-ai.mp4",
+    "09-outro.mp4",
+    "01-portfolio.jpg",
+    "02-workspace-detail.jpg",
+    "06-workspace-ai-detail.jpg"
+  ],
+  "sources_omitted": [
+    "04-calendar.mp4",
+    "07-focus.mp4",
+    "developer-workplace-full-demo.mp4"
+  ],
+  "privacy_review": {
+    "status": "pass",
+    "sampled_timeline_seconds": [
+      0,
+      3,
+      6,
+      9,
+      12,
+      15,
+      18,
+      21,
+      24,
+      27,
+      29.9
+    ],
+    "result": "No private task names, notes, detailed plans, dates, credentials, or unrelated repository entries are readable. The AI scene retains only the project context chip, exact question, and genuine response lead-in before masking the remaining answer."
+  },
+  "contact_sheet": "renders/final-contact-sheet.jpg",
+  "contact_sheet_samples": 11,
+  "edit_decision_list": "edit-decision-list.md",
+  "reference_analysis": "reference-analysis.md",
+  "code_validation": {
+    "typescript": "pass — npx tsc --noEmit"
+  },
+  "pipeline_validation": "pass — npm run render includes the limited-range yuv420p encode, profile guard, and full decode",
+  "no_upload_no_deploy_no_commit": true
+}

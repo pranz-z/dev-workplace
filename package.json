@@ -7,6 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "demo:auth": "node marketing/showcase/scripts/authenticate.mjs",
+    "demo:scene": "node marketing/showcase/scripts/record-scene.mjs",
+    "demo:scenes": "node marketing/showcase/scripts/record-scenes.mjs",
+    "demo:full": "node marketing/showcase/scripts/record-full-demo.mjs",
+    "demo:videos": "node marketing/showcase/scripts/validate-video.mjs",
     "test:accountability": "node --test data/accountabilityService.test.mjs data/accountabilityReports.test.mjs",
     "test:calendar": "node --test data/workspaceCalendar.test.mjs",
     "test:focus-session": "node --test data/focusSession.test.mjs",
@@ -17,7 +22,8 @@
     "test:phase5e": "node --test lib/ai/phase5e.test.mjs",
     "test:phase6a1": "node --test lib/security/content-security-policy.test.mjs lib/ai/phase6a1.test.mjs",
     "test:phase6a3": "node --test lib/portfolio-routes.test.mjs lib/auth/redirects.test.mjs lib/site-origin.test.mjs",
-    "test:portfolio": "node --test lib/portfolio/resume-content.test.mjs lib/portfolio-routes.test.mjs lib/public-ai/public-ai.test.mjs"
+    "test:portfolio": "node --test lib/portfolio/resume-content.test.mjs lib/portfolio-routes.test.mjs lib/public-ai/public-ai.test.mjs",
+    "test:portfolio:cms": "node --test lib/portfolio/cms-database.test.mjs lib/portfolio/cms-editor.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",
@@ -38,6 +44,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
+    "playwright": "^1.63.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
