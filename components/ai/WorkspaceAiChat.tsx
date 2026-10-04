@@ -1,6 +1,6 @@
 "use client";
 
-import { Paperclip, Send, Sparkles, Trash2, X } from "lucide-react";
+import { CheckSquare, FolderGit2, ListChecks, Paperclip, Send, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import type { Plan, Project, Task } from "@/types";
 import { ChatMessageBubble, ChatTypingIndicator, type ChatMessage } from "@/components/ai/ChatPresentation";
@@ -141,8 +141,8 @@ export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange }: 
       </div>
       <div className="shrink-0 space-y-2 border-t border-[var(--edge-dark)] p-3">
         <div className="flex flex-wrap gap-1.5" aria-label="Attached workspace context">
-          {entityContext.map((item) => <span key={`${item.type}:${item.id}`} className="dark-chip inline-flex max-w-full items-center gap-1 px-2 py-1 text-xs">{item.type}: {labels.get(`${item.type}:${item.id}`) ?? "Selected item"}<button type="button" onClick={() => setContext((current) => current.filter((ref) => ref.id !== item.id || ref.type !== item.type))} aria-label={`Remove ${item.type} context`}><X size={12} /></button></span>)}
-          {files.map((file) => <span key={`${file.name}:${file.lastModified}`} className="dark-chip inline-flex max-w-full items-center gap-1 px-2 py-1 text-xs"><Paperclip size={12} /><span className="max-w-36 truncate">{file.name.replace(/[\\/\u0000-\u001f]/g, "_")}</span><button type="button" onClick={() => setFiles((current) => current.filter((item) => item !== file))} aria-label={`Remove ${file.name}`}><X size={12} /></button></span>)}
+          {entityContext.map((item) => <span key={`${item.type}:${item.id}`} data-kind={item.type} className="ai-context-chip dark-chip inline-flex max-w-full items-center gap-1 px-2 py-1 text-xs">{item.type === "project" ? <FolderGit2 size={12} aria-hidden="true" /> : item.type === "task" ? <CheckSquare size={12} aria-hidden="true" /> : <ListChecks size={12} aria-hidden="true" />}<span className="min-w-0 truncate">{item.type}: {labels.get(`${item.type}:${item.id}`) ?? "Selected item"}</span><button type="button" onClick={() => setContext((current) => current.filter((ref) => ref.id !== item.id || ref.type !== item.type))} aria-label={`Remove ${item.type} context`}><X size={12} /></button></span>)}
+          {files.map((file) => <span key={`${file.name}:${file.lastModified}`} data-kind="file" className="ai-context-chip dark-chip inline-flex max-w-full items-center gap-1 px-2 py-1 text-xs"><Paperclip size={12} /><span className="max-w-36 truncate">{file.name.replace(/[\\/\u0000-\u001f]/g, "_")}</span><button type="button" onClick={() => setFiles((current) => current.filter((item) => item !== file))} aria-label={`Remove ${file.name}`}><X size={12} /></button></span>)}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select aria-label="Context type" value={contextType} onChange={(event) => { setContextType(event.target.value as WorkspaceEntityRef["type"]); setPickerId(""); }} className="dark-chip px-2 py-1.5 text-xs"><option value="project">Project</option><option value="task">Task</option><option value="plan">Plan</option></select>

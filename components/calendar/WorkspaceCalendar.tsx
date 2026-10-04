@@ -268,7 +268,7 @@ export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateT
           </div>
         </header>
 
-        <section className="dark-panel min-w-0 p-2 sm:p-3" aria-label={`${formatCalendarDate(`${selectedMonth}-01`, { month: "long", year: "numeric" })} month calendar`}>
+        <section className="calendar-sheet dark-panel min-w-0 p-2 sm:p-3" aria-label={`${formatCalendarDate(`${selectedMonth}-01`, { month: "long", year: "numeric" })} month calendar`}>
           <div role="grid" aria-label="Calendar dates" className="grid grid-cols-7 gap-1">
             <div role="row" className="col-span-7 mb-1 grid grid-cols-7 gap-1">{WEEKDAYS.map((weekday) => <div role="columnheader" key={weekday} className="py-1 text-center text-[9px] font-semibold tracking-wide t-dark-muted sm:text-xs">{weekday}</div>)}</div>
             {Array.from({ length: monthDates.length / 7 }, (_, week) => (

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SketchDoodle } from "@/components/ui/SketchDoodle";
 import { ArrowUpRight, FolderGit2, Moon, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { PublicPortfolioProject } from "@/lib/portfolio/project-card";
@@ -97,7 +98,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
     <div className="public-shell min-h-screen">
       <header className="relative z-30 mx-auto max-w-6xl px-4 py-5">
         <div className="relative flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[var(--public-border)] bg-[var(--surface)]/80 px-4 py-3 backdrop-blur-sm">
-          <Link href="/" className="min-w-0 truncate text-sm font-semibold tracking-[0.12em] text-[var(--ink)] uppercase">{displayName || "Developer portfolio"}</Link>
+          <Link href="/" className="handwritten portfolio-signature min-w-0 text-[var(--ink)]">{displayName || "Developer portfolio"}</Link>
           <nav aria-label="Portfolio" className="hidden flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm text-[var(--muted)] sm:flex">
             {navigation.map((item) => <Link key={item.href} href={item.href} className="inline-flex min-h-11 items-center">{item.label}</Link>)}
           </nav>
@@ -116,6 +117,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
       <main className="mx-auto max-w-6xl space-y-10 px-4 pb-16">
         {(loadError || supabaseMissing) && <p role="alert" className="public-card p-4 text-sm text-[var(--muted)]">The public portfolio could not be loaded right now.</p>}
         <section className="public-hero p-6 md:p-10">
+          <div className="hero-note"><span className="handwritten">A notebook of things I build</span><SketchDoodle kind="arrow" /></div>
           <div className="flex flex-col gap-6 md:flex-row md:items-center">
             {profile?.avatarUrl && <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -123,11 +125,12 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
             </>}
             <div className="min-w-0">
               <h1 className="break-words text-3xl font-black tracking-tight text-[var(--ink)] sm:text-4xl md:text-6xl">{displayName || "Selected work"}</h1>
-              {introduction.headline && <p className="mt-4 text-xl font-bold leading-snug text-[var(--ink)] md:text-2xl">{introduction.headline}</p>}
+              {introduction.headline && <p className="mt-4 text-xl font-bold leading-snug text-[var(--ink)] md:text-2xl"><span className="marker-highlight">{introduction.headline}</span></p>}
+              <SketchDoodle className="hero-underline" />
               {introduction.bio && <p className="mt-4 max-w-3xl text-base leading-7 text-[var(--muted)]">{introduction.bio.split(/\n\s*\n/)[0]}</p>}
               {professional && <p className="mt-4 text-sm text-[var(--muted)]">{professional.heroContext}</p>}
               <div className="mt-6 flex flex-wrap gap-3">
-                <Link href="#projects" className="public-link">View Projects</Link>
+                <Link href="#projects" className="public-link primary">View Projects <ArrowUpRight size={16} /></Link>
                 <a href="/resume/Franz_Michael_Cayanan_Resume.pdf" download className="public-link">Download Resume</a>
                 {(contactEmail || socialLinks.length > 0) && <Link href="#contact" className="public-link">Contact me</Link>}
                 {status === "authenticated" && <Link href="/app" className="inline-flex items-center px-2 text-sm text-[var(--muted)] underline underline-offset-4">Open Workspace</Link>}
@@ -195,7 +198,7 @@ function ProjectCard({ project, featured = false, coverUrl }: { project: PublicP
   const repoUrl = safeExternalUrl(project.links.github);
   const demoUrl = safeExternalUrl(project.links.live);
   const summary = (project.publicSummary || project.description).trim();
-  return <article className={`public-card flex min-w-0 flex-col ${featured ? "p-6" : "p-5"}`}>
+  return <article className={`public-card portfolio-project flex min-w-0 flex-col ${featured ? "p-6" : "p-5"}`}>
     {coverUrl ? <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={coverUrl} alt={`${project.name} project preview`} loading="lazy" decoding="async" className="mb-4 aspect-video w-full rounded-2xl border border-[var(--public-border)] object-cover" />

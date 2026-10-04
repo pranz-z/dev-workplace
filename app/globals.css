@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   DEVELOPER WORKPLACE — "creative desk" design system
+   DEVELOPER WORKPLACE — hand-drawn notebook design system
    --------------------------------------------------------------------------
    Two paper families share one token vocabulary:
 
@@ -20,6 +20,13 @@
    ========================================================================== */
 
 :root {
+  --font-hand: "Caveat", cursive;
+  --radius-sheet: 7px 15px 9px 13px / 13px 8px 14px 7px;
+  --radius-note: 5px 9px 6px 11px / 9px 5px 11px 6px;
+  --sketch-edge: #9c8975;
+  --sketch-shadow: 3px 4px 0 #d6c7b5;
+  --marker: #e8ca7d;
+  --marker-ink: #44361d;
   /* ---- desk (page environment) ------------------------------------------ */
   --bg-desk: #f4ede3;
   --bg-desk-2: #f8f2e9;
@@ -154,6 +161,10 @@
  * warm charcoal and the cream paper takes a deeper, lamp-lit tone.
  * ========================================================================== */
 html[data-theme="dark"] {
+  --sketch-edge: #82766b;
+  --sketch-shadow: 3px 4px 0 #110f0e;
+  --marker: #d6bd82;
+  --marker-ink: #352b1c;
   --bg-desk: #171514;
   --bg-desk-2: #1c1a18;
   --desk-lamp-a: rgba(214, 164, 120, 0.075);
@@ -162,13 +173,13 @@ html[data-theme="dark"] {
   --texture-grid: rgba(226, 213, 200, 0.025);
 
   /* cream paper reads as warm paper under a lamp, never as glaring white */
-  --surface-cream: #e8e0d2;
-  --surface-cream-2: #e2dacd;
-  --surface-cream-hi: #efe7da;
-  --surface-cream-inset: rgba(255, 252, 245, 0.5);
-  --surface-cream-sunk: rgba(58, 50, 42, 0.09);
-  --edge-cream: rgba(64, 54, 46, 0.22);
-  --edge-cream-soft: rgba(64, 54, 46, 0.14);
+  --surface-cream: #292521;
+  --surface-cream-2: #322d28;
+  --surface-cream-hi: #35302a;
+  --surface-cream-inset: rgba(255, 252, 245, 0.06);
+  --surface-cream-sunk: rgba(255, 252, 245, 0.09);
+  --edge-cream: rgba(232, 224, 210, 0.28);
+  --edge-cream-soft: rgba(232, 224, 210, 0.16);
   --shadow-cream: 0 14px 28px rgba(0, 0, 0, 0.34), 0 2px 0 rgba(255, 248, 238, 0.06);
   --shadow-cream-lift: 0 20px 38px rgba(0, 0, 0, 0.42), 0 2px 0 rgba(255, 248, 238, 0.08);
 
@@ -184,9 +195,9 @@ html[data-theme="dark"] {
   --shadow-dark-lift: 0 20px 34px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(241, 236, 228, 0.08);
 
   /* type on cream deepens slightly so it stays crisp against the warm paper */
-  --text-dark: #332c26;
-  --text-dark-muted: #6e6055;
-  --text-dark-soft: #7b6c60;
+  --text-dark: #f1ece4;
+  --text-dark-muted: #c8c0b6;
+  --text-dark-soft: #b5a99b;
   --text-desk: #f1ece4;
   --text-desk-muted: #a59d94;
 
@@ -1397,5 +1408,171 @@ html[data-theme="dark"] .public-ai-concierge {
   .ink-button:hover {
     transform: none;
   }
+}
+
+/* Hand-drawn presentation. Layout, DnD transforms and resize hit areas stay
+   owned by their existing components; imperfections live on edges only. */
+.handwritten,
+.public-shell h1,
+.public-shell main > section h2,
+.workspace-toolbar h1,
+.workspace-context > div:first-child h2,
+.workspace-content h1,
+.workspace-content h2,
+.workspace-dialog h2,
+.workspace-dialog h3,
+.workspace-ai-panel h2,
+#public-ai-title {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+.workspace-toolbar h1 { font-size: 1.6rem; }
+.workspace-context > div:first-child h2 { font-size: 1.5rem; }
+.public-shell h1 { font-size: clamp(2.8rem, 6vw, 5.5rem); }
+.portfolio-signature { flex: 1; font-size: 1.65rem; line-height: 1.1; }
+.sketch-doodle { display: block; width: 140px; height: 40px; color: var(--accent-peach-solid); pointer-events: none; }
+.hero-underline { width: min(240px, 70%); height: 30px; margin-top: 8px; }
+.greeting-stroke { width: 120px; height: 18px; margin-top: 6px; }
+.marker-highlight {
+  background: linear-gradient(177deg, transparent 42%, color-mix(in srgb, var(--marker) 50%, transparent) 43% 88%, transparent 90%);
+  padding-inline: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.paper, .paper-card, .note-card, .sticky-note, .hero-paper, .stat-card,
+.dark-paper, .dark-panel, .project-card, .public-card, .public-hero {
+  border-radius: var(--radius-sheet);
+  border-width: 1.5px;
+  box-shadow: var(--sketch-shadow);
+}
+.paper, .paper-card, .note-card, .hero-paper, .stat-card, .public-card, .public-hero {
+  border-color: var(--sketch-edge);
+  background-image: none;
+}
+.dark-paper, .dark-panel, .project-card { border-color: color-mix(in srgb, var(--sketch-edge) 75%, transparent); }
+.dark-inset, .inset-soft, .task-kanban-card { border-radius: var(--radius-note); }
+.badge, .prio, .soft-pill, .task-tag, .dark-chip, .public-skill-core, .task-kanban-tag {
+  border-radius: var(--radius-note);
+  letter-spacing: 0.025em;
+}
+.project-card::before, .sticky-note::before { pointer-events: none; border-radius: 1px; clip-path: polygon(3% 0, 96% 5%, 100% 85%, 95% 100%, 0 92%); }
+.project-card:hover { transform: translateY(-1px); }
+.stat-card:hover { transform: translateY(-1px); }
+.ink-button, .public-link {
+  min-height: 40px;
+  border-radius: var(--radius-note);
+  border-color: var(--sketch-edge);
+  background-image: none;
+  box-shadow: 2px 2px 0 color-mix(in srgb, var(--sketch-edge) 40%, transparent);
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+.ink-button.primary, html[data-theme="dark"] .ink-button.primary, .public-link.primary {
+  background: var(--marker);
+  color: var(--marker-ink);
+  border-color: var(--marker-ink);
+  box-shadow: 2px 3px 0 color-mix(in srgb, var(--marker-ink) 55%, transparent);
+}
+.public-link:hover { background-color: var(--surface-cream-2); box-shadow: 1px 1px 0 var(--sketch-edge); }
+.public-link.primary:hover { background-color: color-mix(in srgb, var(--marker) 85%, var(--surface-cream)); }
+:is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+  border-radius: var(--radius-note);
+  line-height: 1.5;
+}
+:is(input, select, textarea):focus-visible { outline: 2px solid var(--sketch-edge); outline-offset: 3px; }
+.workspace-rail { border-right-style: dashed; }
+.workspace-brand { border: 1.5px solid var(--ink-lavender); border-radius: var(--radius-note); box-shadow: 2px 2px 0 var(--sketch-edge); }
+.workspace-rail-item.active { border: 1.5px solid var(--nav-active-edge); border-radius: 44% 56% 48% 52% / 52% 45% 55% 48%; box-shadow: none; }
+.workspace-context { background-image: linear-gradient(90deg, transparent 13px, var(--texture-grid) 14px, transparent 15px); }
+.workspace-context-action { border-radius: var(--radius-note); }
+.workspace-toolbar .dark-chip, .workspace-context .dark-chip {
+  color: var(--text-desk);
+  background: var(--surface-cream);
+  border-color: var(--edge-cream);
+}
+.workspace-context .t-dark-muted { color: var(--text-desk-muted); }
+.workspace-context > .workspace-resize-handle.right { right: 0; }
+.workspace-document-tab { border-radius: 6px 11px 0 0; border-style: solid; }
+.workspace-document-tab.active { background: var(--surface-cream); border-bottom: 3px solid var(--marker); }
+.workspace-resize-handle::after { content: ""; position: absolute; inset: 45% 3px; border-left: 2px dashed var(--sketch-edge); pointer-events: none; }
+.workspace-dialog > .dark-panel { border-radius: var(--radius-sheet); border: 1.5px solid var(--sketch-edge); box-shadow: 6px 7px 0 color-mix(in srgb, var(--sketch-edge) 35%, transparent), 0 20px 70px var(--scrim); }
+.workspace-focus-mode .workspace-content { background-image: none; }
+.task-kanban-workspace { border-radius: var(--radius-sheet); box-shadow: none; }
+.task-kanban-workspace .t-dark { color: var(--text-dark); }
+.task-kanban-workspace :is(.t-dark-muted, .t-dark-soft, .eyebrow) { color: var(--text-dark-muted); }
+.task-kanban-workspace .dark-chip { color: var(--text-dark); background: var(--surface-cream); border-color: var(--edge-cream); }
+.task-kanban-scroll { border-radius: var(--radius-note); background-image: none; }
+.task-kanban-column { border-radius: var(--radius-sheet); border-color: var(--sketch-edge); box-shadow: 2px 3px 0 color-mix(in srgb, var(--sketch-edge) 25%, transparent); }
+.task-kanban-column-header { border-bottom-style: dashed; }
+.task-kanban-column-header h3 { font-size: 0.875rem; }
+.task-kanban-status-icon, .task-kanban-count, .task-kanban-empty { border-radius: var(--radius-note); }
+.task-kanban-card { border-left: 3px solid var(--accent-yellow-solid); }
+.task-kanban-card.is-completed { border-left-color: var(--accent-green-solid); }
+.task-kanban-title { font-weight: 700; line-height: 1.55; }
+.project-kanban-column > div:first-child { border-bottom: 1px dashed var(--edge-dark); padding-bottom: 10px; }
+.project-kanban-column h3 { font-family: var(--font-hand); font-size: 1.35rem; }
+.project-kanban-card { border-left: 3px solid var(--accent-lavender-solid); }
+.calendar-sheet { border-radius: var(--radius-sheet); }
+.calendar-sheet [role="gridcell"] { border-radius: 4px; border-color: var(--edge-dark); }
+.calendar-sheet [aria-pressed="true"] { border-radius: 45% 55% 48% 52%; }
+[data-focus-timer="true"] { font-family: var(--font-hand); font-variant-numeric: tabular-nums; font-size: 3.5rem; color: var(--text-light); }
+.workspace-ai-panel { border-color: var(--sketch-edge); }
+.workspace-ai-panel:not(.is-open) { border-radius: var(--radius-note); box-shadow: var(--sketch-shadow); }
+.chat-note { border: 1px solid var(--sketch-edge); border-radius: var(--radius-note); overflow-wrap: anywhere; }
+.chat-note-user { color: var(--ink-lavender); background: var(--accent-lavender); }
+.ai-context-chip { border-radius: var(--radius-note); color: var(--badge-planning-ink); background: var(--badge-planning-bg); }
+.ai-context-chip[data-kind="task"] { color: var(--badge-completed-ink); background: var(--badge-completed-bg); }
+.ai-context-chip[data-kind="plan"] { color: var(--badge-research-ink); background: var(--badge-research-bg); }
+.ai-context-chip[data-kind="file"] { color: var(--badge-development-ink); background: var(--badge-development-bg); }
+.public-ai-concierge > button { border-radius: var(--radius-note); box-shadow: var(--sketch-shadow); border: 1.5px solid var(--sketch-edge); }
+.public-ai-concierge > section { border-radius: var(--radius-sheet); border-color: var(--sketch-edge); }
+.public-ai-concierge [aria-label="Suggested recruiter questions"] button { border-radius: var(--radius-note); background: var(--surface-strong); }
+.public-shell { --surface: var(--surface-cream); --surface-strong: var(--surface-cream-hi); --ink: var(--text-dark); --muted: var(--text-dark-muted); }
+.public-shell > header { --ink: var(--text-dark); --muted: var(--text-dark-muted); }
+.public-shell > header > div { border-radius: var(--radius-note); background: var(--surface-cream); border-color: var(--sketch-edge); }
+.public-shell > main { padding-top: 16px; }
+.public-hero { background: var(--surface-cream); border-bottom-width: 3px; }
+.hero-note { display: flex; align-items: center; gap: 8px; margin-bottom: 22px; color: var(--muted); font-size: 1.4rem; }
+.hero-note .sketch-doodle { width: 90px; height: 34px; }
+.public-card h2 { padding-bottom: 8px; border-bottom: 1px dashed var(--public-border); }
+.section-title { text-decoration: underline wavy var(--accent-peach-solid); text-decoration-thickness: 1px; text-underline-offset: 6px; }
+.portfolio-project { border-top: 3px solid var(--accent-peach-solid); transition: box-shadow 160ms ease; }
+.portfolio-project:hover { box-shadow: 4px 5px 0 color-mix(in srgb, var(--sketch-edge) 50%, transparent); }
+.portfolio-project h3 { text-decoration: underline; text-decoration-color: var(--accent-peach-solid); text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.public-shell img { border-radius: var(--radius-note); padding: 4px; background: var(--surface-cream-2); border: 1px solid var(--sketch-edge); box-shadow: 2px 3px 0 color-mix(in srgb, var(--sketch-edge) 35%, transparent); }
+.sketch-timeline { border-left: 2px dashed var(--accent-peach-solid); }
+.sketch-timeline time { font-family: var(--font-hand); font-size: 1.15rem; }
+#education { border-top: 3px solid var(--accent-yellow-solid); }
+.public-shell > footer { border-top: 2px dashed var(--sketch-edge); padding-top: 20px; }
+html[data-theme="dark"] .public-shell,
+html[data-theme="dark"] .public-shell > header,
+html[data-theme="dark"] .public-card,
+html[data-theme="dark"] .public-hero {
+  --ink: var(--text-light);
+  --muted: var(--text-light-muted);
+  --surface: var(--surface-dark);
+  --surface-strong: var(--surface-dark-2);
+  color: var(--text-light);
+}
+html[data-theme="dark"] .public-card,
+html[data-theme="dark"] .public-hero,
+html[data-theme="dark"] .public-shell > header > div { background: var(--surface-dark); border-color: var(--sketch-edge); }
+html[data-theme="dark"] .public-link:not(.primary) { background: var(--surface-dark-2); color: var(--text-light); }
+html[data-theme="dark"] .public-shell img { background: var(--surface-dark-2); }
+@media (max-width: 700px) {
+  .hero-note { font-size: 1.2rem; margin-bottom: 16px; }
+  .hero-note .sketch-doodle { display: none; }
+  .portfolio-signature { max-width: none; font-size: 1.35rem; }
+  .public-shell h1 { font-size: 2.8rem; }
+  .tilt-left, .tilt-right, .sticky-note { transform: none; }
+  .workspace-toolbar { flex-wrap: wrap; }
+  .workspace-toolbar-actions { flex-wrap: wrap; max-width: 100%; }
+  .workspace-ai-panel.is-open { border-radius: var(--radius-sheet); }
+  .public-shell > footer { padding-bottom: 85px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .tilt-left, .tilt-right, .sticky-note { transform: none; }
 }
 

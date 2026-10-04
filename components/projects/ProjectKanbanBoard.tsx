@@ -49,7 +49,7 @@ function ProjectCard({ project, selected, disabled, onSelect }: {
     <article
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.45 : undefined }}
-      className={`flex items-center gap-2 rounded-lg dark-inset p-3 ${selected ? "ring-1 ring-[var(--ink-green)]" : ""}`}
+      className={`project-kanban-card flex items-center gap-2 rounded-lg dark-inset p-3 ${selected ? "ring-1 ring-[var(--ink-green)]" : ""}`}
     >
       <button
         type="button"
@@ -86,7 +86,7 @@ function WorkflowColumn({ stage, projects, selectedProjectId, disabled, onSelect
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `workflow:${stage}` });
   return (
-    <section className={`dark-panel p-3 transition-colors ${isOver ? "ring-2 ring-[var(--ink-green)]" : ""}`} aria-label={`${stageLabel(stage)} workflow projects`}>
+    <section className={`project-kanban-column dark-panel p-3 transition-colors ${isOver ? "ring-2 ring-[var(--ink-green)]" : ""}`} aria-label={`${stageLabel(stage)} workflow projects`}>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-medium t-dark">{stageLabel(stage)}</h3>
         <span className="dark-chip px-2 py-1">{projects.length}</span>

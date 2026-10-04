@@ -5,7 +5,7 @@ export function ProfessionalExperience({ content }: { content: PublicProfessiona
   return <section id="experience" className="public-card p-6 md:p-8" aria-labelledby="experience-title">
     <p className="public-eyebrow">Professional experience</p>
     <h2 id="experience-title" className="mt-2 text-3xl font-black text-[var(--ink)]">Building with a team</h2>
-    <ol className="mt-6 border-l-2 border-[var(--public-border)] pl-5">
+    <ol className="sketch-timeline mt-6 pl-5">
       <li>
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h3 className="text-xl font-bold text-[var(--ink)]">{experience.employer}</h3>
@@ -29,7 +29,7 @@ export function ProfessionalSkills({ content, projectTechnologies }: { content: 
     <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted)]">A focus on full-stack applications, mobile development, and practical AI integration.</p>
     <div className="mt-5 flex flex-wrap gap-2" aria-label="Core application stack">{content.coreStack.map((skill) => <span key={skill} className="public-skill-core">{skill}</span>)}</div>
     <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{content.skillGroups.map((group) => <div key={group.label} className="min-w-0">
-      <h3 className="text-sm font-bold text-[var(--ink)]">{group.label}</h3>
+      <h3 className="handwritten text-xl font-bold text-[var(--ink)]">{group.label}</h3>
       <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{group.items.join(" · ")}</p>
     </div>)}</div>
     {projectTechnologies.length > 0 && <details className="mt-6 border-t border-[var(--public-border)] pt-4">
@@ -48,7 +48,7 @@ export function ProfessionalEducation({ content }: { content: PublicProfessional
       <p className="font-semibold text-[var(--ink)]">{education.institution}</p>
       <p className="text-sm text-[var(--muted)]">Graduated <time dateTime={education.graduated}>{education.graduationLabel.replace(/^Graduated /, "")}</time></p>
     </div>
-    <p className="mt-3 font-bold text-[var(--ink)]">{education.honor}</p>
+    <p className="mt-3 font-bold text-[var(--ink)]"><span className="marker-highlight">{education.honor}</span></p>
     <p className="mt-4 text-sm leading-7 text-[var(--muted)]">Relevant coursework: {education.coursework.join(" · ")}</p>
     <p className="mt-2 text-sm text-[var(--muted)]">Leadership: {education.leadership}</p>
   </section>;
