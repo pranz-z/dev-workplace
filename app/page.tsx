@@ -42,8 +42,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     ...(origin ? { metadataBase: new URL(origin), alternates: { canonical: "/" } } : {}),
-    openGraph: { title, description, type: "website", ...(origin ? { url: `${origin}/` } : {}) },
-    twitter: { card: "summary", title, description },
+    openGraph: { title, description, type: "website", images: ["/opengraph-image.png"], ...(origin ? { url: `${origin}/` } : {}) },
+    twitter: { card: "summary_large_image", title, description, images: ["/opengraph-image.png"] },
   };
 }
 

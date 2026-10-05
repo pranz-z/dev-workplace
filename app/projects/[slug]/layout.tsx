@@ -31,9 +31,9 @@ async function projectMetadata({ params }: LayoutProps<"/projects/[slug]">): Pro
       description,
       type: "article",
       ...(canonical ? { url: canonical } : {}),
-      ...(previewImages ? { images: previewImages } : {}),
+      images: previewImages ?? ["/opengraph-image.png"],
     },
-    twitter: { card: previewImages ? "summary_large_image" : "summary", title: `${project.title} | Developer Portfolio`, description, ...(previewImages ? { images: previewImages.map((image) => image.url) } : {}) },
+    twitter: { card: "summary_large_image", title: `${project.title} | Developer Portfolio`, description, images: previewImages?.map((image) => image.url) ?? ["/opengraph-image.png"] },
   };
 }
 

@@ -1,0 +1,13 @@
+{
+  "name": "Frami",
+  "short_name": "Frami",
+  "description": "A personal software development workplace and public portfolio.",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#F4EBDD",
+  "background_color": "#F4EBDD",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

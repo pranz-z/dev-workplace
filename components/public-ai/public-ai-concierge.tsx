@@ -12,7 +12,7 @@ const suggestedQuestions = [
   "What technologies does Franz work with?",
   "What did Franz build for his thesis?",
   "How can I contact Franz?",
-  "Tell me about Developer Workplace.",
+  "Tell me about Frami.",
   "Where can I download his resume?",
 ];
 

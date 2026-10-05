@@ -12,6 +12,7 @@ import type { PublicProfile } from "@/types";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { PublicProfessionalContent } from "@/lib/portfolio/resume-content";
 import { ProfessionalEducation, ProfessionalExperience, ProfessionalFocus, ProfessionalSkills } from "@/components/portfolio/ProfessionalSections";
+import { Logo } from "@/components/brand/Logo";
 
 type ThemeMode = "light" | "dark" | "system";
 const THEME_STORAGE_KEY = "developer-workspace-theme";
@@ -102,7 +103,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
     <div className="public-shell min-h-screen">
       <header className="relative z-30 mx-auto max-w-6xl px-4 py-5">
         <div className="relative flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[var(--public-border)] bg-[var(--surface)]/80 px-4 py-3 backdrop-blur-sm">
-          <Link href="/" className="handwritten portfolio-signature min-w-0 text-[var(--ink)]">{displayName || "Developer portfolio"}</Link>
+          <Link href="/" aria-label="Frami home" className="inline-flex min-w-0 items-center"><Logo variant="full" size={30} /></Link>
           <nav aria-label="Portfolio" className="hidden flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm text-[var(--muted)] sm:flex">
             {navigation.map((item) => <Link key={item.href} href={item.href} className="inline-flex min-h-11 items-center">{item.label}</Link>)}
           </nav>
@@ -192,7 +193,8 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
         </section>}
       </main>
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 pb-8 text-sm text-[var(--muted)]">
-        <p>{displayName || "Developer portfolio"} · {new Date().getFullYear()}</p>
+        <Logo variant="full" size={24} />
+        <p>{new Date().getFullYear()}</p>
         {professional && !professional.sections.hero.enabled && <a href="/resume/Franz_Michael_Cayanan_Resume.pdf" download className="public-link">Download Resume</a>}
         {status === "authenticated" ? <Link href="/app" className="underline underline-offset-4">Open Workspace</Link> : <Link href="/login" className="underline underline-offset-4">Sign in</Link>}
       </footer>

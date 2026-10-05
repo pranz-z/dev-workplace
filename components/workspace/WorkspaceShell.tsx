@@ -1,10 +1,11 @@
 "use client";
 
-import { Code2, Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { PanelResizeHandle } from "./PanelResizeHandle";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { formatFocusDuration } from "@/data/focusSession";
+import { Logo } from "@/components/brand/Logo";
 
 interface NavigationItem { key: string; label: string; icon: LucideIcon }
 interface Props {
@@ -88,7 +89,7 @@ export function WorkspaceShell({ items, active, onNavigate, context, actions, ta
   return <div className={`workspace-layout ${collapsed ? "context-collapsed" : ""} ${focusMode ? "workspace-focus-mode" : ""}`} style={{ "--context-width": `${width}px` } as CSSProperties}>
     <a href="#workspace-content" className="workspace-skip">Skip to workspace</a>
     <nav className="workspace-rail" aria-label="Workspace sections">
-      <div className="workspace-brand" title="Developer Workplace"><Code2 size={22} /></div>
+      <div className="workspace-brand" title="Frami"><Logo variant="icon" size={30} /></div>
       {items.map(({ key, label, icon: Icon }) => <button key={key} data-section={key} type="button" title={label} aria-label={label} aria-current={key === active ? "page" : undefined} onClick={() => navigate(key)} className={`workspace-rail-item ${key === active ? "active" : ""}`}><Icon size={20} /></button>)}
       <button type="button" aria-label="More workspace sections" title="More workspace sections" onClick={() => setDrawer(true)} className="workspace-rail-more"><Menu size={20} /><span>More</span></button>
     </nav>
@@ -119,7 +120,7 @@ export function WorkspaceShell({ items, active, onNavigate, context, actions, ta
     </div>
     {ai}
     {drawer && <WorkspaceDialog label="Workspace navigation" className="workspace-drawer" onClose={() => setDrawer(false)}>
-        <div className="flex items-center justify-between gap-3"><h2 className="font-semibold">Developer Workplace</h2><button type="button" aria-label="Close navigation" onClick={() => setDrawer(false)} className="p-2"><X size={20} /></button></div>
+        <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Logo variant="icon" size={28} /><h2 className="font-semibold">Frami</h2></div><button type="button" aria-label="Close navigation" onClick={() => setDrawer(false)} className="p-2"><X size={20} /></button></div>
         <nav className="my-4 grid grid-cols-2 gap-2" aria-label="Workspace sections">{items.map(({ key, label, icon: Icon }) => <button key={key} type="button" aria-current={key === active ? "page" : undefined} onClick={() => navigate(key)} className={`nav-item min-w-0 px-2 py-3 text-left text-xs ${key === active ? "active" : ""}`}><Icon size={16} /><span>{label}</span></button>)}</nav>
         <div onClick={(event) => { if ((event.target as HTMLElement).closest("button")) setDrawer(false); }}>{context}</div>
     </WorkspaceDialog>}

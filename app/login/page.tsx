@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { signInWithGithub } from "@/data/authService";
 import { sanitizeNextPath } from "@/lib/auth/redirects";
 import { getMissingSupabaseEnvVars } from "@/lib/supabase/env";
+import { Logo } from "@/components/brand/Logo";
 
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
   oauth: "GitHub sign-in could not be completed. Please try again.",
@@ -52,8 +53,8 @@ function LoginPanel() {
   return (
     <main className="app-shell flex min-h-screen items-center justify-center p-4">
       <section className="hero-paper w-full max-w-lg p-6 text-center md:p-10">
-        <p className="eyebrow t-paper-muted">Developer Workplace</p>
-        <h1 className="hero-script mt-4 text-4xl leading-tight md:text-5xl">Welcome to your Developer Workplace</h1>
+        <div className="flex justify-center"><Logo variant="full" size={40} /></div>
+        <h1 className="hero-script mt-4 text-4xl leading-tight md:text-5xl">Sign in to Frami</h1>
         <p className="mx-auto mt-4 max-w-md text-sm leading-6 t-paper-muted">Sign in to access your private workspace.</p>
         <button type="button" onClick={handleLogin} disabled={loading} className="ink-button primary mx-auto mt-7 px-5 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-60">
           {loading ? <LoaderCircle size={16} className="animate-spin" /> : <FolderGit2 size={16} />}

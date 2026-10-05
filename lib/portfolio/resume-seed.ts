@@ -9,10 +9,10 @@ export function resumePortfolioSeed(): PortfolioContent {
     description: "Next.js · Supabase · Flutter · Laravel · LLM Integration",
     tagline: "BMWare internship · System architecture · Web, mobile & applied AI", avatar: "",
   };
-  doc.bio = "Magna Cum Laude Computer Science graduate and full-stack developer experienced in Next.js, TypeScript, Supabase, Flutter, and Laravel, with hands-on LLM integration (Gemini, Ollama) and AI-assisted development using OpenAI Codex, GitHub Copilot in VS Code, and Google Antigravity, with OmniRoute for routing across multiple AI providers. Built Developer Workplace, a Supabase-backed developer workspace with separate private and public Gemini assistants. Interned at BMWare as a system architect, designing a real-time emergency-response platform and a PayPal-integrated insurance app. Led a thesis project running YOLOv11 on-device with Unity Sentis.";
+  doc.bio = "Magna Cum Laude Computer Science graduate and full-stack developer experienced in Next.js, TypeScript, Supabase, Flutter, and Laravel, with hands-on LLM integration (Gemini, Ollama) and AI-assisted development using OpenAI Codex, GitHub Copilot in VS Code, and Google Antigravity, with OmniRoute for routing across multiple AI providers. Built Frami, a Supabase-backed developer workspace with separate private and public Gemini assistants. Interned at BMWare as a system architect, designing a real-time emergency-response platform and a PayPal-integrated insurance app. Led a thesis project running YOLOv11 on-device with Unity Sentis.";
   doc.about = {
     title: "Connecting software, systems & AI",
-    body: "I built Developer Workplace, a full-stack developer workspace in Next.js, React, and TypeScript, using Supabase Auth and PostgreSQL Row Level Security. It includes persistent Kanban boards, a drag-to-reschedule calendar, a read-only GitHub App integration, and separate private and public Gemini assistants.",
+    body: "I built Frami, a full-stack developer workspace in Next.js, React, and TypeScript, using Supabase Auth and PostgreSQL Row Level Security. It includes persistent Kanban boards, a drag-to-reschedule calendar, a read-only GitHub App integration, and separate private and public Gemini assistants.",
     secondary: "At BMWare, I built Flutter applications with Laravel backends and designed database schemas and system architecture for emergency response and insurance applications. As thesis project lead and system architect, I implemented on-device YOLOv11 inference through Unity Sentis.",
   };
   doc.stack = ["Next.js", "TypeScript", "Supabase", "Flutter", "Laravel", "Gemini", "Ollama"].map((name, index) => ({ ...base(index), name }));
@@ -35,7 +35,7 @@ export function resumePortfolioSeed(): PortfolioContent {
     ["Tools & Practices", ["Git", "Docker", "Vercel", "CI/CD", "JIRA", "Agile/Scrum", "System design (ERD, DFD)", "UI/UX design", "3D simulation"]],
   ].map(([label, items], index) => ({ ...base(index), label: label as string, items: (items as string[]).map((name, index) => ({ ...base(index), name })) }));
   doc.focus = [
-    ["Full-Stack Application Development", "Next.js, React, TypeScript, and Supabase in Developer Workplace."],
+    ["Full-Stack Application Development", "Next.js, React, TypeScript, and Supabase in Frami."],
     ["AI / LLM Integration", "Gemini assistants and Ollama-powered chatbot web applications."],
     ["Mobile Application Development", "Cross-platform Flutter applications integrated with Laravel REST APIs."],
     ["System Architecture", "Architecture for Adsumus Dispatch, InsureMe, and the maintenance simulator thesis."],
