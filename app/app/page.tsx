@@ -55,6 +55,7 @@ import { calculateProjectProgress } from "@/lib/projectProgress";
 import { filterTaskView, localCalendarDate, calendarDatePatch, formatCalendarDate, taskCalendarDate, type WorkspaceCalendarEvent } from "@/data/workspaceCalendar";
 import { loadWorkspaceData } from "@/data/workspaceService";
 import { completeTask, createTask, deleteTask, listTasks, reopenTask, reorderProjectTasks, setTaskStatus, updateTask } from "@/data/taskService";
+import { deriveTaskList, parseTaskListSort, parseTaskListStatusFilter, TASK_STATUSES, type TaskListSort, type TaskListStatusFilter } from "@/data/taskList";
 import { createPlan, deletePlan, listPlans, setPlanStatus, updatePlan } from "@/data/planService";
 import { createPlanItem, deletePlanItem, reorderPlanItems, setPlanItemDone } from "@/data/planItemService";
 import { createMilestone, deleteMilestone, listProjectMilestones, reorderProjectMilestones, setMilestoneStatus, updateMilestone } from "@/data/milestoneService";
@@ -304,11 +305,8 @@ export default function Home() {
   const router = useRouter();
   const { status: authStatus, user, signOut: signOutOfSession } = useAuth();
 
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    if (typeof window === "undefined") return "system";
-    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
-    return savedTheme === "light" || savedTheme === "dark" || savedTheme === "system" ? savedTheme : "system";
-  });
+  const [themeMode, setThemeMode] = useState<ThemeMode>("system");
+  const [themeInitialized, setThemeInitialized] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -333,6 +331,9 @@ export default function Home() {
   const [projectView, setProjectView] = useState<"grid" | "list" | "kanban">("grid");
   const [taskView, setTaskView] = useState<"list" | "kanban" | "today" | "upcoming">("kanban");
   const [taskBoardProjectId, setTaskBoardProjectId] = useState("");
+  const [taskListSort, setTaskListSort] = useState<TaskListSort>("workspace");
+  const [taskListStatusFilter, setTaskListStatusFilter] = useState<TaskListStatusFilter>("all");
+  const [taskListPreferencesLoaded, setTaskListPreferencesLoaded] = useState(false);
   const [isPersistingOrder, setIsPersistingOrder] = useState(false);
   const orderWriteLock = useRef(false);
   const [isCalendarRescheduling, setIsCalendarRescheduling] = useState(false);
@@ -342,6 +343,29 @@ export default function Home() {
   const [aiOpen, setAiOpen] = useState(false);
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
   const [contextQuery, setContextQuery] = useState("");
+
+  useEffect(() => {
+    try {
+      // Restore browser-only preferences after hydration so saved values do not change the server-rendered markup.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTaskListSort(parseTaskListSort(window.sessionStorage.getItem("task-list-sort")));
+      setTaskListStatusFilter(parseTaskListStatusFilter(window.sessionStorage.getItem("task-list-status-filter")));
+    } catch {
+      setTaskListSort("workspace");
+      setTaskListStatusFilter("all");
+    }
+    setTaskListPreferencesLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!taskListPreferencesLoaded) return;
+    try {
+      window.sessionStorage.setItem("task-list-sort", taskListSort);
+      window.sessionStorage.setItem("task-list-status-filter", typeof taskListStatusFilter === "string" ? taskListStatusFilter : JSON.stringify(taskListStatusFilter));
+    } catch {
+      // Sorting and filtering remain usable if session storage is unavailable.
+    }
+  }, [taskListPreferencesLoaded, taskListSort, taskListStatusFilter]);
   const [accountabilityTab, setAccountabilityTab] = useState<"Overview" | "Goals" | "Weekly" | "Monthly">("Overview");
   const [profileTimeZone, setProfileTimeZone] = useState<{ userId: string; timeZone: string } | null>(null);
   const workspaceTimeZone = authStatus === "authenticated" && user?.id === profileTimeZone?.userId
@@ -424,6 +448,15 @@ export default function Home() {
   }, [user]);
 
   useEffect(() => {
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
+    // Browser-only preference must be loaded after hydration to keep the first render deterministic.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (savedTheme === "light" || savedTheme === "dark" || savedTheme === "system") setThemeMode(savedTheme);
+    setThemeInitialized(true);
+  }, []);
+
+  useEffect(() => {
+    if (!themeInitialized) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const resolveTheme = () => {
       const nextTheme = themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
@@ -441,7 +474,7 @@ export default function Home() {
 
     media.addEventListener("change", handleChange);
     return () => media.removeEventListener("change", handleChange);
-  }, [themeMode]);
+  }, [themeMode, themeInitialized]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -716,6 +749,7 @@ export default function Home() {
       .filter((task) => task.status !== "Completed")
       .map((task) => ({
         type: "Task",
+        id: task.id,
         label: task.title,
         date: task.dueDate,
         projectId: task.projectId,
@@ -723,6 +757,7 @@ export default function Home() {
       .concat(
         milestones.map((milestone) => ({
           type: "Milestone",
+          id: milestone.id,
           label: milestone.title,
           date: milestone.targetDate,
           projectId: milestone.projectId,
@@ -784,7 +819,7 @@ export default function Home() {
     return hits.slice(0, 8);
   }, [searchQuery, projects, tasks, plans, notes, technologies]);
 
-  const taskColumns = ["Backlog", "Planned", "In Progress", "Review", "Testing", "Blocked", "Completed"] as const;
+  const taskColumns = TASK_STATUSES;
 
   /* Project cards are DARK PAPER in both themes — the muted mood accent gives
      each one its colour, and the type follows the warm cream ink tiers. */
@@ -1682,7 +1717,7 @@ export default function Home() {
             </div>
             <div className="space-y-3">
               {upcomingItems.map((item) => (
-                <div key={`${item.type}-${item.label}`} className="inset-soft p-3">
+                <div key={`${item.type}-${item.id}`} className="inset-soft p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium t-paper">{item.label}</p>
                     <span className="soft-pill px-2 py-1">{item.type}</span>
@@ -1842,7 +1877,7 @@ export default function Home() {
           <div className="paper-card p-4">
             <h3 className="mb-4 text-lg font-semibold">Schedule</h3>
             <div className="space-y-2.5 text-sm">
-              {upcomingItems.map((item) => <div key={`${item.type}-${item.label}`} className="inset-soft flex items-center justify-between gap-3 px-3 py-2"><span>{item.label}</span><span className="text-xs t-paper-muted">{formatDisplayDate(item.date)}</span></div>)}
+              {upcomingItems.map((item) => <div key={`${item.type}-${item.id}`} className="inset-soft flex items-center justify-between gap-3 px-3 py-2"><span>{item.label}</span><span className="text-xs t-paper-muted">{formatDisplayDate(item.date)}</span></div>)}
               {upcomingItems.length === 0 && <p className="text-sm t-paper-muted">No upcoming tasks or milestones.</p>}
             </div>
           </div>
@@ -2330,7 +2365,20 @@ export default function Home() {
     </div>
   );
 
-  const visibleTasks = filterTaskView(tasks, taskView, localCalendarDate(workspaceNow, workspaceTimeZone), workspaceTimeZone, taskBoardProjectId);
+  const sortedListTasks = useMemo(
+    () => deriveTaskList(tasks, { projectId: taskBoardProjectId, statusFilter: taskListStatusFilter, sort: taskListSort }),
+    [tasks, taskBoardProjectId, taskListStatusFilter, taskListSort],
+  );
+  const visibleTasks = taskView === "list"
+    ? sortedListTasks
+    : filterTaskView(tasks, taskView, localCalendarDate(workspaceNow, workspaceTimeZone), workspaceTimeZone, taskBoardProjectId);
+  const taskStatusFilterText = taskListStatusFilter === "all"
+    ? "All tasks"
+    : taskListStatusFilter === "incomplete"
+      ? "Incomplete"
+      : taskListStatusFilter === "completed"
+        ? "Completed"
+        : `${taskListStatusFilter.length} selected statuses`;
   const boardTasks = taskBoardProjectId ? tasks.filter((task) => task.projectId === taskBoardProjectId) : tasks;
 
   const renderTasksPage = () => (
@@ -2343,6 +2391,70 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => handleCreateTask()} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New task</button>
+            {taskView === "list" && <>
+              <label className="flex items-center">
+                <span className="sr-only">Sort tasks</span>
+                <select
+                  aria-label="Sort tasks"
+                  value={taskListSort}
+                  onChange={(event) => setTaskListSort(event.target.value as TaskListSort)}
+                  className="dark-chip min-h-10 w-[min(13rem,calc(100vw-3rem))] px-2 text-xs t-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-lavender-solid)]"
+                >
+                  <option value="workspace">Sort · Workspace order</option>
+                  <option value="newest">Sort · Newest first</option>
+                  <option value="oldest">Sort · Oldest first</option>
+                  <option value="due-soonest">Date · Soonest first</option>
+                  <option value="due-latest">Date · Latest first</option>
+                </select>
+              </label>
+              <details className="relative w-full sm:w-auto">
+                <summary
+                  aria-label={`Filter tasks by status. Current filter: ${taskStatusFilterText}`}
+                  className={`soft-pill ml-auto flex min-h-10 w-fit cursor-pointer list-none items-center px-3 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-lavender-solid)] sm:ml-0 ${taskListStatusFilter === "all" ? "t-dark-muted" : "is-selected"}`}
+                >
+                  {Array.isArray(taskListStatusFilter) ? `Filter (${taskListStatusFilter.length})` : `Filter${taskListStatusFilter === "all" ? "" : ` · ${taskStatusFilterText}`}`}
+                </summary>
+                <div className="absolute right-0 z-40 mt-2 w-[min(17rem,calc(100vw-2rem))] rounded-2xl border border-[var(--edge-dark)] bg-[var(--surface-dark)] p-3 shadow-xl">
+                  <div className="flex flex-wrap gap-2 border-b border-[var(--edge-dark)] pb-3">
+                    {(["all", "incomplete", "completed"] as const).map((filter) => (
+                      <button
+                        key={filter}
+                        type="button"
+                        aria-pressed={taskListStatusFilter === filter}
+                        onClick={() => setTaskListStatusFilter(filter)}
+                        className={`soft-pill px-2.5 py-1.5 text-[10px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-lavender-solid)] ${taskListStatusFilter === filter ? "is-selected" : "t-dark-muted"}`}
+                      >
+                        {filter === "all" ? "All tasks" : filter === "incomplete" ? "Incomplete" : "Completed"}
+                      </button>
+                    ))}
+                  </div>
+                  <fieldset className="mt-3 space-y-2">
+                    <legend className="mb-2 text-xs font-semibold t-dark">Task statuses</legend>
+                    {taskColumns.map((status) => (
+                      <label key={status} className="flex min-h-8 cursor-pointer items-center gap-2 text-sm t-dark-muted">
+                        <input
+                          type="checkbox"
+                          checked={Array.isArray(taskListStatusFilter) && taskListStatusFilter.includes(status)}
+                          onChange={(event) => setTaskListStatusFilter((current) => {
+                            const selected = new Set(Array.isArray(current) ? current : []);
+                            if (event.target.checked) selected.add(status);
+                            else selected.delete(status);
+                            return selected.size ? [...selected] : "all";
+                          })}
+                          className="accent-[var(--accent-lavender-solid)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-lavender-solid)]"
+                        />
+                        <span>{status}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  {taskListStatusFilter !== "all" && <button
+                    type="button"
+                    onClick={() => setTaskListStatusFilter("all")}
+                    className="mt-3 min-h-10 w-full rounded-lg border border-[var(--edge-dark)] px-3 py-2 text-left text-xs font-semibold t-dark underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-lavender-solid)]"
+                  >Clear status filter</button>}
+                </div>
+              </details>
+            </>}
             {(["list", "kanban", "today", "upcoming"] as const).map((view) => (
               <button
                 key={view}
@@ -2395,7 +2507,10 @@ export default function Home() {
 
       {taskView !== "kanban" && (
         <div className="space-y-3 dark-panel p-4">
-          {visibleTasks.length === 0 && <p role="status" className="text-sm t-dark-muted">{taskView === "today" ? "No incomplete tasks due today." : taskView === "upcoming" ? "No upcoming tasks with a due date." : "No tasks match this project. Create a task to get started."}</p>}
+          {visibleTasks.length === 0 && <div role="status" className="flex flex-wrap items-center justify-between gap-3 text-sm t-dark-muted">
+            <p>{taskView === "today" ? "No incomplete tasks due today." : taskView === "upcoming" ? "No upcoming tasks with a due date." : tasks.length === 0 ? "No tasks yet. Create a task to get started." : "No tasks match these filters."}</p>
+            {taskView === "list" && taskListStatusFilter !== "all" && <button type="button" onClick={() => setTaskListStatusFilter("all")} className="min-h-10 rounded-lg px-3 py-2 font-semibold underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-lavender-solid)]">Clear status filter</button>}
+          </div>}
           {visibleTasks.map((task) => (
             <div key={task.id} draggable={authStatus === "authenticated" && workspaceStatus === "ready"} onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "task", id: task.id })); event.dataTransfer.effectAllowed = "copy"; }} className="flex flex-col gap-3 dark-inset p-3 md:flex-row md:items-center md:justify-between">
               <div>

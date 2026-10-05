@@ -22,7 +22,7 @@ const caveat = Caveat({
 const applicationOrigin = getApplicationOrigin();
 
 export const metadata: Metadata = {
-  ...(applicationOrigin ? { metadataBase: new URL(applicationOrigin) } : {}),
+  metadataBase: new URL(applicationOrigin ?? "https://frami-devplace.vercel.app"),
   title: "Frami — Developer Workplace",
   applicationName: "Frami",
   description: "Frami is a personal software development workplace and public portfolio for projects, tasks, plans, and GitHub-inspired workflows.",

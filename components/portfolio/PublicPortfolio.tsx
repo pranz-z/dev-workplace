@@ -39,11 +39,8 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
   introduction: { name: string; headline: string; bio: string };
 }) {
   const { status } = useAuth();
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    if (typeof window === "undefined") return "system";
-    const saved = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
-    return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
-  });
+  const [themeMode, setThemeMode] = useState<ThemeMode>("system");
+  const [themeInitialized, setThemeInitialized] = useState(false);
   const projects = initialProjects;
   const profile = initialProfile;
   const professional = initialProfessionalContent;
@@ -54,6 +51,15 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
   const supabaseMissing = !isSupabaseConfigured();
 
   useEffect(() => {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
+    // Browser-only preference must be loaded after hydration to keep the first render deterministic.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (saved === "light" || saved === "dark" || saved === "system") setThemeMode(saved);
+    setThemeInitialized(true);
+  }, []);
+
+  useEffect(() => {
+    if (!themeInitialized) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const applyTheme = () => {
       document.documentElement.setAttribute("data-theme", getResolvedTheme(themeMode));
@@ -62,7 +68,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
     applyTheme();
     media.addEventListener("change", applyTheme);
     return () => media.removeEventListener("change", applyTheme);
-  }, [themeMode]);
+  }, [themeMode, themeInitialized]);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;

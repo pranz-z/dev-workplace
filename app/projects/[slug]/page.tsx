@@ -35,11 +35,8 @@ export default function PublicProjectPage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug ?? "autocare";
   const invalidSlug = isSupabaseConfigured() && !isValidSlug(slug);
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    if (typeof window === "undefined") return "system";
-    const saved = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
-    return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
-  });
+  const [themeMode, setThemeMode] = useState<ThemeMode>("system");
+  const [themeInitialized, setThemeInitialized] = useState(false);
   const [project, setProject] = useState<import("@/types").Project | null>(null);
   const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
   const [accountability, setAccountability] = useState<{ health: PublicAccountabilityHealth; score: number | null } | null>(null);
@@ -48,6 +45,15 @@ export default function PublicProjectPage() {
   const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
+    // Browser-only preference must be loaded after hydration to keep the first render deterministic.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (saved === "light" || saved === "dark" || saved === "system") setThemeMode(saved);
+    setThemeInitialized(true);
+  }, []);
+
+  useEffect(() => {
+    if (!themeInitialized) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const applyTheme = () => {
       const next = getResolvedTheme(themeMode);
@@ -58,7 +64,7 @@ export default function PublicProjectPage() {
     applyTheme();
     media.addEventListener("change", applyTheme);
     return () => media.removeEventListener("change", applyTheme);
-  }, [themeMode]);
+  }, [themeMode, themeInitialized]);
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !isValidSlug(slug)) return;
