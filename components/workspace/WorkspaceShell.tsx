@@ -9,6 +9,7 @@ import { Logo } from "@/components/brand/Logo";
 
 interface NavigationItem { key: string; label: string; icon: LucideIcon }
 interface Props {
+  onToggleTheme?: () => void;
   items: NavigationItem[]; active: string; onNavigate: (key: string) => void;
   context: ReactNode; actions: ReactNode; tabs?: ReactNode; children: ReactNode; ai: ReactNode;
   aiOpen: boolean; onAiOpenChange: (open: boolean) => void; sessionKey: string;
@@ -16,7 +17,7 @@ interface Props {
   onFocusPause: () => void; onFocusResume: () => void; onFocusEnd: () => void;
 }
 
-export function WorkspaceShell({ items, active, onNavigate, context, actions, tabs, children, ai, aiOpen, onAiOpenChange, sessionKey, focusSessionStatus, focusSessionRemainingSeconds, onFocusPause, onFocusResume, onFocusEnd }: Props) {
+export function WorkspaceShell({ onToggleTheme, items, active, onNavigate, context, actions, tabs, children, ai, aiOpen, onAiOpenChange, sessionKey, focusSessionStatus, focusSessionRemainingSeconds, onFocusPause, onFocusResume, onFocusEnd }: Props) {
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState(224);
@@ -89,7 +90,7 @@ export function WorkspaceShell({ items, active, onNavigate, context, actions, ta
   return <div className={`workspace-layout ${collapsed ? "context-collapsed" : ""} ${focusMode ? "workspace-focus-mode" : ""}`} style={{ "--context-width": `${width}px` } as CSSProperties}>
     <a href="#workspace-content" className="workspace-skip">Skip to workspace</a>
     <nav className="workspace-rail" aria-label="Workspace sections">
-      <div className="workspace-brand" title="Frami"><Logo variant="icon" size={30} /></div>
+      <button type="button" className="workspace-brand" title="Frami" aria-label="Toggle chalkboard or paper theme" onClick={onToggleTheme}><Logo variant="icon" size={30} /></button>
       {items.map(({ key, label, icon: Icon }) => <button key={key} data-section={key} type="button" title={label} aria-label={label} aria-current={key === active ? "page" : undefined} onClick={() => navigate(key)} className={`workspace-rail-item ${key === active ? "active" : ""}`}><Icon size={20} /></button>)}
       <button type="button" aria-label="More workspace sections" title="More workspace sections" onClick={() => setDrawer(true)} className="workspace-rail-more"><Menu size={20} /><span>More</span></button>
     </nav>

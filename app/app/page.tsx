@@ -48,6 +48,7 @@ import { DriveConnectionControl } from "@/components/google-drive/DriveConnectio
 import { DriveFiles } from "@/components/google-drive/DriveFiles";
 import { getProfileTimeZone } from "@/data/accountabilityDataService";
 import { isValidTimeZone } from "@/data/accountabilityReports";
+import { UnderlineHeading } from "@/components/ui/notebook";
 import { WorkspaceGreeting } from "@/components/workspace/WorkspaceGreeting";
 import { WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload } from "@/lib/ai/chat-drag";
 import { hasLinkedGithubRepository } from "@/data/githubRepositoryLinkService";
@@ -467,7 +468,8 @@ export default function Home() {
     const resolveTheme = () => {
       const nextTheme = themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
       document.documentElement.setAttribute("data-theme", nextTheme);
-      window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+      if (themeMode === "system") window.localStorage.removeItem(THEME_STORAGE_KEY);
+      else window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
     };
 
     resolveTheme();
@@ -1575,7 +1577,7 @@ export default function Home() {
   };
 
   const renderDashboard = () => (
-    <div className="space-y-6">
+    <div className="notebook-dashboard space-y-6">
       {/* GREETING SHEET — cream paper, deep warm charcoal ink, in both themes */}
       <div className="hero-paper tilt-left p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -1619,7 +1621,7 @@ export default function Home() {
 
       {authStatus === "authenticated" && workspaceStatus === "ready" && <section className="dark-panel p-4 md:p-5" aria-label="Project accountability overview">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="eyebrow t-mood">Project health</p><h2 className="mt-2 text-2xl font-semibold t-dark">Your current project rhythm</h2><p className="mt-1 text-sm t-dark-muted">Workspace progress; open a project&apos;s GitHub tab to include its repository activity.</p></div>
+          <div><p className="eyebrow t-mood">Project health</p><h2 className="mt-2 text-2xl font-semibold t-dark"><UnderlineHeading>Your current project rhythm</UnderlineHeading></h2><p className="mt-1 text-sm t-dark-muted">Workspace progress; open a project&apos;s GitHub tab to include its repository activity.</p></div>
           <span className="dark-chip px-2.5 py-1 text-xs">Private workspace</span>
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -1642,7 +1644,7 @@ export default function Home() {
           {/* dark project sheets sit directly on the desk, heading handwritten above */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="section-title text-[30px]">Active Projects</h2>
+              <h2 className="section-title text-[30px]"><UnderlineHeading>Active Projects</UnderlineHeading></h2>
               <button type="button" onClick={() => setActiveView("projects")} className="text-sm font-semibold underline decoration-[var(--edge-cream)] underline-offset-4">
                 View all
               </button>
@@ -1653,7 +1655,7 @@ export default function Home() {
           {/* cream index cards for the pipeline stages */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="section-title text-[30px]">Current Workflow</h2>
+              <h2 className="section-title text-[30px]"><UnderlineHeading>Current Workflow</UnderlineHeading></h2>
               <button type="button" onClick={() => setActiveView("projects")} className="text-sm font-semibold underline decoration-[var(--edge-cream)] underline-offset-4">
                 Open workflow
               </button>
@@ -1690,7 +1692,7 @@ export default function Home() {
           {/* TODAY NOTES — dark paper sheet, warm cream type, in both themes */}
           <div className="dark-panel p-4">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="section-title text-[30px]">Today</h2>
+              <h2 className="section-title text-[30px]"><UnderlineHeading>Today</UnderlineHeading></h2>
               <button type="button" onClick={() => setActiveView("today")} className="text-sm font-semibold underline decoration-[var(--edge-dark)] underline-offset-4">
                 Open today
               </button>
@@ -1721,7 +1723,7 @@ export default function Home() {
 
           <div className="paper-card p-4">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="section-title text-[30px]">Upcoming</h2>
+              <h2 className="section-title text-[30px]"><UnderlineHeading>Upcoming</UnderlineHeading></h2>
             </div>
             <div className="space-y-3">
               {upcomingItems.map((item) => (
@@ -1738,7 +1740,7 @@ export default function Home() {
 
           <div className="paper-card p-4">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="section-title text-[30px]">Recent activity</h2>
+              <h2 className="section-title text-[30px]"><UnderlineHeading>Recent activity</UnderlineHeading></h2>
             </div>
             <div className="space-y-3">
               {activities.map((activity) => (
@@ -1800,7 +1802,7 @@ export default function Home() {
   const adjustPausedFocus = (delta: number) => setFocusSession((session) => session ? adjustPausedFocusSession(session, delta) : null);
 
   const renderTodayPage = () => (
-    <div className="space-y-6">
+    <div className="notebook-today space-y-6">
       <section className="dark-panel p-4 md:p-5" aria-label="Focus session">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3 border-b border-[var(--edge-dark)] pb-3">
@@ -2549,7 +2551,7 @@ export default function Home() {
   );
 
   const renderPlansPage = () => (
-    <div className="space-y-6">
+    <div className="notebook-dense space-y-6">
       <div className="flex justify-end"><button type="button" onClick={handleCreatePlan} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New plan</button></div>
       <div className="grid gap-4 lg:grid-cols-3">
         {plans.map((plan) => {
@@ -2612,7 +2614,7 @@ export default function Home() {
   );
 
   const renderCareerPage = () => (
-    <div className="space-y-6">
+    <div className="notebook-dense space-y-6">
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="dark-panel p-4">
           <h3 className="text-lg font-semibold t-dark">Job applications</h3>
@@ -2653,7 +2655,7 @@ export default function Home() {
     const visibleNotes = noteProjectFilter ? notes.filter((note) => note.projectId === noteProjectFilter) : notes;
     const documentationProject = projects.find((project) => project.id === noteProjectFilter);
     return (
-    <div className="space-y-6">
+    <div className="notebook-dense space-y-6">
       <div className={`grid gap-6 ${learningItems.length ? "xl:grid-cols-2" : ""}`}>
         <div className="dark-panel p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-lg font-semibold t-dark">{documentationProject ? `${documentationProject.name} documentation` : "Notes"}</h3>{documentationProject && <p className="mt-1 text-xs t-dark-muted">Project documentation and notes</p>}</div><div className="flex flex-wrap gap-2">{documentationProject && <button type="button" onClick={() => setNoteProjectFilter("")} className="dark-chip px-3 py-2 text-sm">All notes</button>}<button type="button" onClick={() => documentationProject ? setNoteEditor({ title: "Documentation", content: "", projectId: documentationProject.id }) : handleCreateNote()} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> {documentationProject ? "Add documentation" : "New note"}</button></div></div>
@@ -2689,7 +2691,7 @@ export default function Home() {
   };
 
   const renderTechPage = () => (
-    <div className="space-y-4">
+    <div className="notebook-dense space-y-4">
       <form onSubmit={(event) => void handleTechnologySave(event)} className="dark-panel flex flex-col gap-2 p-4 sm:flex-row">
         <input aria-label="Technology name" value={technologyName} onChange={(event) => setTechnologyName(event.target.value)} required placeholder="Technology name" className="dark-chip min-w-0 flex-1 px-3 py-2 text-sm" />
         <select aria-label="Project for technology" value={technologyProjectId} onChange={(event) => setTechnologyProjectId(event.target.value)} className="dark-chip px-3 py-2 text-sm">
@@ -2718,10 +2720,17 @@ export default function Home() {
   );
 
   const renderSettingsPage = () => (
-    <div className="dark-panel p-6">
+    <div className="notebook-dense dark-panel p-6">
       <h2 className="text-2xl font-semibold t-dark">Workspace settings</h2>
       <p className="mt-2 t-dark-muted">Your account is verified by Supabase Auth. Authenticated workspace data is stored in Supabase; local browser storage is used only by the unauthenticated prototype.</p>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="dark-inset p-4">
+          <label htmlFor="workspace-theme" className="block text-sm font-medium t-dark">Theme</label>
+          <select id="workspace-theme" value={themeMode} onChange={(event) => setThemeMode(event.target.value as ThemeMode)} className="dark-chip mt-2 w-full px-3 py-2 text-sm">
+            <option value="light">Paper (light)</option><option value="dark">Dark</option><option value="system">System</option>
+          </select>
+          <p className="mt-2 text-sm t-dark-muted">System follows your device preference and clears the saved choice.</p>
+        </div>
         <div className="dark-inset p-4">
           <p className="text-sm font-medium t-dark">Data storage</p>
           <p className="mt-2 text-sm t-dark-muted">{authStatus === "authenticated" ? "Supabase is the source of truth for this signed-in workspace." : "Prototype workspace data is stored in this browser."}</p>
@@ -2811,8 +2820,8 @@ export default function Home() {
   const projectTabs = [...new Set([...openProjectIds, ...(selectedProject ? [selectedProject.id] : [])])].map((id) => projects.find((project) => project.id === id)).filter((project): project is Project => Boolean(project));
 
   return (
-    <div className="app-shell min-h-screen text-[var(--ink)]">
-      <WorkspaceShell items={navItems} active={activeView} onNavigate={(key) => { if (key === "portfolio") setPortfolioOpened(true); if (key === "files") setFilesOpened(true); setActiveView(key as ViewName); }} context={renderContext()}
+    <div className="app-shell notebook-workspace min-h-screen text-[var(--ink)]">
+      <WorkspaceShell onToggleTheme={() => setThemeMode(document.documentElement.dataset.theme === "dark" ? "light" : "dark")} items={navItems} active={activeView} onNavigate={(key) => { if (key === "portfolio") setPortfolioOpened(true); if (key === "files") setFilesOpened(true); setActiveView(key as ViewName); }} context={renderContext()}
         actions={<>
           <button type="button" onClick={() => setSearchOpen(true)} aria-label="Search workspace" title="Search workspace (Ctrl/Cmd+K)" className="dark-chip inline-flex items-center gap-2 p-2"><Search size={16} /><span className="hidden xl:inline text-xs">Search workspace</span></button>
           <button type="button" onClick={() => setThemeMode((current) => current === "light" ? "dark" : current === "dark" ? "system" : "light")} className="dark-chip p-2" aria-label={`Change theme, currently ${themeMode}`} title={`Theme: ${themeMode}`}>{themeMode === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>

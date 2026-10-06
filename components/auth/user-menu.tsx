@@ -15,7 +15,7 @@ const readMetadataString = (value: unknown) => (typeof value === "string" && val
 
 function Avatar({ avatarUrl, initials, displayName, className }: { avatarUrl: string; initials: string; displayName: string; className: string }) {
   return (
-    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--edge-dark-soft)] bg-[linear-gradient(135deg,var(--accent-coral),var(--accent-lavender))] font-semibold text-[var(--text-dark)] ${className}`}>
+    <span className={`notebook-account-avatar flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--edge-dark-soft)] bg-[linear-gradient(135deg,var(--accent-coral),var(--accent-lavender))] font-semibold text-[var(--text-dark)] ${className}`}>
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- small remote GitHub avatar; next/image optimization adds no value here.
         <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
@@ -94,7 +94,7 @@ export function UserMenu({ onOpenSettings }: UserMenuProps) {
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="notebook-user-menu relative">
       <button type="button" onClick={() => setMenuOpen((current) => !current)} aria-label="Open account menu" aria-expanded={menuOpen} className="block rounded-full">
         <Avatar avatarUrl={avatarUrl} initials={initials} displayName={displayName} className="h-9 w-9" />
       </button>
