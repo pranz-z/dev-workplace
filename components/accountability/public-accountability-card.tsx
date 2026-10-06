@@ -7,7 +7,7 @@ type Props = {
 
 export function PublicAccountabilityCard({ health, score }: Props) {
   return (
-    <section className="public-card p-5 md:p-6" aria-label="Project accountability summary">
+    <section className="notebook-public-accountability public-card p-5 md:p-6" aria-label="Project accountability summary">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Project health</p>

@@ -14,7 +14,7 @@ export function ProjectAccountabilityCard({ projectName, result }: ProjectAccoun
         ? "Building baseline"
         : "Insufficient data";
 
-  return <section className="dark-panel p-4 md:p-5" aria-label={`${projectName} accountability`}>
+  return <section className="notebook-dense dark-panel p-4 md:p-5" aria-label={`${projectName} accountability`}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="eyebrow t-mood">Project accountability</p>
@@ -31,7 +31,7 @@ export function ProjectAccountabilityCard({ projectName, result }: ProjectAccoun
       </div>)}
     </div>}
     <ul className="mt-4 space-y-2">
-      {result.reasons.slice(0, 4).map((reason, index) => <li key={`${reason.kind}-${index}`} className={`text-sm ${reason.kind === "attention" ? "text-amber-300" : "t-dark-muted"}`}>{reason.kind === "progress" ? "✓ " : reason.kind === "attention" ? "! " : "· "}{reason.text}</li>)}
+      {result.reasons.slice(0, 4).map((reason, index) => <li key={`${reason.kind}-${index}`} className={`text-sm ${reason.kind === "attention" ? "notebook-feedback-attention" : "t-dark-muted"}`}>{reason.kind === "progress" ? "✓ " : reason.kind === "attention" ? "! " : "· "}{reason.text}</li>)}
     </ul>
   </section>;
 }

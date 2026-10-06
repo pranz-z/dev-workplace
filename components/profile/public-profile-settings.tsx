@@ -85,7 +85,7 @@ export function PublicProfileSettings() {
   );
 
   return (
-    <section className="mt-6 dark-panel p-5" aria-labelledby="public-profile-settings-title">
+    <section className="notebook-dense mt-6 dark-panel p-5" aria-labelledby="public-profile-settings-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 id="public-profile-settings-title" className="text-lg font-semibold t-dark">Public portfolio profile</h3>

@@ -46,7 +46,7 @@ export function DriveConnectionControl({ onOpenFiles }: { onOpenFiles: () => voi
     finally { setBusy(false); }
   };
 
-  return <section className="dark-inset p-4" aria-labelledby="drive-connection-heading">
+  return <section className="notebook-dense dark-inset p-4" aria-labelledby="drive-connection-heading">
     <h3 id="drive-connection-heading" className="font-medium t-dark">Google Drive</h3>
     <p className="mt-2 text-sm t-dark-muted">Store workspace files in your Google Drive.</p>
     <p className="mt-2 text-sm t-dark" role="status">{busy ? "Checking connection…" : connected === null ? "Status unavailable" : connected ? "Connected" : "Disconnected"}</p>
@@ -57,6 +57,6 @@ export function DriveConnectionControl({ onOpenFiles }: { onOpenFiles: () => voi
       <button type="button" disabled={busy} onClick={() => void refresh()} className="dark-chip px-3 py-2 text-sm disabled:opacity-50">Refresh status</button>
     </div>
     {error && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{error}</p>}
-    {message && <p role="status" className="mt-3 text-sm t-dark-muted">{message}</p>}
+    {message && <p role="status" data-feedback="success" className="mt-3 text-sm t-dark-muted">{message}</p>}
   </section>;
 }

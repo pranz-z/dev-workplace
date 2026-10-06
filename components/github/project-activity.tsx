@@ -65,7 +65,7 @@ export function GithubProjectActivity({ projectId, project, tasks, milestones, p
     return () => window.clearTimeout(timer);
   }, [loadActivity]);
 
-  return <div className="space-y-4">
+  return <div className="notebook-dense space-y-4">
     {showAccountability && <ProjectAccountabilityCard projectName={project.name} result={accountability} />}
     <section className="dark-panel p-4 md:p-5" aria-label="GitHub activity">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -79,7 +79,7 @@ export function GithubProjectActivity({ projectId, project, tasks, milestones, p
       </button>
     </div>
 
-    {error && <p role="alert" className="mt-4 rounded-lg bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}
+    {error && <p role="alert" className="mt-4 rounded-lg notebook-feedback-error p-3 text-sm">{error}</p>}
     {loading && !activity && <p role="status" className="mt-4 text-sm t-dark-muted">Loading recent repository activity…</p>}
     {!loading && activity && <>
       <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -126,7 +126,7 @@ export function GithubProjectActivity({ projectId, project, tasks, milestones, p
 
 function ActivityGroup({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {
   const items = Array.isArray(children) ? children : [children];
-  return <div className="space-y-2">
+  return <div className="notebook-dense space-y-2">
     <h4 className="text-sm font-semibold t-dark">{title}</h4>
     {items.length ? items : <p className="dark-inset p-3 text-sm t-dark-muted">{empty}</p>}
   </div>;

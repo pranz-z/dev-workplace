@@ -54,7 +54,7 @@ export function PublicAccountabilitySettings({ projectId }: Props) {
   };
 
   return (
-    <section className="mt-3 dark-inset p-3" aria-labelledby="public-accountability-title">
+    <section className="notebook-dense mt-3 dark-inset p-3" aria-labelledby="public-accountability-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 id="public-accountability-title" className="font-medium t-dark">Public accountability</h3>

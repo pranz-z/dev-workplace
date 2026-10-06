@@ -142,14 +142,14 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
       plans,
       github: { status: "not-connected" },
     }) : null;
-    return <div className="space-y-4">
+    return <div className="notebook-dense space-y-4">
       {showAccountability && !loading && !linkedForProject && project && accountability && <ProjectAccountabilityCard projectName={project.name} result={accountability} />}
       <section className="dark-panel p-4" aria-label="GitHub repository">
       <div className="flex items-center justify-between gap-3">
         <div><p className="eyebrow t-dark-soft">GitHub repository</p><h3 className="mt-1 text-lg font-semibold t-dark">{linkedForProject?.fullName ?? "No repository linked"}</h3></div>
         {linkedForProject && <><button type="button" disabled={busy || loading} onClick={() => void refresh(true)} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm"><RefreshCw size={14} /> Refresh</button><button type="button" disabled={busy} onClick={() => void unlinkProject(projectId)} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm"><Unlink size={14} /> Unlink</button></>}
       </div>
-      {error && <p role="status" className="mt-3 text-sm text-rose-300">{error}</p>}
+      {error && <p role="status" className="mt-3 text-sm notebook-feedback-error">{error}</p>}
       {linkedForProject && <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm t-dark-muted">
         <span>{linkedForProject.private ? "Private" : "Public"}</span><span>{linkedForProject.language ?? "Language not specified"}</span><span>Default branch: {linkedForProject.defaultBranch}</span><span>Updated {linkedForProject.updatedAt ? dateLabel(linkedForProject.updatedAt) : "unknown"}</span>
         <a href={linkedForProject.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--ink-coral)]">Open GitHub <ExternalLink size={13} /></a>
@@ -160,7 +160,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
     </div>;
   }
 
-  return <div className="space-y-5">
+  return <div className="notebook-dense space-y-5">
     <div className="dark-panel p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="eyebrow t-mood">GitHub App</p><h2 className="mt-2 text-2xl font-semibold t-dark">Repository access</h2><p className="mt-1 text-sm t-dark-muted">{connected ? "Connected repositories authorized for this workspace." : "Repository access is separate from GitHub sign in."}</p></div>
@@ -170,7 +170,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
           {onClose && <button type="button" onClick={onClose} className="dark-chip px-3 py-2 text-sm">Close</button>}
         </div>
       </div>
-      {error && <p role="alert" className="mt-4 rounded-lg bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}
+      {error && <p role="alert" className="mt-4 rounded-lg notebook-feedback-error p-3 text-sm">{error}</p>}
     </div>
 
     {connected && <>
@@ -191,7 +191,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
             </>}
             <a href={repository.url} target="_blank" rel="noopener noreferrer" className="dark-chip inline-flex items-center gap-1 px-3 py-2 text-sm">Preview <ExternalLink size={13} /></a>
           </div>
-          {repositoryErrors[repository.id] && <p role="alert" className="mt-3 text-sm text-rose-300">{repositoryErrors[repository.id]}</p>}
+          {repositoryErrors[repository.id] && <p role="alert" className="mt-3 text-sm notebook-feedback-error">{repositoryErrors[repository.id]}</p>}
           {selected?.id === repository.id && <div className="mt-3 rounded-xl bg-black/10 p-3 text-sm t-dark-muted"><p className="font-medium t-dark">Repository preview</p><p className="mt-1">{repository.description || "No description provided by GitHub."}</p><p className="mt-2">{repository.private ? "Private repository" : "Public repository"} · {repository.language ?? "Primary language not specified"} · default branch {repository.defaultBranch} · updated {dateLabel(repository.updatedAt)}</p></div>}
         </article>)}</div>}
     </>}

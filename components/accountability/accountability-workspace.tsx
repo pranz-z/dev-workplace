@@ -150,7 +150,7 @@ export function AccountabilityWorkspace({ projects, tasks, milestones, plans, se
   };
   const report = tab === "Monthly" ? monthly : weekly;
 
-  return <div className="space-y-5">
+  return <div className="notebook-dense space-y-5">
     <section className="dark-panel p-5">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="eyebrow t-mood">Private workspace</p><h1 className="mt-1 text-2xl font-semibold t-dark">Accountability</h1><p className="mt-1 text-sm t-dark-muted">Factual project progress, personal goals, and reports.</p></div><label className="text-xs t-dark-muted">Report timezone <input list="accountability-timezones" className="dark-chip ml-2 px-2 py-1" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} onBlur={() => { if (isValidTimeZone(timeZone)) persistTimeZone(timeZone); else setError("Enter a valid IANA timezone, such as Europe/Paris."); }} /><datalist id="accountability-timezones">{["America/Los_Angeles","America/New_York","Europe/London","Europe/Berlin","Asia/Manila","Asia/Tokyo","Australia/Sydney"].map((zone) => <option key={zone} value={zone} />)}</datalist></label></div>
       <nav className="mt-4 flex flex-wrap gap-2" aria-label="Accountability sections">{(["Overview","Goals","Weekly","Monthly"] as const).map((item) => <button key={item} type="button" aria-pressed={tab === item} onClick={() => changeTab(item)} className={`dark-chip px-3 py-1.5 text-sm ${tab === item ? "ring-1 ring-[var(--accent-lavender)]" : ""}`}>{item}</button>)}</nav>
