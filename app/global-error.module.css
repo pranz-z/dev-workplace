@@ -1,0 +1,10 @@
+.document { color-scheme: light dark; }
+.document[data-theme="light"] { color-scheme: light; }
+.document[data-theme="dark"] { color-scheme: dark; }
+.body { margin: 0; background: light-dark(#F6F0E5, #1C1917); color: light-dark(#2a2420, #F3EBDD); font-family: "Comic Sans MS", cursive, sans-serif; line-height: 1.65; }
+.main { min-height: 100dvh; display: grid; place-items: center; padding: 1.25rem; box-sizing: border-box; }
+.card { width: 100%; max-width: 32rem; box-sizing: border-box; padding: 2rem; text-align: center; background: light-dark(rgba(0,0,0,.035), rgba(255,255,255,.04)); border: 2px solid currentColor; border-radius: 18px 6px 20px 8px / 8px 20px 6px 18px; }
+.card h1 { font-family: "Comic Sans MS", cursive, sans-serif; font-size: clamp(1.75rem, 6vw, 2.5rem); line-height: 1.2; text-decoration: underline wavy light-dark(#b23c15, #F2B84B); text-underline-offset: .2em; }
+.card button { min-height: 44px; padding: .5rem 1.2rem; font: inherit; font-weight: 700; border: 0; border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; background: light-dark(#b23c15, #F2B84B); color: light-dark(#F6F0E5, #1C1917); cursor: pointer; }
+.card button:focus-visible { outline: 3px dashed light-dark(#b23c15, #F2B84B); outline-offset: 4px; }
+.doodle { width: 4rem; stroke: light-dark(#1f7a68, #7FD1B9); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
