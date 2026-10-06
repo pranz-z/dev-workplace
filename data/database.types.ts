@@ -157,6 +157,56 @@ export interface ProjectScreenshotRow {
   created_at: string;
 }
 
+/** Private external-file metadata; provider content remains in the provider. */
+export interface ExternalFileRow {
+  id: string;
+  user_id: string;
+  provider: "google_drive";
+  provider_file_id: string;
+  name: string;
+  mime_type: string;
+  size_bytes: number | null;
+  modified_at: string | null;
+  status: "active" | "trashed" | "unavailable";
+  project_id: string | null;
+  task_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Server-only result shape for the service-role credential RPC. The field is
+ * application-encrypted ciphertext, never a plaintext refresh/access token.
+ */
+export interface GoogleDriveConnectionCiphertextRow {
+  user_id: string;
+  refresh_token_ciphertext: string;
+  encryption_key_version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Server-only resumable upload state returned by a service-role RPC. */
+export interface GoogleDriveUploadSessionRow {
+  id: string;
+  user_id: string;
+  project_id: string | null;
+  task_id: string | null;
+  expected_name: string;
+  expected_mime_type: string;
+  expected_size_bytes: number | string;
+  google_account_sub: string;
+  google_account_email: string;
+  app_folder_id: string;
+  /** Secret Google upload capability. Never include in an API response. */
+  session_uri: string;
+  expires_at: string;
+  next_offset: number | string;
+  status: "uploading" | "completed" | "expired";
+  drive_file_id: string | null;
+  external_file_id: string | null;
+}
+
 export interface PublicProfileRow {
   display_name: string | null;
   headline: string | null;

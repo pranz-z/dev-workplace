@@ -9,6 +9,7 @@ import {
   Code2,
   FolderGit2,
   FolderKanban,
+  Files,
   GitBranch,
   Globe,
   LayoutDashboard,
@@ -43,6 +44,8 @@ import { AiAssistant, AiSettingsStatus } from "@/components/ai/AiAssistant";
 import { WorkspaceAiChat } from "@/components/ai/WorkspaceAiChat";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 import { WorkspaceDialog } from "@/components/workspace/WorkspaceDialog";
+import { DriveConnectionControl } from "@/components/google-drive/DriveConnectionControl";
+import { DriveFiles } from "@/components/google-drive/DriveFiles";
 import { getProfileTimeZone } from "@/data/accountabilityDataService";
 import { isValidTimeZone } from "@/data/accountabilityReports";
 import { WorkspaceGreeting } from "@/components/workspace/WorkspaceGreeting";
@@ -86,6 +89,7 @@ type ViewName =
   | "projects"
   | "tasks"
   | "plans"
+  | "files"
   | "accountability"
   | "calendar"
   | "notes"
@@ -148,6 +152,7 @@ const navGroups = [
       { key: "projects", label: "Projects", icon: FolderKanban },
       { key: "tasks", label: "Tasks", icon: ListTodo },
       { key: "plans", label: "Plans", icon: Target },
+      { key: "files", label: "Files", icon: Files },
       { key: "accountability", label: "Accountability", icon: Activity },
       { key: "calendar", label: "Calendar", icon: CalendarDays },
     ],
@@ -322,6 +327,7 @@ export default function Home() {
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
   const [portfolioTab, setPortfolioTab] = useState<typeof portfolioTabs[number]>("Overview");
   const [portfolioOpened, setPortfolioOpened] = useState(false);
+  const [filesOpened, setFilesOpened] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [projectTab, setProjectTab] = useState("Overview");
   const [projectTaskFilter, setProjectTaskFilter] = useState<"all" | "testing">("all");
@@ -486,6 +492,8 @@ export default function Home() {
       });
     } else if (params.get("github_connected") === "1") {
       void Promise.resolve().then(() => setActiveView("github"));
+    } else if (params.has("drive_error") || params.get("drive_connected") === "1") {
+      void Promise.resolve().then(() => setActiveView("settings"));
     }
   }, []);
 
@@ -2723,6 +2731,7 @@ export default function Home() {
           <p className="mt-2 text-sm t-dark-muted">GitHub activity is read-only. Accountability results stay in your authenticated private workspace.</p>
         </div>
         {authStatus === "authenticated" && <AiSettingsStatus />}
+        {authStatus === "authenticated" && <DriveConnectionControl key={user?.id} onOpenFiles={() => { setFilesOpened(true); setActiveView("files"); }} />}
       </div>
       <button type="button" onClick={() => void handleSignOut()} className="mt-4 ink-button coral px-3 py-2 text-sm">Sign out</button>
       {signOutError && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{signOutError}</p>}
@@ -2752,6 +2761,8 @@ export default function Home() {
         return renderTasksPage();
       case "plans":
         return renderPlansPage();
+      case "files":
+        return authStatus === "authenticated" ? null : <section className="dark-panel p-5"><h2 className="text-xl font-semibold t-dark">Private workspace files</h2><p className="mt-2 text-sm t-dark-muted">Sign in to manage Google Drive files.</p></section>;
       case "accountability":
         return authStatus === "authenticated" && workspaceStatus === "ready"
           ? <AccountabilityWorkspace projects={projects} tasks={tasks} milestones={milestones} plans={plans} selectedTab={accountabilityTab} onTabChange={setAccountabilityTab} />
@@ -2793,6 +2804,7 @@ export default function Home() {
     if (activeView === "plans") return <div className="space-y-3">{action("+ New plan", handleCreatePlan)}{plans.map((plan) => <button key={plan.id} type="button" onClick={() => handleEditPlan(plan)} className="workspace-context-action">{plan.title}</button>)}<p className="text-xs t-dark-muted">Checklists turn plans into small, explicit steps.</p></div>;
     if (activeView === "accountability") return <div>{(["Overview", "Goals", "Weekly", "Monthly"] as const).map((tab) => <button key={tab} type="button" aria-pressed={accountabilityTab === tab} onClick={() => setAccountabilityTab(tab)} className="workspace-context-action">{tab}</button>)}<p className="mt-3 text-xs t-dark-muted">Health describes current evidence. Goals and reports help you reflect on progress.</p></div>;
     if (activeView === "calendar") return <div className="space-y-3">{action("+ New task", () => handleCreateTask())}<p className="text-sm t-dark-muted">{tasks.filter((task) => !task.dueDate && task.status !== "Completed").length} incomplete tasks have no date.</p><p className="text-xs t-dark-muted">Use the calendar’s project and type filters. Select a date to inspect all events, or edit an event’s date without dragging.</p>{action("Open tasks", () => setActiveView("tasks"))}</div>;
+    if (activeView === "files") return <div className="space-y-3"><p className="text-sm t-dark-muted">Upload files and associate them with your projects or tasks.</p>{action("Manage Google Drive connection", () => setActiveView("settings"))}</div>;
     if (activeView === "settings" || activeView === "tech") return <p className="text-sm t-dark-muted">{activeView === "settings" ? "Manage your account, public profile, and assistant configuration. Public sharing is explicit." : "Manage technologies and their project links."}</p>;
     return <div className="space-y-3">{action("Current work", () => setActiveView("today"))}{action("Projects", () => setActiveView("projects"))}{action("Calendar", () => setActiveView("calendar"))}{action("+ New project", handleCreateProject)}<p className="text-xs t-dark-muted">{projects.length} projects · {tasks.filter((task) => task.status !== "Completed").length} incomplete tasks</p></div>;
   };
@@ -2800,7 +2812,7 @@ export default function Home() {
 
   return (
     <div className="app-shell min-h-screen text-[var(--ink)]">
-      <WorkspaceShell items={navItems} active={activeView} onNavigate={(key) => { if (key === "portfolio") setPortfolioOpened(true); setActiveView(key as ViewName); }} context={renderContext()}
+      <WorkspaceShell items={navItems} active={activeView} onNavigate={(key) => { if (key === "portfolio") setPortfolioOpened(true); if (key === "files") setFilesOpened(true); setActiveView(key as ViewName); }} context={renderContext()}
         actions={<>
           <button type="button" onClick={() => setSearchOpen(true)} aria-label="Search workspace" title="Search workspace (Ctrl/Cmd+K)" className="dark-chip inline-flex items-center gap-2 p-2"><Search size={16} /><span className="hidden xl:inline text-xs">Search workspace</span></button>
           <button type="button" onClick={() => setThemeMode((current) => current === "light" ? "dark" : current === "dark" ? "system" : "light")} className="dark-chip p-2" aria-label={`Change theme, currently ${themeMode}`} title={`Theme: ${themeMode}`}>{themeMode === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
@@ -2818,6 +2830,7 @@ export default function Home() {
             {workspaceError && workspaceStatus !== "error" && <div role="alert" className="mb-4 flex items-center justify-between gap-3 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}<button type="button" onClick={() => setWorkspaceError("")} aria-label="Dismiss error"><X size={14} /></button></div>}
             {((authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id) || (authStatus === "unauthenticated" && workspaceStatus === "mock")) && renderPage()}
             {portfolioOpened && authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id && <div hidden={activeView !== "portfolio"}><PortfolioEditor key={user.id} tab={portfolioTab} onTabChange={setPortfolioTab} /></div>}
+            {filesOpened && authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id && <div hidden={activeView !== "files"}><DriveFiles key={user.id} projects={projects} tasks={tasks} active={activeView === "files"} onOpenSettings={() => setActiveView("settings")} /></div>}
       </WorkspaceShell>
 
       {searchOpen && (

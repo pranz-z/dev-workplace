@@ -29,6 +29,9 @@ select ok((select relrowsecurity from pg_class where oid = 'public.technologies'
 select ok((select relrowsecurity from pg_class where oid = 'public.project_technologies'::regclass), 'project_technologies has RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.github_installations'::regclass), 'github_installations has RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.github_repository_links'::regclass), 'github_repository_links has RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.external_files'::regclass), 'external_files has RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'private.google_drive_connections'::regclass), 'google_drive_connections has RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'private.google_drive_upload_sessions'::regclass), 'google_drive_upload_sessions has RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.accountability_snapshots'::regclass), 'accountability_snapshots has RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.accountability_goals'::regclass), 'accountability_goals has RLS enabled');
 
@@ -36,23 +39,23 @@ select is(
   (select count(*)::int from pg_class c
    join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public'
-     and c.relname in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links', 'accountability_snapshots', 'accountability_goals')
+     and c.relname in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links', 'external_files', 'accountability_snapshots', 'accountability_goals')
      and c.relrowsecurity),
-  14, 'all fourteen tables covered by this RLS suite have RLS enabled');
+  15, 'all fifteen public tables covered by this RLS suite have RLS enabled');
 
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'public'
-     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links', 'accountability_snapshots', 'accountability_goals')
+     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links', 'external_files', 'accountability_snapshots', 'accountability_goals')
      and 'anon' = any(roles)),
   0, 'no policy on an application table grants access to anon');
 
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'public'
-     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links', 'accountability_snapshots', 'accountability_goals')
+     and tablename in ('profiles', 'projects', 'project_settings', 'milestones', 'tasks', 'plans', 'project_plan_items', 'notes', 'technologies', 'project_technologies', 'github_installations', 'github_repository_links', 'external_files', 'accountability_snapshots', 'accountability_goals')
      and 'authenticated' = any(roles)),
-  14, 'every application table has an authenticated owner policy');
+  15, 'every public application table has an authenticated owner policy');
 
 select is(
   (select count(*)::int from pg_policies
@@ -74,6 +77,18 @@ select ok(not has_table_privilege('anon', 'public.project_plan_items', 'select')
 select ok(not has_table_privilege('anon', 'public.profiles', 'select'), 'anon cannot select from profiles');
 select ok(not has_table_privilege('anon', 'public.github_installations', 'select'), 'anon cannot select GitHub installations');
 select ok(not has_table_privilege('anon', 'public.github_repository_links', 'select'), 'anon cannot select GitHub repository links');
+select ok(not has_table_privilege('anon', 'public.external_files', 'select'), 'anon cannot select external file metadata');
+select ok(
+  not has_table_privilege('anon', 'public.external_files', 'insert')
+    and not has_table_privilege('anon', 'public.external_files', 'update')
+    and not has_table_privilege('anon', 'public.external_files', 'delete'),
+  'anon has no write privileges on external file metadata');
+select ok(not has_table_privilege('anon', 'private.google_drive_connections', 'select'), 'anon cannot select Google Drive credentials');
+select ok(not has_table_privilege('authenticated', 'private.google_drive_connections', 'select'), 'authenticated cannot select Google Drive credentials');
+select ok(not has_table_privilege('service_role', 'private.google_drive_connections', 'select'), 'service_role must use the narrow credential RPC, not direct table access');
+select ok(not has_table_privilege('anon', 'private.google_drive_upload_sessions', 'select'), 'anon cannot read Drive upload session URIs');
+select ok(not has_table_privilege('authenticated', 'private.google_drive_upload_sessions', 'select'), 'authenticated cannot read Drive upload session URIs');
+select ok(not has_table_privilege('service_role', 'private.google_drive_upload_sessions', 'select'), 'service_role must use the scoped upload-session RPC');
 select ok(not has_table_privilege('anon', 'public.accountability_snapshots', 'select'), 'anon cannot select accountability snapshots');
 select ok(not has_table_privilege('anon', 'public.accountability_goals', 'select'), 'anon cannot select accountability goals');
 
@@ -82,6 +97,13 @@ select ok(has_table_privilege('authenticated', 'public.github_installations', 's
 select ok(has_table_privilege('authenticated', 'public.accountability_snapshots', 'select'), 'authenticated can read snapshots subject to RLS');
 select ok(has_table_privilege('authenticated', 'public.accountability_goals', 'select'), 'authenticated can read goals subject to RLS');
 select ok(not has_table_privilege('authenticated', 'public.github_installations', 'insert'), 'authenticated cannot insert GitHub installation rows directly');
+select ok(has_table_privilege('authenticated', 'public.external_files', 'select'), 'authenticated can read external file metadata subject to RLS');
+select ok(not has_function_privilege('anon', 'public.get_google_drive_connection(uuid)', 'execute'), 'anon cannot call the Google Drive credential RPC');
+select ok(not has_function_privilege('authenticated', 'public.get_google_drive_connection(uuid)', 'execute'), 'authenticated cannot call the Google Drive credential RPC');
+select ok(has_function_privilege('service_role', 'public.get_google_drive_connection(uuid)', 'execute'), 'server service role can use the restricted Google Drive credential RPC');
+select ok(not has_function_privilege('anon', 'public.get_google_drive_upload_session(uuid,uuid)', 'execute'), 'anon cannot call the Google Drive upload-session RPC');
+select ok(not has_function_privilege('authenticated', 'public.get_google_drive_upload_session(uuid,uuid)', 'execute'), 'authenticated cannot call the Google Drive upload-session RPC');
+select ok(has_function_privilege('service_role', 'public.get_google_drive_upload_session(uuid,uuid)', 'execute'), 'server service role can read only owner-scoped upload sessions');
 select ok(has_function_privilege('anon', 'public.public_project_list()', 'execute'), 'anon can execute the public portfolio list');
 select ok(has_function_privilege('anon', 'public.public_project_by_slug(text)', 'execute'), 'anon can execute the public share-link lookup');
 select ok(not has_function_privilege('anon', 'private.public_project_rows(text,boolean)', 'execute'), 'anon cannot call the private projection core directly');
@@ -138,8 +160,13 @@ values ('bbbbbbbb-0000-4000-8000-000000000201', 'bbbbbbbb-0000-4000-8000-0000000
 insert into public.github_repository_links (project_id, user_id, installation_record_id, repository_id, owner, name, full_name, default_branch, html_url, is_private)
 values ('bbbbbbbb-0000-4000-8000-000000000202', 'bbbbbbbb-0000-4000-8000-000000000002', 'cccccccc-0000-4000-8000-000000000002', 60002, 'owner', 'public-repository', 'owner/public-repository', 'main', 'https://github.com/owner/public-repository', false);
 
-insert into public.tasks (user_id, project_id, title, status)
-values ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', 'User A task', 'Planned');
+insert into public.tasks (id, user_id, project_id, title, status)
+values ('aaaaaaaa-0000-4000-8000-000000000301', 'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', 'User A task', 'Planned');
+
+insert into public.external_files (id, user_id, provider_file_id, name, mime_type, project_id, task_id)
+values
+  ('aaaaaaaa-0000-4000-8000-000000000401', 'aaaaaaaa-0000-4000-8000-000000000001', 'drive-file-a', 'A file', 'text/plain', 'aaaaaaaa-0000-4000-8000-000000000102', 'aaaaaaaa-0000-4000-8000-000000000301'),
+  ('bbbbbbbb-0000-4000-8000-000000000402', 'bbbbbbbb-0000-4000-8000-000000000002', 'drive-file-b', 'B file', 'text/plain', 'bbbbbbbb-0000-4000-8000-000000000201', null);
 
 insert into public.notes (user_id, project_id, title, content)
 values ('bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000201', 'User B note', 'secret');
@@ -167,6 +194,8 @@ select is((select count(*)::int from public.notes where user_id = 'bbbbbbbb-0000
 select is((select count(*)::int from public.tasks), 1, 'User A sees exactly their own task');
 select is((select count(*)::int from public.accountability_snapshots), 0, 'User A cannot read User B accountability snapshots');
 select is((select count(*)::int from public.accountability_goals), 0, 'User A cannot read User B accountability goals');
+select is((select count(*)::int from public.external_files), 1, 'User A sees only their own external file metadata');
+select is((select count(*)::int from public.external_files where id = 'bbbbbbbb-0000-4000-8000-000000000402'), 0, 'User A cannot read User B external file metadata');
 
 select is(
   (with updated as (update public.projects set title = 'hacked' where id = 'bbbbbbbb-0000-4000-8000-000000000202' returning 1)
@@ -193,6 +222,19 @@ select throws_ok(
 select lives_ok(
   $$insert into public.tasks (user_id, project_id, title) values ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', 'A own task')$$,
   'User A can attach a task to their own project');
+
+select lives_ok(
+  $$insert into public.external_files (provider_file_id, name, mime_type, project_id) values ('drive-file-a-new', 'New file', 'text/plain', 'aaaaaaaa-0000-4000-8000-000000000102')$$,
+  'User A can create external file metadata for their own project using the authenticated owner default');
+select throws_ok(
+  $$insert into public.external_files (provider_file_id, name, mime_type, project_id) values ('drive-file-a-forged', 'Forged', 'text/plain', 'bbbbbbbb-0000-4000-8000-000000000201')$$,
+  '42501', null, 'User A cannot attach external file metadata to User B project');
+select throws_ok(
+  $$insert into public.external_files (user_id, provider_file_id, name, mime_type) values ('bbbbbbbb-0000-4000-8000-000000000002', 'drive-file-a-forged-owner', 'Forged owner', 'text/plain')$$,
+  '42501', null, 'User A cannot forge the external file owner');
+select throws_ok(
+  $$insert into public.external_files (provider_file_id, name, mime_type, project_id, task_id) values ('drive-file-a-mismatch', 'Mismatch', 'text/plain', 'aaaaaaaa-0000-4000-8000-000000000101', 'aaaaaaaa-0000-4000-8000-000000000301')$$,
+  '23514', null, 'external file task association must use the task project');
 
 select lives_ok(
   $$insert into public.accountability_goals (user_id, project_id, title, metric, target, period_start, period_end) values ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000102', 'A goal', 'tasks_completed', 2, '2026-10-01', '2026-10-07')$$,
@@ -234,6 +276,7 @@ set local request.jwt.claims = '{"sub":"bbbbbbbb-0000-4000-8000-000000000002","r
 
 select is((select count(*)::int from public.projects), 2, 'User B sees exactly their own two projects');
 select is((select count(*)::int from public.projects where id = 'aaaaaaaa-0000-4000-8000-000000000102'), 0, 'User B cannot read User A private project by uuid');
+select is((select count(*)::int from public.external_files), 1, 'User B sees only their own external file metadata');
 select is((select count(*)::int from public.github_installations), 1, 'User B sees only their own GitHub installation');
 select is((select count(*)::int from public.github_repository_links where project_id = 'aaaaaaaa-0000-4000-8000-000000000101'), 0, 'User B cannot read User A repository links');
 select is((select count(*)::int from public.github_repository_links where repository_id = 60001), 1, 'User B can independently link the same repository as User A');

@@ -642,6 +642,59 @@ create table if not exists public.project_screenshots (
   created_at timestamptz not null default now(),
   check (storage_path = user_id::text || '/' || project_id::text || '/' || split_part(storage_path, '/', 3))
 );
+
+-- Private external Drive metadata. Keep this separate from the project screenshot
+-- system, whose Storage bucket and public-sharing path are intentionally specific.
+create table if not exists public.external_files (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  provider text not null default 'google_drive' check (provider = 'google_drive'),
+  provider_file_id text not null check (length(btrim(provider_file_id)) > 0),
+  name text not null check (length(btrim(name)) > 0),
+  mime_type text not null,
+  size_bytes bigint check (size_bytes is null or size_bytes >= 0),
+  modified_at timestamptz,
+  status text not null default 'active' check (status in ('active', 'trashed', 'unavailable')),
+  project_id uuid references public.projects(id) on delete cascade,
+  task_id uuid references public.tasks(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint external_files_task_requires_project_check check (task_id is null or project_id is not null),
+  constraint external_files_provider_file_key unique (user_id, provider, provider_file_id)
+);
+create index if not exists external_files_user_updated_idx on public.external_files (user_id, updated_at desc);
+create index if not exists external_files_project_updated_idx on public.external_files (project_id, updated_at desc) where project_id is not null;
+create index if not exists external_files_task_updated_idx on public.external_files (task_id, updated_at desc) where task_id is not null;
+alter table public.external_files enable row level security;
+revoke all on public.external_files from anon;
+grant select, insert, update, delete on public.external_files to authenticated;
+comment on table public.external_files is
+  'Private Google Drive file metadata and optional owner-checked project/task associations. No public projection; project screenshots remain in project_screenshots.';
+
+create or replace function private.assert_external_file_task_project()
+returns trigger language plpgsql set search_path = '' as $$
+declare task_project_id uuid;
+begin
+  if new.task_id is null then return new; end if;
+  select t.project_id into task_project_id
+  from public.tasks t where t.id = new.task_id and t.user_id = new.user_id;
+  if task_project_id is null then
+    raise exception 'external_files task must belong to the file owner' using errcode = '23503';
+  end if;
+  if task_project_id is distinct from new.project_id then
+    raise exception 'external_files project_id must match the associated task project' using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.assert_external_file_task_project() from public, anon, authenticated, service_role;
+drop trigger if exists external_files_check_task_project on public.external_files;
+create trigger external_files_check_task_project before insert or update of user_id, project_id, task_id on public.external_files
+  for each row execute function private.assert_external_file_task_project();
+drop trigger if exists external_files_set_updated_at on public.external_files;
+create trigger external_files_set_updated_at before update on public.external_files
+  for each row execute function private.set_updated_at();
+
 alter table public.project_screenshots add column if not exists is_public boolean not null default false;
 alter table public.project_screenshots add column if not exists sort_order integer not null default 0;
 do $$
@@ -881,6 +934,7 @@ drop policy if exists "own project technologies" on public.project_technologies;
 drop policy if exists "own github installations" on public.github_installations;
 drop policy if exists "own project github links" on public.github_repository_links;
 drop policy if exists "read own github installations" on public.github_installations;
+drop policy if exists "own external files" on public.external_files;
 
 -- Owner policies. `with check` mirrors `using`, so a row can never be moved to
 -- another account and a child row can never be attached to somebody else's
@@ -944,6 +998,34 @@ create policy "own project technologies" on public.project_technologies for all 
 
 create policy "read own github installations" on public.github_installations for select to authenticated
   using (user_id = auth.uid());
+
+create policy "own external files" on public.external_files for all to authenticated
+  using (
+    user_id = auth.uid()
+    and (project_id is null or private.owns_project(project_id))
+    and (
+      task_id is null
+      or exists (
+        select 1 from public.tasks t
+        where t.id = task_id and t.user_id = auth.uid()
+          and t.project_id = external_files.project_id
+          and private.owns_project(t.project_id)
+      )
+    )
+  )
+  with check (
+    user_id = auth.uid()
+    and (project_id is null or private.owns_project(project_id))
+    and (
+      task_id is null
+      or exists (
+        select 1 from public.tasks t
+        where t.id = task_id and t.user_id = auth.uid()
+          and t.project_id = external_files.project_id
+          and private.owns_project(t.project_id)
+      )
+    )
+  );
 
 create policy "own project github links" on public.github_repository_links for all to authenticated
   using (user_id = auth.uid() and private.owns_project(project_id) and exists (
@@ -1535,6 +1617,67 @@ create table if not exists private.private_ai_active_leases (
 );
 alter table private.private_ai_active_leases enable row level security;
 revoke all on private.private_ai_active_leases from public, anon, authenticated, service_role;
+
+-- Drive refresh credentials are separate from public.external_files metadata.
+-- The application encrypts the refresh token before calling the restricted
+-- service-role RPCs below; plaintext tokens and access tokens are never stored.
+create table if not exists private.google_drive_connections (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  refresh_token_ciphertext text not null check (length(refresh_token_ciphertext) > 0),
+  encryption_key_version smallint not null check (encryption_key_version > 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table private.google_drive_connections enable row level security;
+revoke all on private.google_drive_connections from public, anon, authenticated, service_role;
+drop trigger if exists google_drive_connections_set_updated_at on private.google_drive_connections;
+create trigger google_drive_connections_set_updated_at before update on private.google_drive_connections
+  for each row execute function private.set_updated_at();
+comment on table private.google_drive_connections is
+  'Server-only Google Drive OAuth credentials. Refresh tokens must be encrypted by the application before storage; access tokens are not persisted.';
+comment on column private.google_drive_connections.refresh_token_ciphertext is
+  'Base64url-encoded authenticated-encryption envelope; never plaintext. Decryption key is server-only and selected by encryption_key_version.';
+
+create or replace function public.upsert_google_drive_connection(p_user_id uuid, p_refresh_token_ciphertext text, p_encryption_key_version smallint)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if p_user_id is null or p_refresh_token_ciphertext is null or length(p_refresh_token_ciphertext) = 0
+    or p_encryption_key_version is null or p_encryption_key_version <= 0 then
+    raise exception 'Invalid Google Drive connection data' using errcode = '22023';
+  end if;
+  insert into private.google_drive_connections (user_id, refresh_token_ciphertext, encryption_key_version)
+  values (p_user_id, p_refresh_token_ciphertext, p_encryption_key_version)
+  on conflict (user_id) do update set
+    refresh_token_ciphertext = excluded.refresh_token_ciphertext,
+    encryption_key_version = excluded.encryption_key_version,
+    updated_at = now();
+end;
+$$;
+
+create or replace function public.get_google_drive_connection(p_user_id uuid)
+returns table (user_id uuid, refresh_token_ciphertext text, encryption_key_version smallint, created_at timestamptz, updated_at timestamptz)
+language sql security definer set search_path = '' as $$
+  select c.user_id, c.refresh_token_ciphertext, c.encryption_key_version, c.created_at, c.updated_at
+  from private.google_drive_connections c where p_user_id is not null and c.user_id = p_user_id;
+$$;
+
+create or replace function public.delete_google_drive_connection(p_user_id uuid)
+returns void language sql security definer set search_path = '' as $$
+  delete from private.google_drive_connections c where p_user_id is not null and c.user_id = p_user_id;
+$$;
+
+revoke all on function public.upsert_google_drive_connection(uuid, text, smallint) from public, anon, authenticated;
+revoke all on function public.get_google_drive_connection(uuid) from public, anon, authenticated;
+revoke all on function public.delete_google_drive_connection(uuid) from public, anon, authenticated;
+grant execute on function public.upsert_google_drive_connection(uuid, text, smallint) to service_role;
+grant execute on function public.get_google_drive_connection(uuid) to service_role;
+grant execute on function public.delete_google_drive_connection(uuid) to service_role;
+comment on function public.upsert_google_drive_connection(uuid, text, smallint) is
+  'Stores an application-encrypted Google Drive refresh token for a user. Callable only by the server service role.';
+comment on function public.get_google_drive_connection(uuid) is
+  'Returns encrypted Google Drive refresh-token data to the server service role only.';
+comment on function public.delete_google_drive_connection(uuid) is
+  'Deletes Google Drive connection credentials. Callable only by the server service role.';
 create index if not exists private_ai_active_leases_expires_at_idx on private.private_ai_active_leases (expires_at);
 
 create or replace function public.acquire_private_ai_lease(p_user_id uuid, p_lease_id uuid, p_ttl_seconds integer)
@@ -1574,3 +1717,155 @@ grant execute on function public.acquire_private_ai_lease(uuid, uuid, integer) t
 grant execute on function public.release_private_ai_lease(uuid, uuid) to service_role;
 comment on table private.private_ai_active_leases is 'Short-lived private AI request leases only; no prompt, response, or uploaded file data is stored.';
 
+-- Server-only state for Drive resumable uploads. Session URIs are bearer-like
+-- capabilities and must never be returned to browser clients.
+-- Invariants: owner comes from the verified Supabase session; the authenticated
+-- server validates project/task ownership before creating a session; task_id
+-- always belongs to project_id; file bytes stay in Drive, not Postgres; only a
+-- verified completed Drive file is inserted into public.external_files.
+create table if not exists private.google_drive_upload_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid references public.projects(id) on delete cascade,
+  task_id uuid references public.tasks(id) on delete set null,
+  expected_name text not null check (length(btrim(expected_name)) between 1 and 255),
+  expected_mime_type text not null,
+  expected_size_bytes bigint not null check (expected_size_bytes > 0),
+  google_account_sub text not null,
+  google_account_email text not null,
+  app_folder_id text not null,
+  session_uri text not null,
+  expires_at timestamptz not null,
+  next_offset bigint not null default 0 check (next_offset >= 0),
+  chunk_claim_id uuid,
+  chunk_claim_expires_at timestamptz,
+  status text not null default 'uploading' check (status in ('uploading', 'completed', 'expired')),
+  drive_file_id text,
+  external_file_id uuid references public.external_files(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint google_drive_upload_task_requires_project check (task_id is null or project_id is not null),
+  constraint google_drive_upload_offset_within_size check (next_offset <= expected_size_bytes)
+);
+alter table private.google_drive_upload_sessions enable row level security;
+revoke all on private.google_drive_upload_sessions from public, anon, authenticated, service_role;
+create index if not exists google_drive_upload_sessions_owner_created_idx
+  on private.google_drive_upload_sessions (user_id, created_at desc);
+create index if not exists google_drive_upload_sessions_expiry_idx
+  on private.google_drive_upload_sessions (expires_at) where status = 'uploading';
+drop trigger if exists google_drive_upload_sessions_set_updated_at on private.google_drive_upload_sessions;
+create trigger google_drive_upload_sessions_set_updated_at before update on private.google_drive_upload_sessions
+  for each row execute function private.set_updated_at();
+comment on table private.google_drive_upload_sessions is
+  'Server-only Drive resumable upload state, including the secret session URI; no file bytes are stored.';
+comment on column private.google_drive_upload_sessions.session_uri is
+  'Google Drive resumable upload capability. Returned only through service-role RPC to server code; never to browser clients.';
+
+create or replace function public.create_google_drive_upload_session(
+  p_id uuid, p_user_id uuid, p_project_id uuid, p_task_id uuid,
+  p_expected_name text, p_expected_mime_type text, p_expected_size_bytes bigint,
+  p_google_account_sub text, p_google_account_email text,
+  p_app_folder_id text, p_session_uri text, p_expires_at timestamptz
+) returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if p_id is null or p_user_id is null or length(btrim(p_expected_name)) not between 1 and 255
+    or p_expected_mime_type is null or p_expected_size_bytes is null or p_expected_size_bytes <= 0
+    or p_google_account_sub is null or p_google_account_email is null
+    or p_app_folder_id is null or p_session_uri is null or p_expires_at <= now()
+    or (p_task_id is not null and p_project_id is null) then
+    raise exception 'Invalid Google Drive upload session' using errcode = '22023';
+  end if;
+  update private.google_drive_upload_sessions s set status = 'expired', session_uri = '',
+    chunk_claim_id = null, chunk_claim_expires_at = null
+  where s.status = 'uploading' and s.expires_at <= now();
+  insert into private.google_drive_upload_sessions (
+    id, user_id, project_id, task_id, expected_name, expected_mime_type,
+    expected_size_bytes, google_account_sub, google_account_email,
+    app_folder_id, session_uri, expires_at
+  ) values (
+    p_id, p_user_id, p_project_id, p_task_id, p_expected_name, p_expected_mime_type,
+    p_expected_size_bytes, p_google_account_sub, p_google_account_email,
+    p_app_folder_id, p_session_uri, p_expires_at
+  );
+end;
+$$;
+
+create or replace function public.get_google_drive_upload_session(p_user_id uuid, p_id uuid)
+returns table (
+  id uuid, user_id uuid, project_id uuid, task_id uuid, expected_name text,
+  expected_mime_type text, expected_size_bytes bigint, google_account_sub text,
+  google_account_email text, app_folder_id text, session_uri text,
+  expires_at timestamptz, next_offset bigint, status text,
+  drive_file_id text, external_file_id uuid
+) language plpgsql security definer set search_path = '' as $$
+begin
+  update private.google_drive_upload_sessions s set status = 'expired', session_uri = '',
+    chunk_claim_id = null, chunk_claim_expires_at = null
+  where p_user_id is not null and p_id is not null and s.user_id = p_user_id and s.id = p_id
+    and s.status = 'uploading' and s.expires_at <= now();
+  return query select s.id, s.user_id, s.project_id, s.task_id, s.expected_name,
+    s.expected_mime_type, s.expected_size_bytes, s.google_account_sub,
+    s.google_account_email, s.app_folder_id, s.session_uri, s.expires_at,
+    s.next_offset, s.status, s.drive_file_id, s.external_file_id
+  from private.google_drive_upload_sessions s
+  where p_user_id is not null and p_id is not null and s.user_id = p_user_id and s.id = p_id;
+end;
+$$;
+
+create or replace function public.claim_google_drive_upload_chunk(
+  p_user_id uuid, p_id uuid, p_expected_offset bigint, p_claim_id uuid
+) returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if p_user_id is null or p_id is null or p_expected_offset is null or p_claim_id is null then
+    raise exception 'Invalid Google Drive upload chunk claim' using errcode = '22023';
+  end if;
+  update private.google_drive_upload_sessions s
+    set chunk_claim_id = p_claim_id, chunk_claim_expires_at = now() + interval '2 minutes'
+  where s.user_id = p_user_id and s.id = p_id and s.status = 'uploading'
+    and s.expires_at > now() and s.next_offset = p_expected_offset
+    and (s.chunk_claim_expires_at is null or s.chunk_claim_expires_at <= now());
+  return found;
+end;
+$$;
+
+create or replace function public.finish_google_drive_upload_chunk(
+  p_user_id uuid, p_id uuid, p_claim_id uuid, p_next_offset bigint
+) returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if p_user_id is null or p_id is null or p_claim_id is null or p_next_offset is null then
+    raise exception 'Invalid Google Drive upload chunk result' using errcode = '22023';
+  end if;
+  update private.google_drive_upload_sessions s
+    set next_offset = p_next_offset, chunk_claim_id = null, chunk_claim_expires_at = null
+  where s.user_id = p_user_id and s.id = p_id and s.status = 'uploading'
+    and s.chunk_claim_id = p_claim_id and p_next_offset between s.next_offset and s.expected_size_bytes;
+  return found;
+end;
+$$;
+
+create or replace function public.mark_google_drive_upload_completed(
+  p_user_id uuid, p_id uuid, p_drive_file_id text, p_external_file_id uuid
+) returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if p_user_id is null or p_id is null or p_drive_file_id is null or p_external_file_id is null then
+    raise exception 'Invalid Google Drive completed upload' using errcode = '22023';
+  end if;
+  update private.google_drive_upload_sessions s set status = 'completed',
+    drive_file_id = p_drive_file_id, external_file_id = p_external_file_id,
+    session_uri = '', chunk_claim_id = null, chunk_claim_expires_at = null
+  where s.user_id = p_user_id and s.id = p_id and s.status = 'uploading'
+    and s.next_offset = s.expected_size_bytes and s.expires_at > now();
+  return found;
+end;
+$$;
+
+revoke all on function public.create_google_drive_upload_session(uuid, uuid, uuid, uuid, text, text, bigint, text, text, text, text, timestamptz) from public, anon, authenticated;
+revoke all on function public.get_google_drive_upload_session(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.claim_google_drive_upload_chunk(uuid, uuid, bigint, uuid) from public, anon, authenticated;
+revoke all on function public.finish_google_drive_upload_chunk(uuid, uuid, uuid, bigint) from public, anon, authenticated;
+revoke all on function public.mark_google_drive_upload_completed(uuid, uuid, text, uuid) from public, anon, authenticated;
+grant execute on function public.create_google_drive_upload_session(uuid, uuid, uuid, uuid, text, text, bigint, text, text, text, text, timestamptz) to service_role;
+grant execute on function public.get_google_drive_upload_session(uuid, uuid) to service_role;
+grant execute on function public.claim_google_drive_upload_chunk(uuid, uuid, bigint, uuid) to service_role;
+grant execute on function public.finish_google_drive_upload_chunk(uuid, uuid, uuid, bigint) to service_role;
+grant execute on function public.mark_google_drive_upload_completed(uuid, uuid, text, uuid) to service_role;
