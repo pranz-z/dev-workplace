@@ -51,7 +51,7 @@ function LoginPanel() {
   };
 
   return (
-    <main className="app-shell flex min-h-screen items-center justify-center p-4">
+    <main className="app-shell notebook-login flex min-h-screen items-center justify-center p-4">
       <section className="hero-paper w-full max-w-lg p-6 text-center md:p-10">
         <div className="flex justify-center"><Logo variant="full" size={40} /></div>
         <h1 className="hero-script mt-4 text-4xl leading-tight md:text-5xl">Sign in to Frami</h1>
@@ -78,7 +78,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <main className="app-shell flex min-h-screen items-center justify-center p-4">
+        <main className="app-shell notebook-login flex min-h-screen items-center justify-center p-4">
           <LoaderCircle size={20} className="animate-spin t-paper-muted" />
         </main>
       }

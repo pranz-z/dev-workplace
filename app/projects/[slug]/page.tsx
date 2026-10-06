@@ -10,6 +10,7 @@ import { listPublicProjectScreenshots } from "@/data/projectScreenshotService";
 import { getPublicProjectBySlug, toProjectViewFromPublicProject } from "@/data/projectService";
 import { isValidSlug } from "@/lib/slug";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { Chip, UnderlineHeading } from "@/components/ui/notebook";
 import type { PublicAccountabilityHealth } from "@/types";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -58,7 +59,8 @@ export default function PublicProjectPage() {
     const applyTheme = () => {
       const next = getResolvedTheme(themeMode);
       document.documentElement.setAttribute("data-theme", next);
-      window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+      if (themeMode === "system") window.localStorage.removeItem(THEME_STORAGE_KEY);
+      else window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
     };
 
     applyTheme();
@@ -98,12 +100,12 @@ export default function PublicProjectPage() {
   const displayProject = resolvedSlug === slug ? project : null;
 
   if (isSupabaseConfigured() && !invalidSlug && resolvedSlug !== slug) {
-    return <div className="public-shell min-h-screen"><main className="mx-auto max-w-3xl px-4 py-16"><section className="public-card p-6"><p className="text-sm text-[var(--muted)]">Loading project…</p></section></main></div>;
+    return <div className="public-shell notebook-case-study min-h-screen"><main className="mx-auto max-w-3xl px-4 py-16"><section className="public-card p-6"><p className="text-sm text-[var(--muted)]">Loading project…</p></section></main></div>;
   }
 
   if (!displayProject || invalidSlug) {
     return (
-      <div className="public-shell min-h-screen">
+      <div className="public-shell notebook-case-study min-h-screen">
         <main className="mx-auto max-w-3xl px-4 py-16">
           <section className="public-card p-6">
             <h1 className="text-2xl font-black text-[var(--ink)]">{invalidSlug ? "Invalid project link" : loadError ? "Project unavailable" : "Project not found"}</h1>
@@ -135,7 +137,7 @@ export default function PublicProjectPage() {
   };
 
   return (
-    <div className="public-shell">
+    <div className="public-shell notebook-case-study">
       <header className="mx-auto max-w-6xl px-4 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[var(--public-border)] bg-[var(--surface)]/80 px-4 py-3 backdrop-blur-sm">
           <div className="flex flex-wrap items-center gap-2">
@@ -148,7 +150,7 @@ export default function PublicProjectPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setThemeMode((current) => (current === "light" ? "dark" : current === "dark" ? "system" : "light"))}
+              onClick={() => setThemeMode(document.documentElement.dataset.theme === "dark" ? "light" : "dark")}
               className="rounded-full border border-[var(--public-border)] bg-white/40 p-2 text-[var(--ink)]"
               aria-label="Toggle public theme"
             >
@@ -163,7 +165,7 @@ export default function PublicProjectPage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Project case study</p>
-              <h1 className="mt-4 break-words text-4xl font-black tracking-tight text-[var(--ink)] md:text-5xl">{displayProject.name}</h1>
+              <h1 className="mt-4 break-words text-4xl font-black tracking-tight text-[var(--ink)] md:text-5xl"><UnderlineHeading>{displayProject.name}</UnderlineHeading></h1>
               {publicSummary && <p className="mt-4 text-lg leading-8 text-[var(--muted)]">{publicSummary}</p>}
             </div>
             <div className="flex flex-wrap gap-2">
@@ -193,22 +195,22 @@ export default function PublicProjectPage() {
         {accountability && <PublicAccountabilityCard health={accountability.health} score={accountability.score} />}
 
         {displayProject.description.trim() && displayProject.description.trim() !== publicSummary && <section className="public-card p-6">
-          <h2 className="text-2xl font-bold text-[var(--ink)]">Overview</h2>
+          <h2 className="text-2xl font-bold text-[var(--ink)]"><UnderlineHeading>Overview</UnderlineHeading></h2>
           <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.description}</p>
         </section>}
         {[displayProject.publicProblem, displayProject.publicSolution, displayProject.publicResult].some(Boolean) && <section className="grid gap-4 md:grid-cols-3">
-          {displayProject.publicProblem && <article className="public-card p-5"><h2 className="text-xl font-bold text-[var(--ink)]">Problem / goal</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.publicProblem}</p></article>}
-          {displayProject.publicSolution && <article className="public-card p-5"><h2 className="text-xl font-bold text-[var(--ink)]">Architecture / approach</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.publicSolution}</p></article>}
-          {displayProject.publicResult && <article className="public-card p-5"><h2 className="text-xl font-bold text-[var(--ink)]">Outcome / current status</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.publicResult}</p></article>}
+          {displayProject.publicProblem && <article className="public-card p-5"><h2 className="text-xl font-bold text-[var(--ink)]"><UnderlineHeading>Problem / goal</UnderlineHeading></h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.publicProblem}</p></article>}
+          {displayProject.publicSolution && <article className="public-card p-5"><h2 className="text-xl font-bold text-[var(--ink)]"><UnderlineHeading>Architecture / approach</UnderlineHeading></h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.publicSolution}</p></article>}
+          {displayProject.publicResult && <article className="public-card p-5"><h2 className="text-xl font-bold text-[var(--ink)]"><UnderlineHeading>Outcome / current status</UnderlineHeading></h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.publicResult}</p></article>}
         </section>}
 
         {displayProject.technologies.length > 0 && <section className="public-card p-6">
-          <h2 className="text-xl font-bold text-[var(--ink)]">Technologies used</h2>
-          <div className="mt-4 flex flex-wrap gap-2">{displayProject.technologies.map((tech) => <span key={tech} className="rounded-full border border-[var(--public-border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] text-[var(--ink)]">{tech}</span>)}</div>
+          <h2 className="text-xl font-bold text-[var(--ink)]"><UnderlineHeading>Technologies used</UnderlineHeading></h2>
+          <div className="mt-4 flex flex-wrap gap-2">{displayProject.technologies.map((tech) => <Chip key={tech}>{tech}</Chip>)}</div>
         </section>}
 
         {screenshots.length > 0 && <section className="space-y-4" aria-labelledby="project-gallery-title">
-          <div><p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Shared project images</p><h2 id="project-gallery-title" className="mt-2 text-3xl font-black text-[var(--ink)]">Gallery</h2></div>
+          <div><p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Shared project images</p><h2 id="project-gallery-title" className="mt-2 text-3xl font-black text-[var(--ink)]"><UnderlineHeading>Gallery</UnderlineHeading></h2></div>
           <div className="grid gap-4 md:grid-cols-2">{screenshots.map((screenshot) => <figure key={screenshot.id} className="public-card overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={screenshot.signedUrl} alt={screenshot.caption || `${displayProject.name} screenshot`} loading="lazy" decoding="async" className="aspect-video w-full object-cover" />
