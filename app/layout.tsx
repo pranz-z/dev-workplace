@@ -1,23 +1,10 @@
 import type { Metadata } from "next";
-import { Caveat, Geist, Geist_Mono } from "next/font/google";
+import { caveat, geistSans, geistMono, kalam } from "./fonts";
+import { SketchFilter, PencilTrail } from "@/components/ui/notebook";
+import { ThemeBootstrap } from "@/components/ui/ThemeBootstrap";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { getApplicationOrigin } from "@/lib/site-origin";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const caveat = Caveat({
-  variable: "--font-caveat",
-  subsets: ["latin"],
-});
 
 const applicationOrigin = getApplicationOrigin();
 
@@ -43,7 +30,7 @@ export const metadata: Metadata = {
 
 export const viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F4EBDD" },
+    { media: "(prefers-color-scheme: light)", color: "#F6F0E5" },
     { media: "(prefers-color-scheme: dark)", color: "#1C1917" },
   ],
 };
@@ -53,9 +40,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${caveat.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${caveat.variable} ${kalam.variable} h-full antialiased`}
     >
+      <head><ThemeBootstrap /></head>
       <body className="min-h-full bg-[var(--background)] text-[var(--ink)]">
+        <SketchFilter />
+        <PencilTrail />
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

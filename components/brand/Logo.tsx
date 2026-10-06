@@ -14,7 +14,7 @@ export function Logo({ variant, size }: LogoProps) {
     <span
       role="img"
       aria-label="Frami"
-      className="inline-flex shrink-0 items-center rounded-xl bg-[#F4EBDD] text-[#2B2622]"
+      className="inline-flex shrink-0 items-center rounded-xl bg-[var(--nb-bg)] text-[var(--nb-ink)]"
       style={{ gap: size * 0.16, padding: `${size * 0.12}px ${size * 0.24}px` }}
     >
       <Image src="/brand/frami-icon.svg" alt="" width={size} height={size} priority />
