@@ -11,6 +11,10 @@ export async function DELETE(_request: Request, context: { params: Promise<{ fil
   if ("response" in auth) return auth.response;
   const { fileId } = await context.params;
   if (!UUID_PATTERN.test(fileId)) return NextResponse.json({ error: "File association not found." }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  const { data: item } = await auth.supabase.from("external_files").select("is_project_folder").eq("id", fileId).eq("user_id", auth.user.id).maybeSingle();
+  if (item?.is_project_folder) return NextResponse.json({ error: "Project folders are managed by their Workplace project." }, { status: 409, headers: { "Cache-Control": "no-store" } });
+  const { count, error: childrenError } = await auth.supabase.from("external_files").select("id", { head: true, count: "exact" }).eq("parent_id", fileId);
+  if (childrenError || count) return NextResponse.json({ error: "Remove the folder's Workplace associations first. Drive content remains intact." }, { status: 409, headers: { "Cache-Control": "no-store" } });
 
   const { data, error } = await auth.supabase.from("external_files").delete()
     .eq("id", fileId).eq("provider", "google_drive").select("id").maybeSingle();

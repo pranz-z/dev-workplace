@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { ensureRegisteredDriveFolder } from "@/lib/google-drive/folder-provider";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { GoogleDriveConnectionCiphertextRow } from "@/data/database.types";
 import {
@@ -140,15 +141,20 @@ export async function driveApiRequest(accessToken: string, url: string, init: Re
   }
 }
 
-export async function ensureGoogleDriveAppFolder(accessToken: string): Promise<string> {
+export async function ensureGoogleDriveAppFolder(accessToken: string, ownerId?: string, accountSubject?: string): Promise<string> {
+  if (ownerId && accountSubject) {
+    const folder = await ensureRegisteredDriveFolder(accessToken, ownerId, accountSubject, "root", "Developer Workplace", null,
+      { [APP_FOLDER_MARKER]: APP_FOLDER_VALUE }, driveApiRequest);
+    return folder.drive_file_id;
+  }
   const query = new URL(`${GOOGLE_DRIVE_API}/files`);
-  query.searchParams.set("q", `appProperties has { key='${APP_FOLDER_MARKER}' and value='${APP_FOLDER_VALUE}' } and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  query.searchParams.set("q", `appProperties has { key='${APP_FOLDER_MARKER}' and value='${APP_FOLDER_VALUE}' } and not appProperties has { key='softwareWorkplaceResourceType' and value='project-folder' } and mimeType='application/vnd.google-apps.folder' and trashed=false`);
   query.searchParams.set("pageSize", "10");
-  query.searchParams.set("fields", "files(id,ownedByMe,owners(emailAddress,me))");
+  query.searchParams.set("fields", "files(id,ownedByMe,owners(emailAddress,me),appProperties)");
   const listing = await driveApiRequest(accessToken, query.toString());
   if (!listing.ok) throw new GoogleDriveFileError("drive_folder_lookup_failed", 502);
-  const result = await listing.json().catch(() => null) as { files?: Array<{ id?: unknown; ownedByMe?: unknown }> } | null;
-  const folder = result?.files?.find((file) => typeof file.id === "string" && file.ownedByMe === true);
+  const result = await listing.json().catch(() => null) as { files?: Array<{ id?: unknown; ownedByMe?: unknown; appProperties?: Record<string, string> }> } | null;
+  const folder = result?.files?.find((file) => typeof file.id === "string" && file.ownedByMe === true && file.appProperties?.softwareWorkplaceResourceType !== "project-folder");
   if (folder && typeof folder.id === "string") return folder.id;
 
   const created = await driveApiRequest(accessToken, `${GOOGLE_DRIVE_API}/files?fields=id,ownedByMe`, {

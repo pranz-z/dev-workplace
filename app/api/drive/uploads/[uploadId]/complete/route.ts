@@ -11,6 +11,7 @@ import {
   verifyCompletedDriveFile,
 } from "@/lib/google-drive/files";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { DRIVE_METADATA_FIELDS } from "@/lib/google-drive/folders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export async function POST(_request: Request, context: { params: Promise<{ uploa
     const session = await getGoogleDriveUploadSession(auth.user.id, uploadId);
     if (!session) return NextResponse.json({ error: "Upload session not found." }, { status: 404, headers: { "Cache-Control": "no-store" } });
     if (session.status === "completed" && session.external_file_id) {
-      const { data, error } = await auth.supabase.from("external_files").select("id,name,mime_type,size_bytes,modified_at,status,project_id,task_id,created_at,updated_at").eq("id", session.external_file_id).eq("provider", "google_drive").maybeSingle();
+      const { data, error } = await auth.supabase.from("external_files").select(DRIVE_METADATA_FIELDS).eq("id", session.external_file_id).eq("provider", "google_drive").maybeSingle();
       if (error) throw error;
       return data
         ? NextResponse.json({ file: data }, { headers: { "Cache-Control": "no-store" } })
@@ -84,8 +85,10 @@ export async function POST(_request: Request, context: { params: Promise<{ uploa
     if (!driveFileId) throw new Error("drive_upload_result_missing_id");
 
     const file = await readDriveFile(accessToken, driveFileId);
-    const verified = verifyCompletedDriveFile(file, session);
+    const verified = verifyCompletedDriveFile(file, { ...session, drive_file_id: driveFileId });
     await reconcileUploadOffset(auth.user.id, uploadId, Number(session.next_offset), total);
+    const { data: parentId, error: parentError } = await getSupabaseAdminClient().rpc("get_google_drive_upload_parent", { p_user_id: auth.user.id, p_id: uploadId });
+    if (parentError) throw parentError;
     const { data: externalFile, error: insertError } = await auth.supabase
       .from("external_files")
       .upsert({
@@ -99,8 +102,9 @@ export async function POST(_request: Request, context: { params: Promise<{ uploa
         status: "active",
         project_id: session.project_id,
         task_id: session.task_id,
+        parent_id: parentId ?? null,
       }, { onConflict: "user_id,provider,provider_file_id" })
-      .select("id,name,mime_type,size_bytes,modified_at,status,project_id,task_id,created_at,updated_at")
+      .select(DRIVE_METADATA_FIELDS)
       .single();
     if (insertError || !externalFile) throw insertError ?? new Error("external_file_insert_failed");
 

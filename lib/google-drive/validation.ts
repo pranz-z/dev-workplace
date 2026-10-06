@@ -22,7 +22,9 @@ export interface ExpectedDriveFileShape {
   expected_mime_type: string;
   expected_size_bytes: number | string;
   google_account_email: string;
+  /** Actual expected Drive parent: managed root or verified project folder. */
   app_folder_id: string;
+  drive_file_id?: string | null;
 }
 
 export function createDriveUploadMarker(uploadId: string) {
@@ -46,6 +48,7 @@ export function verifyCompletedDriveFile(
     : {};
   if (
     typeof file.id !== "string" || !file.id
+    || (session.drive_file_id != null && file.id !== session.drive_file_id)
     || file.name !== session.expected_name
     || file.mimeType !== session.expected_mime_type
     || file.size !== String(expectedSize)

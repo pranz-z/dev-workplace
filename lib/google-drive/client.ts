@@ -1,7 +1,7 @@
 import type { ExternalFileRow } from "@/data/database.types";
 import { GOOGLE_DRIVE_UPLOAD_CHUNK_SIZE } from "@/lib/google-drive/validation";
 
-export type WorkplaceDriveFile = Pick<ExternalFileRow, "id" | "name" | "mime_type" | "size_bytes" | "modified_at" | "status" | "project_id" | "task_id" | "created_at" | "updated_at">;
+export type WorkplaceDriveFile = Pick<ExternalFileRow, "id" | "name" | "mime_type" | "size_bytes" | "modified_at" | "status" | "project_id" | "task_id" | "parent_id" | "is_project_folder" | "created_at" | "updated_at">;
 export interface BrowserDriveUpload { uploadId: string; chunkSize: number; expiresAt: string }
 
 export async function driveClientRequest<T>(path: string, init: RequestInit = {}): Promise<T> {

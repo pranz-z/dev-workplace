@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireGoogleDriveUser } from "@/lib/google-drive/api";
+import { DRIVE_METADATA_FIELDS } from "@/lib/google-drive/folders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
   ) return NextResponse.json({ error: "Invalid file list filters." }, { status: 400, headers: { "Cache-Control": "no-store" } });
 
   let query = auth.supabase.from("external_files").select(
-    "id,name,mime_type,size_bytes,modified_at,status,project_id,task_id,created_at,updated_at",
+    DRIVE_METADATA_FIELDS,
     { count: "exact" },
   ).eq("provider", "google_drive").eq("status", "active").order("updated_at", { ascending: false });
   if (projectId) query = query.eq("project_id", projectId);

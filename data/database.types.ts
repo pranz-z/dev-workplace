@@ -170,6 +170,8 @@ export interface ExternalFileRow {
   status: "active" | "trashed" | "unavailable";
   project_id: string | null;
   task_id: string | null;
+  parent_id: string | null;
+  is_project_folder: boolean;
   created_at: string;
   updated_at: string;
 }

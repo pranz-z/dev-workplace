@@ -4,7 +4,6 @@ import {
   createDriveUploadMarker,
   driveApiRequest,
   driveServiceErrorResponseStatus,
-  ensureGoogleDriveAppFolder,
   getGoogleDriveAccess,
   GOOGLE_DRIVE_MAX_FILE_SIZE,
   GOOGLE_DRIVE_UPLOAD_CHUNK_SIZE,
@@ -15,6 +14,7 @@ import {
   validateDriveMimeType,
 } from "@/lib/google-drive/files";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { resolveDriveDestination } from "@/lib/google-drive/folders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
 
   let projectId: string | null = null;
   let taskId: string | null = null;
+  const parentId = input.parentId ?? null;
+  if (parentId !== null && (typeof parentId !== "string" || !UUID_PATTERN.test(parentId))) return NextResponse.json({ error: "Invalid folder association." }, { status: 400, headers: { "Cache-Control": "no-store" } });
   if (input.projectId !== undefined && input.projectId !== null && input.projectId !== "") {
     if (typeof input.projectId !== "string" || !UUID_PATTERN.test(input.projectId)) return NextResponse.json({ error: "Invalid project association." }, { status: 400, headers: { "Cache-Control": "no-store" } });
     projectId = input.projectId;
@@ -69,7 +71,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const { accessToken, identity } = await getGoogleDriveAccess(auth.user.id);
-    const folderId = await ensureGoogleDriveAppFolder(accessToken);
+    const destination = await resolveDriveDestination({ supabase: auth.supabase, ownerId: auth.user.id, accessToken, identity }, projectId, parentId);
+    const folderId = destination.driveId;
+    projectId = destination.projectId;
     const uploadId = newGoogleDriveUploadId();
     const initiation = await driveApiRequest(accessToken, GOOGLE_DRIVE_UPLOAD_URL, {
       method: "POST",
@@ -105,6 +109,12 @@ export async function POST(request: NextRequest) {
       p_expires_at: expiresAt,
     });
     if (error) throw error;
+    if (destination.parentId) {
+      const { error: parentError } = await getSupabaseAdminClient().rpc("set_google_drive_upload_parent", {
+        p_user_id: auth.user.id, p_id: uploadId, p_parent_id: destination.parentId,
+      });
+      if (parentError) throw parentError;
+    }
 
     return NextResponse.json({
       uploadId,
