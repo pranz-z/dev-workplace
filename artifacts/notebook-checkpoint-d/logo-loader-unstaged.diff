@@ -1,0 +1,17 @@
+diff --git a/lib/portfolio/resume-content.test.mjs b/lib/portfolio/resume-content.test.mjs
+index f0353ad..5cc41f9 100644
+--- a/lib/portfolio/resume-content.test.mjs
++++ b/lib/portfolio/resume-content.test.mjs
+@@ -21,9 +21,12 @@ const cards = await import(moduleUrl(withoutImports(read("./project-card.ts"))))
+ const sectionsUrl = moduleUrl(`import React from ${JSON.stringify(reactUrl)};\n${withoutImports(read("../../components/portfolio/ProfessionalSections.tsx"))}`);
+ const sections = await import(sectionsUrl);
+ const doodlesUrl = moduleUrl(`import React from ${JSON.stringify(reactUrl)};\n${withoutImports(read("../../components/ui/SketchDoodle.tsx"))}`);
++const logoUrl = moduleUrl(`import React from ${JSON.stringify(reactUrl)}; import Image from ${JSON.stringify(pathToFileURL(require.resolve("next/image")).href)};
++${withoutImports(read("../../components/brand/Logo.tsx"))}`);
+ const portfolio = await import(moduleUrl(`
+   import React from ${JSON.stringify(reactUrl)};
+   import { SketchDoodle } from ${JSON.stringify(doodlesUrl)};
++  import { Logo } from ${JSON.stringify(logoUrl)};
+   import { ProfessionalEducation, ProfessionalExperience, ProfessionalSkills, ProfessionalFocus } from ${JSON.stringify(sectionsUrl)};
+   const { useState, useMemo, useEffect } = React;
+   const useAuth = () => ({ status: "unauthenticated" });

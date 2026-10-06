@@ -1,0 +1,22 @@
+diff --git a/lib/portfolio/resume-content.test.mjs b/lib/portfolio/resume-content.test.mjs
+index f0353ad..c88209d 100644
+--- a/lib/portfolio/resume-content.test.mjs
++++ b/lib/portfolio/resume-content.test.mjs
+@@ -18,12 +18,16 @@ const contentUrl = moduleUrl(read("./content.ts"));
+ const seedModule = await import(moduleUrl(read("./resume-seed.ts").replace('"./content"', JSON.stringify(contentUrl))));
+ const content = await import(moduleUrl(withoutImports(read("./resume-content.ts"))));
+ const cards = await import(moduleUrl(withoutImports(read("./project-card.ts"))));
+-const sectionsUrl = moduleUrl(`import React from ${JSON.stringify(reactUrl)};\n${withoutImports(read("../../components/portfolio/ProfessionalSections.tsx"))}`);
++const notebookUrl = moduleUrl(`import React from ${JSON.stringify(reactUrl)};\nconst { useEffect, useRef } = React;\n${withoutImports(read("../../components/ui/notebook.tsx"))}`);
++const interactionsUrl = moduleUrl(`import React from ${JSON.stringify(reactUrl)};\nconst { useEffect, useRef, useState } = React;\nimport { Button, SketchBorder } from ${JSON.stringify(notebookUrl)};\n${withoutImports(read("../../components/portfolio/NotebookInteractions.tsx"))}`);
++const sectionsUrl = moduleUrl(`import React from ${JSON.stringify(reactUrl)};\nconst { useState } = React;\nimport { Button, Card, Chip, UnderlineHeading } from ${JSON.stringify(notebookUrl)};\nimport { MarginTimeline } from ${JSON.stringify(interactionsUrl)};\n${withoutImports(read("../../components/portfolio/ProfessionalSections.tsx"))}`);
+ const sections = await import(sectionsUrl);
+ const doodlesUrl = moduleUrl(`import React from ${JSON.stringify(reactUrl)};\n${withoutImports(read("../../components/ui/SketchDoodle.tsx"))}`);
+ const portfolio = await import(moduleUrl(`
+   import React from ${JSON.stringify(reactUrl)};
+   import { SketchDoodle } from ${JSON.stringify(doodlesUrl)};
++  import { Card, Chip, SketchBorder, UnderlineHeading } from ${JSON.stringify(notebookUrl)};
++  import { DoodlePad } from ${JSON.stringify(interactionsUrl)};
+   import { ProfessionalEducation, ProfessionalExperience, ProfessionalSkills, ProfessionalFocus } from ${JSON.stringify(sectionsUrl)};
+   const { useState, useMemo, useEffect } = React;
+   const useAuth = () => ({ status: "unauthenticated" });

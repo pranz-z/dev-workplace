@@ -1,0 +1,20 @@
+{
+  "app/app/page.tsx": "All non-presentation AST content unchanged",
+  "components/google-drive/DriveFiles.tsx": "All non-presentation AST content unchanged",
+  "components/google-drive/DriveConnectionControl.tsx": "All non-presentation AST content unchanged",
+  "components/accountability/accountability-workspace.tsx": "All non-presentation AST content unchanged",
+  "components/accountability/project-accountability-card.tsx": "All non-presentation AST content unchanged",
+  "components/accountability/public-accountability-card.tsx": "All non-presentation AST content unchanged",
+  "components/portfolio/PortfolioEditor.tsx": "All non-presentation AST content unchanged",
+  "components/github/repository-browser.tsx": "All non-presentation AST content unchanged",
+  "components/github/project-activity.tsx": "All non-presentation AST content unchanged",
+  "components/ai/AiAssistant.tsx": "All non-presentation AST content unchanged",
+  "components/ai/WorkspaceAiChat.tsx": "All non-presentation AST content unchanged",
+  "components/public-ai/public-ai-concierge.tsx": "All non-presentation AST content unchanged",
+  "components/workspace/WorkspaceDialog.tsx": "All non-presentation AST content unchanged",
+  "components/projects/public-accountability-settings.tsx": "All non-presentation AST content unchanged",
+  "components/profile/public-profile-settings.tsx": "All non-presentation AST content unchanged",
+  "SettingsException": "Added theme selector wired to existing setThemeMode; existing theme effect unchanged.",
+  "WorkspaceDialogByteIdentical": true,
+  "dialogDiffAgainstHead": ""
+}

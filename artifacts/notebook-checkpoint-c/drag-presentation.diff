@@ -1,0 +1,80 @@
+diff --git a/components/calendar/WorkspaceCalendar.tsx b/components/calendar/WorkspaceCalendar.tsx
+index a75c30f..1c54851 100644
+--- a/components/calendar/WorkspaceCalendar.tsx
++++ b/components/calendar/WorkspaceCalendar.tsx
+@@ -77,9 +77,12 @@ function CalendarEventCard({
+     <div
+       ref={setNodeRef}
+       style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.45 : undefined }}
+-      className={`flex min-w-0 items-center gap-0.5 rounded border px-0.5 py-0.5 ${event.completed ? "border-[var(--edge-cream)] opacity-60" : overdue ? "border-[var(--accent-peach-solid)]" : "border-[var(--edge-cream)]"} ${compact ? "text-[9px]" : "text-xs"}`}
++      data-dragging={isDragging || undefined}
++      data-overdue={overdue || undefined}
++      className={`calendar-event-card flex min-w-0 items-center gap-0.5 rounded border px-0.5 py-0.5 ${event.completed ? "border-[var(--edge-cream)] opacity-60" : overdue ? "border-[var(--accent-peach-solid)]" : "border-[var(--edge-cream)]"} ${compact ? "text-[9px]" : "text-xs"}`}
+     >
+-      {!busy && (
++      <div className="notebook-calendar-event">
++        {!busy && (
+         <button
+           type="button"
+           {...attributes}
+@@ -107,6 +110,7 @@ function CalendarEventCard({
+         {!compact && event.status && <span className="shrink-0 rounded bg-black/5 px-1.5 py-0.5 text-[10px] t-dark-muted">{event.completed ? "Completed" : event.status}</span>}
+         {!compact && overdue && <span className="shrink-0 rounded border border-[var(--accent-peach-solid)] px-1.5 py-0.5 text-[10px]">Overdue</span>}
+       </button>
++      </div>
+     </div>
+   );
+ }
+@@ -137,6 +141,7 @@ function CalendarDayCell({
+     <div
+       ref={setNodeRef}
+       role="gridcell"
++      data-outside-month={date.slice(0, 7) !== month || undefined}
+       aria-label={`${formatCalendarDate(date, { dateStyle: "full" })} — ${events.length} ${events.length === 1 ? "event" : "events"}`}
+       className={`min-h-24 min-w-0 rounded-lg border p-1 transition-colors sm:min-h-32 sm:p-2 ${isOver ? "border-[var(--ink-green)] bg-[var(--ink-green)]/10 ring-2 ring-[var(--ink-green)]" : "border-[var(--edge-cream)] bg-[var(--surface-dark)]"} ${date.slice(0, 7) !== month ? "opacity-50" : ""}`}
+     >
+@@ -239,7 +244,7 @@ export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateT
+ 
+   return (
+     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+-      <div className="space-y-4">
++      <div className="notebook-calendar space-y-4">
+         <header className="dark-panel space-y-4 p-4">
+           <div className="flex flex-wrap items-center justify-between gap-3">
+             <div className="flex items-center gap-2"><CalendarDays size={19} className="t-mood" /><div><p className="eyebrow t-mood">Private workspace</p><h1 className="text-xl font-semibold t-dark">Calendar</h1></div></div>
+diff --git a/components/projects/ProjectKanbanBoard.tsx b/components/projects/ProjectKanbanBoard.tsx
+index 980b7e4..9f47a81 100644
+--- a/components/projects/ProjectKanbanBoard.tsx
++++ b/components/projects/ProjectKanbanBoard.tsx
+@@ -49,8 +49,9 @@ function ProjectCard({ project, selected, disabled, onSelect }: {
+     <article
+       ref={setNodeRef}
+       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.45 : undefined }}
+-      className={`project-kanban-card flex items-center gap-2 rounded-lg dark-inset p-3 ${selected ? "ring-1 ring-[var(--ink-green)]" : ""}`}
++      className={`project-kanban-card ${isDragging ? "is-dragging" : ""} flex items-center gap-2 rounded-lg dark-inset p-3 ${selected ? "ring-1 ring-[var(--ink-green)]" : ""}`}
+     >
++      <div className="notebook-drag-surface flex min-w-0 w-full items-center gap-2">
+       <button
+         type="button"
+         onClick={onSelect}
+@@ -73,6 +74,7 @@ function ProjectCard({ project, selected, disabled, onSelect }: {
+         </button>
+       )}
+       <button type="button" draggable onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "project", id: project.id })); event.dataTransfer.effectAllowed = "copy"; }} aria-label={`Drag ${project.name} into Workspace AI context`} title={`Drag ${project.name} into Workspace AI`} className="dark-chip cursor-grab p-1.5 active:cursor-grabbing"><Sparkles size={14} /></button>
++      </div>
+     </article>
+   );
+ }
+diff --git a/components/tasks/TaskKanbanBoard.tsx b/components/tasks/TaskKanbanBoard.tsx
+index a04d19b..e5afc14 100644
+--- a/components/tasks/TaskKanbanBoard.tsx
++++ b/components/tasks/TaskKanbanBoard.tsx
+@@ -67,7 +67,7 @@ function TaskCard({ task, projectName, projectScoped, onOpenTask, disabled, time
+       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : undefined }}
+       className={`task-kanban-card ${task.status === "Completed" ? "is-completed" : ""} ${isDragging ? "is-dragging" : ""}`}
+     >
+-      <div className="flex items-start gap-2">
++      <div className="notebook-drag-surface flex items-start gap-2">
+         {!disabled && <button
+           type="button"
+           {...attributes}

@@ -1,0 +1,382 @@
+diff --git a/app/app/page.tsx b/app/app/page.tsx
+index b6822ee..572c17f 100644
+--- a/app/app/page.tsx
++++ b/app/app/page.tsx
+@@ -2551,7 +2551,7 @@ export default function Home() {
+   );
+ 
+   const renderPlansPage = () => (
+-    <div className="space-y-6">
++    <div className="notebook-dense space-y-6">
+       <div className="flex justify-end"><button type="button" onClick={handleCreatePlan} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New plan</button></div>
+       <div className="grid gap-4 lg:grid-cols-3">
+         {plans.map((plan) => {
+@@ -2614,7 +2614,7 @@ export default function Home() {
+   );
+ 
+   const renderCareerPage = () => (
+-    <div className="space-y-6">
++    <div className="notebook-dense space-y-6">
+       <div className="grid gap-6 xl:grid-cols-2">
+         <div className="dark-panel p-4">
+           <h3 className="text-lg font-semibold t-dark">Job applications</h3>
+@@ -2655,7 +2655,7 @@ export default function Home() {
+     const visibleNotes = noteProjectFilter ? notes.filter((note) => note.projectId === noteProjectFilter) : notes;
+     const documentationProject = projects.find((project) => project.id === noteProjectFilter);
+     return (
+-    <div className="space-y-6">
++    <div className="notebook-dense space-y-6">
+       <div className={`grid gap-6 ${learningItems.length ? "xl:grid-cols-2" : ""}`}>
+         <div className="dark-panel p-4">
+           <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-lg font-semibold t-dark">{documentationProject ? `${documentationProject.name} documentation` : "Notes"}</h3>{documentationProject && <p className="mt-1 text-xs t-dark-muted">Project documentation and notes</p>}</div><div className="flex flex-wrap gap-2">{documentationProject && <button type="button" onClick={() => setNoteProjectFilter("")} className="dark-chip px-3 py-2 text-sm">All notes</button>}<button type="button" onClick={() => documentationProject ? setNoteEditor({ title: "Documentation", content: "", projectId: documentationProject.id }) : handleCreateNote()} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> {documentationProject ? "Add documentation" : "New note"}</button></div></div>
+@@ -2691,7 +2691,7 @@ export default function Home() {
+   };
+ 
+   const renderTechPage = () => (
+-    <div className="space-y-4">
++    <div className="notebook-dense space-y-4">
+       <form onSubmit={(event) => void handleTechnologySave(event)} className="dark-panel flex flex-col gap-2 p-4 sm:flex-row">
+         <input aria-label="Technology name" value={technologyName} onChange={(event) => setTechnologyName(event.target.value)} required placeholder="Technology name" className="dark-chip min-w-0 flex-1 px-3 py-2 text-sm" />
+         <select aria-label="Project for technology" value={technologyProjectId} onChange={(event) => setTechnologyProjectId(event.target.value)} className="dark-chip px-3 py-2 text-sm">
+@@ -2720,10 +2720,17 @@ export default function Home() {
+   );
+ 
+   const renderSettingsPage = () => (
+-    <div className="dark-panel p-6">
++    <div className="notebook-dense dark-panel p-6">
+       <h2 className="text-2xl font-semibold t-dark">Workspace settings</h2>
+       <p className="mt-2 t-dark-muted">Your account is verified by Supabase Auth. Authenticated workspace data is stored in Supabase; local browser storage is used only by the unauthenticated prototype.</p>
+       <div className="mt-6 grid gap-4 md:grid-cols-2">
++        <div className="dark-inset p-4">
++          <label htmlFor="workspace-theme" className="block text-sm font-medium t-dark">Theme</label>
++          <select id="workspace-theme" value={themeMode} onChange={(event) => setThemeMode(event.target.value as ThemeMode)} className="dark-chip mt-2 w-full px-3 py-2 text-sm">
++            <option value="light">Paper (light)</option><option value="dark">Dark</option><option value="system">System</option>
++          </select>
++          <p className="mt-2 text-sm t-dark-muted">System follows your device preference and clears the saved choice.</p>
++        </div>
+         <div className="dark-inset p-4">
+           <p className="text-sm font-medium t-dark">Data storage</p>
+           <p className="mt-2 text-sm t-dark-muted">{authStatus === "authenticated" ? "Supabase is the source of truth for this signed-in workspace." : "Prototype workspace data is stored in this browser."}</p>
+diff --git a/app/globals.css b/app/globals.css
+index 12f2f05..91883c2 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -1804,3 +1804,62 @@ html[data-theme] .notebook-workspace .ink-button.primary { color: var(--nb-butto
+ html[data-theme] .notebook-workspace .task-kanban-empty.is-over { color: var(--nb-accent2-text); background: var(--nb-card); border-color: var(--nb-accent2-text); }
+ .notebook-workspace .notebook-account-avatar { color: var(--nb-ink); background: var(--nb-card); border-color: var(--nb-muted); }
+ .calendar-event-card[data-overdue] > .notebook-calendar-event { border-color: var(--nb-accent-text); }
++
++/* Dense editors, reports and file/repository lists use static paper surfaces. */
++.notebook-dense { min-width: 0; overflow-wrap: anywhere; }
++html[data-theme] .notebook-workspace :is(.notebook-dense.dark-panel,.notebook-dense .dark-panel,.workspace-dialog .dark-panel) {
++  color: var(--nb-ink); background: var(--nb-bg); background-image: none;
++  border: 1.5px solid var(--nb-muted); border-radius: var(--nb-card-radius); box-shadow: none;
++}
++html[data-theme] .notebook-workspace :is(.notebook-dense.dark-inset,.notebook-dense .dark-inset,.workspace-dialog .dark-inset):not(.chat-note) {
++  color: var(--nb-ink); background: color-mix(in srgb, var(--nb-bg) 96%, var(--nb-muted));
++  border: 1px dashed var(--nb-muted); border-radius: var(--nb-card-radius); box-shadow: none;
++}
++.notebook-workspace :is(.notebook-dense,.workspace-dialog) :is(h2,h3,legend) { color: var(--nb-ink); }
++.notebook-workspace :is(.notebook-dense,.workspace-dialog) :is(.dark-chip,.badge,.prio,.soft-pill) {
++  color: var(--nb-ink); background: color-mix(in srgb, var(--nb-bg) 94%, var(--nb-muted));
++  border: 1px solid var(--nb-muted); border-radius: var(--nb-card-radius); box-shadow: none;
++}
++.notebook-workspace :is(.notebook-dense,.workspace-dialog) [aria-current="page"] { border: 2px dashed var(--nb-accent-text); color: var(--nb-accent-text); background: var(--nb-bg); }
++.notebook-workspace :is(.notebook-dense,.workspace-dialog) .t-mood { color: var(--nb-accent2-text); }
++.notebook-workspace { --ink-coral: var(--nb-accent-text); --ink-lavender: var(--nb-ink); --ink-blue: var(--nb-ink); }
++.notebook-workspace :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),textarea,select) {
++  min-width: 0; max-width: 100%; color: var(--nb-ink); background: var(--nb-bg); border: 1.5px solid var(--nb-muted); border-radius: var(--nb-card-radius);
++}
++.notebook-workspace :is(input,textarea)::placeholder { color: var(--nb-muted); opacity: 1; }
++.notebook-workspace :is(.notebook-dense,.workspace-dialog) :is(pre,code,kbd,samp,.font-mono), .chat-note :is(pre,code) { font-family: var(--font-geist-mono), monospace; }
++.notebook-workspace pre { max-width: 100%; overflow-x: auto; }
++.notebook-workspace :is([role="alert"],.notebook-feedback-error,.notebook-feedback-attention,[data-feedback="error"]),
++.public-ai-concierge [role="alert"] { color: var(--nb-accent-text); background: var(--nb-bg); border-color: var(--nb-accent-text); }
++.notebook-workspace [data-feedback="success"] { color: var(--nb-accent2-text); background: var(--nb-bg); }
++.notebook-workspace [role="alert"] { overflow-wrap: anywhere; }
++html[data-theme] .notebook-public-accountability { --ink: var(--nb-ink); --muted: var(--nb-muted); --surface: var(--nb-bg); --public-border: var(--nb-muted); color: var(--nb-ink); background: var(--nb-bg); border: 1.5px solid var(--nb-muted); border-radius: var(--nb-card-radius); box-shadow: none; }
++.notebook-public-accountability h2 { border: 0; }
++.notebook-workspace .workspace-dialog:not(.workspace-drawer) { width: min(48rem, calc(100vw - 2rem)); height: fit-content; max-height: 90dvh; margin: auto; }
++.notebook-workspace .workspace-dialog :is(.flex,.grid) > :is(div,label,fieldset) { min-width: 0; }
++.notebook-workspace :is(.notebook-dense,.workspace-dialog) :is(input,textarea,select,button,a):focus-visible,
++.public-ai-concierge :is(textarea,button,a):focus-visible { outline: 3px dashed var(--nb-accent-text); outline-offset: 3px; }
++/* Bubble colour identifies the assistant context; message handling stays separate. */
++.chat-note[data-speaker] { color: var(--nb-ink); background: color-mix(in srgb, var(--nb-bg) 88%, var(--nb-accent2)); border: 1.5px solid var(--nb-accent2-text); border-radius: var(--nb-card-radius); }
++.chat-note[data-public] { background: color-mix(in srgb, var(--nb-bg) 88%, var(--nb-accent)); border-color: var(--nb-accent-text); }
++.chat-note[data-speaker="user"] { border-style: dashed; }
++.workspace-ai-panel { color: var(--nb-ink); background: var(--nb-bg); border: 1.5px solid var(--nb-muted); }
++.workspace-ai-panel h2, .public-ai-concierge h2 { font-family: var(--font-hand); font-size: 1.8rem; line-height: 1.2; }
++.public-ai-concierge > section { background: var(--nb-bg); color: var(--nb-ink); border: 1.5px solid var(--nb-muted); border-radius: var(--nb-card-radius); }
++.public-ai-concierge textarea { color: var(--nb-ink); background: var(--nb-bg); border-color: var(--nb-muted); }
++.public-ai-concierge button[type="submit"] { background: var(--nb-accent-text); color: var(--nb-button-ink); }
++.notebook-typing { display: flex; align-items: center; gap: .35rem; color: var(--nb-muted); }
++.notebook-typing svg { flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
++.notebook-typing-pencil { animation: notebook-writing 1.2s ease-in-out infinite; transform-origin: 16px 12px; }
++.notebook-typing-line { stroke-dasharray: 24; animation: notebook-writing-line 1.2s ease-in-out infinite; }
++@keyframes notebook-writing { 50% { transform: translateX(3px) rotate(-8deg); } }
++@keyframes notebook-writing-line { 0%,100% { stroke-dashoffset: 18; } 50% { stroke-dashoffset: 0; } }
++@media (max-width: 639px) {
++  .notebook-workspace .notebook-dense > .flex { flex-wrap: wrap; }
++  .notebook-workspace .notebook-dense :is(h2,h3) { overflow-wrap: anywhere; }
++  .notebook-workspace .notebook-dense select { max-width: 100%; }
++}
++@media (prefers-reduced-motion: reduce) {
++  .notebook-typing :is(.notebook-typing-pencil,.notebook-typing-line) { animation: none; transform: none; stroke-dashoffset: 0; }
++  .notebook-workspace :is(.notebook-dense,.workspace-dialog,.workspace-ai-panel) *, .public-ai-concierge * { transition: none; scroll-behavior: auto; }
++}
+diff --git a/components/accountability/accountability-workspace.tsx b/components/accountability/accountability-workspace.tsx
+index acaf5bc..f23fd0e 100644
+--- a/components/accountability/accountability-workspace.tsx
++++ b/components/accountability/accountability-workspace.tsx
+@@ -150,7 +150,7 @@ export function AccountabilityWorkspace({ projects, tasks, milestones, plans, se
+   };
+   const report = tab === "Monthly" ? monthly : weekly;
+ 
+-  return <div className="space-y-5">
++  return <div className="notebook-dense space-y-5">
+     <section className="dark-panel p-5">
+       <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="eyebrow t-mood">Private workspace</p><h1 className="mt-1 text-2xl font-semibold t-dark">Accountability</h1><p className="mt-1 text-sm t-dark-muted">Factual project progress, personal goals, and reports.</p></div><label className="text-xs t-dark-muted">Report timezone <input list="accountability-timezones" className="dark-chip ml-2 px-2 py-1" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} onBlur={() => { if (isValidTimeZone(timeZone)) persistTimeZone(timeZone); else setError("Enter a valid IANA timezone, such as Europe/Paris."); }} /><datalist id="accountability-timezones">{["America/Los_Angeles","America/New_York","Europe/London","Europe/Berlin","Asia/Manila","Asia/Tokyo","Australia/Sydney"].map((zone) => <option key={zone} value={zone} />)}</datalist></label></div>
+       <nav className="mt-4 flex flex-wrap gap-2" aria-label="Accountability sections">{(["Overview","Goals","Weekly","Monthly"] as const).map((item) => <button key={item} type="button" aria-pressed={tab === item} onClick={() => changeTab(item)} className={`dark-chip px-3 py-1.5 text-sm ${tab === item ? "ring-1 ring-[var(--accent-lavender)]" : ""}`}>{item}</button>)}</nav>
+diff --git a/components/accountability/project-accountability-card.tsx b/components/accountability/project-accountability-card.tsx
+index 2b4a15e..001ef61 100644
+--- a/components/accountability/project-accountability-card.tsx
++++ b/components/accountability/project-accountability-card.tsx
+@@ -14,7 +14,7 @@ export function ProjectAccountabilityCard({ projectName, result }: ProjectAccoun
+         ? "Building baseline"
+         : "Insufficient data";
+ 
+-  return <section className="dark-panel p-4 md:p-5" aria-label={`${projectName} accountability`}>
++  return <section className="notebook-dense dark-panel p-4 md:p-5" aria-label={`${projectName} accountability`}>
+     <div className="flex flex-wrap items-start justify-between gap-3">
+       <div>
+         <p className="eyebrow t-mood">Project accountability</p>
+@@ -31,7 +31,7 @@ export function ProjectAccountabilityCard({ projectName, result }: ProjectAccoun
+       </div>)}
+     </div>}
+     <ul className="mt-4 space-y-2">
+-      {result.reasons.slice(0, 4).map((reason, index) => <li key={`${reason.kind}-${index}`} className={`text-sm ${reason.kind === "attention" ? "text-amber-300" : "t-dark-muted"}`}>{reason.kind === "progress" ? "✓ " : reason.kind === "attention" ? "! " : "· "}{reason.text}</li>)}
++      {result.reasons.slice(0, 4).map((reason, index) => <li key={`${reason.kind}-${index}`} className={`text-sm ${reason.kind === "attention" ? "notebook-feedback-attention" : "t-dark-muted"}`}>{reason.kind === "progress" ? "✓ " : reason.kind === "attention" ? "! " : "· "}{reason.text}</li>)}
+     </ul>
+   </section>;
+ }
+diff --git a/components/accountability/public-accountability-card.tsx b/components/accountability/public-accountability-card.tsx
+index d1f410b..cb52a9b 100644
+--- a/components/accountability/public-accountability-card.tsx
++++ b/components/accountability/public-accountability-card.tsx
+@@ -7,7 +7,7 @@ type Props = {
+ 
+ export function PublicAccountabilityCard({ health, score }: Props) {
+   return (
+-    <section className="public-card p-5 md:p-6" aria-label="Project accountability summary">
++    <section className="notebook-public-accountability public-card p-5 md:p-6" aria-label="Project accountability summary">
+       <div className="flex flex-wrap items-start justify-between gap-3">
+         <div>
+           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Project health</p>
+diff --git a/components/ai/AiAssistant.tsx b/components/ai/AiAssistant.tsx
+index e108a61..97f24ca 100644
+--- a/components/ai/AiAssistant.tsx
++++ b/components/ai/AiAssistant.tsx
+@@ -139,7 +139,7 @@ export function AiAssistant(props: AiAssistantProps) {
+     {mode === "note" && <p className="mt-1 text-[11px] t-dark-muted">Only this note is sent to Gemini.</p>}
+ 
+     {action && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-3 backdrop-blur-sm sm:p-5">
+-      <section role="dialog" aria-modal="true" aria-labelledby="ai-dialog-title" className="my-5 max-h-[92vh] w-full max-w-3xl overflow-y-auto dark-panel p-4 shadow-[var(--shadow-dark-lift)] sm:p-6">
++      <section role="dialog" aria-modal="true" aria-labelledby="ai-dialog-title" className="notebook-dense my-5 max-h-[92vh] w-full max-w-3xl overflow-y-auto dark-panel p-4 shadow-[var(--shadow-dark-lift)] sm:p-6">
+         <div className="flex items-start justify-between gap-3">
+           <div><p className="eyebrow t-mood">AI suggestion</p><h2 id="ai-dialog-title" className="mt-1 text-xl font-semibold t-dark">{labels[action]}</h2><p className="mt-1 text-xs t-dark-muted">Review generated content before applying it. Gemini cannot save changes.</p></div>
+           <button type="button" aria-label="Close AI assistant" disabled={busy} onClick={() => { setAction(null); setOutput(null); setSelected(clearAiSelection()); }} className="dark-chip px-3 py-2 text-sm">Close</button>
+@@ -160,7 +160,7 @@ export function AiAssistant(props: AiAssistantProps) {
+           {output && <button type="button" onClick={() => { setOutput(null); setSelected(clearAiSelection()); }} disabled={busy} className="dark-chip px-3 py-2 text-sm">Discard result</button>}
+         </div>
+         {error && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{error}</p>}
+-        {notice && <p role="status" className="mt-3 text-sm t-dark-muted">{notice}</p>}
++        {notice && <p role="status" data-feedback="success" className="mt-3 text-sm t-dark-muted">{notice}</p>}
+ 
+         {output && <div className="mt-5 space-y-3">
+           {("suggestions" in output || "tasks" in output || "actions" in output) && (() => {
+diff --git a/components/ai/ChatPresentation.tsx b/components/ai/ChatPresentation.tsx
+index 36957cd..d9af68b 100644
+--- a/components/ai/ChatPresentation.tsx
++++ b/components/ai/ChatPresentation.tsx
+@@ -7,9 +7,9 @@ export function ChatMessageBubble({ role, children, publicMode = false }: { role
+   const bubbleStyle = publicMode
+     ? user ? "ml-auto chat-note-user" : "bg-[var(--surface)] text-[var(--ink)]"
+     : user ? "ml-auto chat-note-user" : "dark-inset t-dark";
+-  return <div className={`chat-note max-w-[92%] rounded-2xl px-3 py-2.5 text-sm leading-6 ${bubbleStyle}`}><p className="whitespace-pre-wrap">{children}</p></div>;
++  return <div data-public={publicMode || undefined} data-speaker={role} className={`chat-note max-w-[92%] rounded-2xl px-3 py-2.5 text-sm leading-6 ${bubbleStyle}`}><p className="whitespace-pre-wrap">{children}</p></div>;
+ }
+ 
+ export function ChatTypingIndicator({ publicMode = false }: { publicMode?: boolean }) {
+-  return <p className={`text-xs ${publicMode ? "text-[var(--muted)]" : "t-dark-muted"}`} role="status" aria-live="polite">Assistant is thinking…</p>;
++  return <p className={`notebook-typing text-xs ${publicMode ? "text-[var(--muted)]" : "t-dark-muted"}`} role="status" aria-live="polite"><svg aria-hidden="true" viewBox="0 0 32 24" width="32" height="24"><path className="notebook-typing-pencil" d="m9 17 12-12 4 4-12 12-5 1Z m10-10 4 4 M9 17l4 4" /><path className="notebook-typing-line" d="M3 22h24" /></svg><span>Assistant is thinking…</span></p>;
+ }
+diff --git a/components/github/project-activity.tsx b/components/github/project-activity.tsx
+index 8c3a186..254800c 100644
+--- a/components/github/project-activity.tsx
++++ b/components/github/project-activity.tsx
+@@ -65,7 +65,7 @@ export function GithubProjectActivity({ projectId, project, tasks, milestones, p
+     return () => window.clearTimeout(timer);
+   }, [loadActivity]);
+ 
+-  return <div className="space-y-4">
++  return <div className="notebook-dense space-y-4">
+     {showAccountability && <ProjectAccountabilityCard projectName={project.name} result={accountability} />}
+     <section className="dark-panel p-4 md:p-5" aria-label="GitHub activity">
+     <div className="flex flex-wrap items-start justify-between gap-3">
+@@ -79,7 +79,7 @@ export function GithubProjectActivity({ projectId, project, tasks, milestones, p
+       </button>
+     </div>
+ 
+-    {error && <p role="alert" className="mt-4 rounded-lg bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}
++    {error && <p role="alert" className="mt-4 rounded-lg notebook-feedback-error p-3 text-sm">{error}</p>}
+     {loading && !activity && <p role="status" className="mt-4 text-sm t-dark-muted">Loading recent repository activity…</p>}
+     {!loading && activity && <>
+       <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+@@ -126,7 +126,7 @@ export function GithubProjectActivity({ projectId, project, tasks, milestones, p
+ 
+ function ActivityGroup({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {
+   const items = Array.isArray(children) ? children : [children];
+-  return <div className="space-y-2">
++  return <div className="notebook-dense space-y-2">
+     <h4 className="text-sm font-semibold t-dark">{title}</h4>
+     {items.length ? items : <p className="dark-inset p-3 text-sm t-dark-muted">{empty}</p>}
+   </div>;
+diff --git a/components/github/repository-browser.tsx b/components/github/repository-browser.tsx
+index b4177ac..ddc27c2 100644
+--- a/components/github/repository-browser.tsx
++++ b/components/github/repository-browser.tsx
+@@ -142,14 +142,14 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
+       plans,
+       github: { status: "not-connected" },
+     }) : null;
+-    return <div className="space-y-4">
++    return <div className="notebook-dense space-y-4">
+       {showAccountability && !loading && !linkedForProject && project && accountability && <ProjectAccountabilityCard projectName={project.name} result={accountability} />}
+       <section className="dark-panel p-4" aria-label="GitHub repository">
+       <div className="flex items-center justify-between gap-3">
+         <div><p className="eyebrow t-dark-soft">GitHub repository</p><h3 className="mt-1 text-lg font-semibold t-dark">{linkedForProject?.fullName ?? "No repository linked"}</h3></div>
+         {linkedForProject && <><button type="button" disabled={busy || loading} onClick={() => void refresh(true)} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm"><RefreshCw size={14} /> Refresh</button><button type="button" disabled={busy} onClick={() => void unlinkProject(projectId)} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm"><Unlink size={14} /> Unlink</button></>}
+       </div>
+-      {error && <p role="status" className="mt-3 text-sm text-rose-300">{error}</p>}
++      {error && <p role="status" className="mt-3 text-sm notebook-feedback-error">{error}</p>}
+       {linkedForProject && <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm t-dark-muted">
+         <span>{linkedForProject.private ? "Private" : "Public"}</span><span>{linkedForProject.language ?? "Language not specified"}</span><span>Default branch: {linkedForProject.defaultBranch}</span><span>Updated {linkedForProject.updatedAt ? dateLabel(linkedForProject.updatedAt) : "unknown"}</span>
+         <a href={linkedForProject.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--ink-coral)]">Open GitHub <ExternalLink size={13} /></a>
+@@ -160,7 +160,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
+     </div>;
+   }
+ 
+-  return <div className="space-y-5">
++  return <div className="notebook-dense space-y-5">
+     <div className="dark-panel p-4">
+       <div className="flex flex-wrap items-center justify-between gap-3">
+         <div><p className="eyebrow t-mood">GitHub App</p><h2 className="mt-2 text-2xl font-semibold t-dark">Repository access</h2><p className="mt-1 text-sm t-dark-muted">{connected ? "Connected repositories authorized for this workspace." : "Repository access is separate from GitHub sign in."}</p></div>
+@@ -170,7 +170,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
+           {onClose && <button type="button" onClick={onClose} className="dark-chip px-3 py-2 text-sm">Close</button>}
+         </div>
+       </div>
+-      {error && <p role="alert" className="mt-4 rounded-lg bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}
++      {error && <p role="alert" className="mt-4 rounded-lg notebook-feedback-error p-3 text-sm">{error}</p>}
+     </div>
+ 
+     {connected && <>
+@@ -191,7 +191,7 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
+             </>}
+             <a href={repository.url} target="_blank" rel="noopener noreferrer" className="dark-chip inline-flex items-center gap-1 px-3 py-2 text-sm">Preview <ExternalLink size={13} /></a>
+           </div>
+-          {repositoryErrors[repository.id] && <p role="alert" className="mt-3 text-sm text-rose-300">{repositoryErrors[repository.id]}</p>}
++          {repositoryErrors[repository.id] && <p role="alert" className="mt-3 text-sm notebook-feedback-error">{repositoryErrors[repository.id]}</p>}
+           {selected?.id === repository.id && <div className="mt-3 rounded-xl bg-black/10 p-3 text-sm t-dark-muted"><p className="font-medium t-dark">Repository preview</p><p className="mt-1">{repository.description || "No description provided by GitHub."}</p><p className="mt-2">{repository.private ? "Private repository" : "Public repository"} · {repository.language ?? "Primary language not specified"} · default branch {repository.defaultBranch} · updated {dateLabel(repository.updatedAt)}</p></div>}
+         </article>)}</div>}
+     </>}
+diff --git a/components/google-drive/DriveConnectionControl.tsx b/components/google-drive/DriveConnectionControl.tsx
+index 042c2ca..23d42a5 100644
+--- a/components/google-drive/DriveConnectionControl.tsx
++++ b/components/google-drive/DriveConnectionControl.tsx
+@@ -46,7 +46,7 @@ export function DriveConnectionControl({ onOpenFiles }: { onOpenFiles: () => voi
+     finally { setBusy(false); }
+   };
+ 
+-  return <section className="dark-inset p-4" aria-labelledby="drive-connection-heading">
++  return <section className="notebook-dense dark-inset p-4" aria-labelledby="drive-connection-heading">
+     <h3 id="drive-connection-heading" className="font-medium t-dark">Google Drive</h3>
+     <p className="mt-2 text-sm t-dark-muted">Store workspace files in your Google Drive.</p>
+     <p className="mt-2 text-sm t-dark" role="status">{busy ? "Checking connection…" : connected === null ? "Status unavailable" : connected ? "Connected" : "Disconnected"}</p>
+@@ -57,6 +57,6 @@ export function DriveConnectionControl({ onOpenFiles }: { onOpenFiles: () => voi
+       <button type="button" disabled={busy} onClick={() => void refresh()} className="dark-chip px-3 py-2 text-sm disabled:opacity-50">Refresh status</button>
+     </div>
+     {error && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{error}</p>}
+-    {message && <p role="status" className="mt-3 text-sm t-dark-muted">{message}</p>}
++    {message && <p role="status" data-feedback="success" className="mt-3 text-sm t-dark-muted">{message}</p>}
+   </section>;
+ }
+diff --git a/components/google-drive/DriveFiles.tsx b/components/google-drive/DriveFiles.tsx
+index 6fa6c12..27b34ed 100644
+--- a/components/google-drive/DriveFiles.tsx
++++ b/components/google-drive/DriveFiles.tsx
+@@ -182,7 +182,7 @@ export function DriveFiles({ projects, tasks, active, onOpenSettings }: { projec
+   const actionLink = (entry: WorkplaceDriveFile, mode: string) => `/api/drive/files/${encodeURIComponent(entry.id)}/access?mode=${mode}`;
+   const renderActions = (entry: WorkplaceDriveFile) => <div data-drive-actions className="relative shrink-0"><button type="button" aria-label={`Actions for ${entry.name}`} aria-expanded={actionsId === entry.id} onClick={() => setActionsId(actionsId === entry.id ? null : entry.id)} className="dark-chip p-2 focus-visible:outline-2 focus-visible:outline-offset-2"><MoreHorizontal size={17} /></button>{actionsId === entry.id && <div className="dark-panel fixed inset-x-3 bottom-3 z-50 p-2 shadow-lg sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-1 sm:w-52">{entry.mime_type !== DRIVE_FOLDER_TYPE && <><a className="flex items-center gap-2 rounded p-2 text-sm hover:bg-white/10" href={actionLink(entry, "preview")} target="_blank" rel="noopener noreferrer"><FileText size={15} />Preview</a><a className="flex items-center gap-2 rounded p-2 text-sm hover:bg-white/10" href={actionLink(entry, "download")} target="_blank" rel="noopener noreferrer"><Download size={15} />Download</a></>}<button type="button" onClick={() => void unlink(entry)} title="Removes this item from Developer Workplace. It remains in Google Drive." className="flex w-full items-center gap-2 rounded p-2 text-left text-sm hover:bg-white/10"><Unlink size={15} />Remove from Workplace</button></div>}</div>;
+ 
+-  return <section className="dark-panel relative min-w-0 space-y-5 p-3 sm:p-5" aria-label="Google Drive files" onDragEnter={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); dragDepth.current++; setDragging(true); } }} onDragLeave={(event) => { if (event.dataTransfer.types.includes("Files")) { dragDepth.current--; if (dragDepth.current <= 0) setDragging(false); } }} onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = connected ? "copy" : "none"; } }} onDrop={drop}>
++  return <section className="notebook-dense dark-panel relative min-w-0 space-y-5 p-3 sm:p-5" aria-label="Google Drive files" onDragEnter={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); dragDepth.current++; setDragging(true); } }} onDragLeave={(event) => { if (event.dataTransfer.types.includes("Files")) { dragDepth.current--; if (dragDepth.current <= 0) setDragging(false); } }} onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = connected ? "copy" : "none"; } }} onDrop={drop}>
+     <header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-2xl font-semibold t-dark">Files</h2><p className="mt-1 text-sm t-dark-muted">Your private Drive, organized around your work.</p></div><button type="button" onClick={onOpenSettings} className="dark-chip px-3 py-2 text-sm">{connected === null ? "Check connection" : connected ? "Drive connected" : "Connect Google Drive"}</button></header>
+     <div className="flex min-w-0 flex-wrap items-center gap-2">
+       <div ref={menu} className="relative"><button ref={newButton} type="button" disabled={connected !== true || syncing} aria-haspopup="menu" aria-expanded={newOpen} onClick={() => setNewOpen(!newOpen)} className="ink-button primary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-50"><Plus size={18} />New</button>{newOpen && <div role="menu" aria-label="New Drive item" className="dark-panel absolute left-0 top-full z-30 mt-2 w-48 p-2 shadow-lg" onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')); const index = items.indexOf(document.activeElement as HTMLElement); items[(index + (event.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus(); } }}><button role="menuitem" type="button" onClick={() => { setNewOpen(false); setNewFolder(true); setFolderError(""); folderRequest.current = null; }} className="flex w-full items-center gap-2 rounded p-2 text-sm focus:bg-white/10"><Folder size={16} />New folder</button><button role="menuitem" type="button" onClick={() => { setNewOpen(false); fileInput.current?.click(); }} className="flex w-full items-center gap-2 rounded p-2 text-sm focus:bg-white/10"><FileUp size={16} />File upload</button></div>}</div>
+@@ -201,7 +201,7 @@ export function DriveFiles({ projects, tasks, active, onOpenSettings }: { projec
+       <div className={view === "grid" ? "grid gap-2 min-[390px]:grid-cols-2 lg:grid-cols-3" : "space-y-1"}>{view === "list" && !!regularFiles.length && <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1fr)_7rem_5rem_2.5rem] gap-3 px-3 py-2 text-xs t-dark-muted lg:grid"><span>Name</span><span>Project / Location</span><span>Modified</span><span>Size</span><span className="sr-only">Actions</span></div>}{regularFiles.map((entry) => <article key={entry.id} className={view === "grid" ? "dark-inset min-w-0 p-3" : "dark-inset grid min-w-0 grid-cols-[minmax(0,1fr)_2.5rem] items-center gap-x-3 gap-y-1 p-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_7rem_5rem_2.5rem]"}><a href={actionLink(entry, "preview")} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-center gap-2 text-sm font-medium t-dark"><TypeIcon mime={entry.mime_type} /><span className="break-all">{entry.name}</span></a><p className={`min-w-0 break-words text-xs t-dark-muted ${view === "list" ? "col-start-1 row-start-2 lg:col-auto lg:row-auto" : "mt-2"}`}>{projects.find((project) => project.id === entry.project_id)?.name ?? "Unassigned"}{entry.task_id ? ` · ${tasks.find((task) => task.id === entry.task_id)?.title ?? "Task"}` : ""}{entry.project_id && !entry.parent_id ? " · Legacy root file" : ""}</p><p className={`text-xs t-dark-muted ${view === "list" ? "col-start-1 row-start-3 lg:col-auto lg:row-auto" : "mt-2"}`}>{dateLabel(entry.modified_at ?? entry.updated_at)}</p><p className={`text-xs t-dark-muted ${view === "list" ? "col-start-1 row-start-4 lg:col-auto lg:row-auto" : "mt-1"}`}>{sizeLabel(entry.size_bytes)}</p><div className={view === "list" ? "col-start-2 row-start-1 lg:col-auto lg:row-auto" : "mt-2 flex justify-end"}>{renderActions(entry)}</div></article>)}</div>
+       {nextOffset < count && <button type="button" disabled={loading} onClick={() => void loadMore()} className="dark-chip mt-3 px-3 py-2 text-sm">Load more ({Math.max(0, count - nextOffset)} remaining)</button>}<p className="mt-3 text-xs t-dark-muted">Search covers loaded metadata only. Files stay private; removal leaves Drive content intact.</p>
+     </section>
+-    {!!queue.length && <section aria-label="Upload queue" className="dark-inset p-3"><div className="flex items-center justify-between gap-2"><h3 className="font-semibold t-dark">Uploads</h3><button type="button" onClick={() => setQueue((items) => items.filter((item) => item.state !== "complete"))} className="dark-chip px-2 py-1 text-xs">Clear completed</button></div><div className="mt-3 space-y-3">{queue.map((item) => <div key={item.id} className="min-w-0"><div className="flex items-start justify-between gap-2"><p className="min-w-0 break-all text-sm t-dark">{item.file.name}<span className="block text-xs t-dark-muted">{sizeLabel(item.file.size)} · {item.destination.label}</span></p>{item.state === "complete" && <Check size={17} aria-label="Complete" />}{item.state === "failed" && <div className="flex shrink-0 flex-wrap gap-1"><button type="button" onClick={() => setQueue((items) => items.map((entry) => entry.id === item.id ? { ...entry, state: "waiting", error: "" } : entry))} className="dark-chip px-2 py-1 text-xs">Retry</button>{item.session && <button type="button" onClick={() => setQueue((items) => items.map((entry) => entry.id === item.id ? { ...entry, session: null, received: 0, state: "waiting", error: "" } : entry))} className="dark-chip px-2 py-1 text-xs">Restart</button>}<button type="button" aria-label={`Dismiss ${item.file.name}`} onClick={() => setQueue((items) => items.filter((entry) => entry.id !== item.id))} className="dark-chip p-1"><X size={14} /></button></div>}</div><progress aria-label={`Upload progress for ${item.file.name}`} value={item.received} max={item.file.size || 1} className="mt-1 h-2 w-full accent-[var(--ink-green)]" /><p role="status" aria-live="polite" className="text-xs t-dark-muted">{item.state} · {Math.floor(item.received / Math.max(1, item.file.size) * 100)}%{item.error ? ` · ${item.error}` : ""}</p></div>)}</div><p className="mt-3 text-xs t-dark-muted">One upload at a time, up to 1 GB each. Keep this page open; files and resumable retry state stay in memory only.</p></section>}
++    {!!queue.length && <section aria-label="Upload queue" className="dark-inset p-3"><div className="flex items-center justify-between gap-2"><h3 className="font-semibold t-dark">Uploads</h3><button type="button" onClick={() => setQueue((items) => items.filter((item) => item.state !== "complete"))} className="dark-chip px-2 py-1 text-xs">Clear completed</button></div><div className="mt-3 space-y-3">{queue.map((item) => <div key={item.id} className="min-w-0"><div className="flex items-start justify-between gap-2"><p className="min-w-0 break-all text-sm t-dark">{item.file.name}<span className="block text-xs t-dark-muted">{sizeLabel(item.file.size)} · {item.destination.label}</span></p>{item.state === "complete" && <Check size={17} aria-label="Complete" />}{item.state === "failed" && <div className="flex shrink-0 flex-wrap gap-1"><button type="button" onClick={() => setQueue((items) => items.map((entry) => entry.id === item.id ? { ...entry, state: "waiting", error: "" } : entry))} className="dark-chip px-2 py-1 text-xs">Retry</button>{item.session && <button type="button" onClick={() => setQueue((items) => items.map((entry) => entry.id === item.id ? { ...entry, session: null, received: 0, state: "waiting", error: "" } : entry))} className="dark-chip px-2 py-1 text-xs">Restart</button>}<button type="button" aria-label={`Dismiss ${item.file.name}`} onClick={() => setQueue((items) => items.filter((entry) => entry.id !== item.id))} className="dark-chip p-1"><X size={14} /></button></div>}</div><progress aria-label={`Upload progress for ${item.file.name}`} value={item.received} max={item.file.size || 1} className="mt-1 h-2 w-full accent-[var(--ink-green)]" /><p role="status" aria-live="polite" data-feedback={item.error ? "error" : item.state === "complete" ? "success" : undefined} className="text-xs t-dark-muted">{item.state} · {Math.floor(item.received / Math.max(1, item.file.size) * 100)}%{item.error ? ` · ${item.error}` : ""}</p></div>)}</div><p className="mt-3 text-xs t-dark-muted">One upload at a time, up to 1 GB each. Keep this page open; files and resumable retry state stay in memory only.</p></section>}
+     {dragging && connected && <div className="pointer-events-none absolute inset-0 z-40 grid place-content-center rounded-xl border-2 border-dashed border-[var(--ink-green)] bg-[var(--surface-dark)]/95 p-4 text-center"><FileUp size={36} className="mx-auto mb-3" /><p className="text-xl font-semibold">Drop files to upload</p><p className="mt-2 break-all text-sm">{destination.label}</p></div>}
+     {newFolder && <WorkspaceDialog label="Create Drive folder" onClose={() => { if (!creating) setNewFolder(false); }}><form onSubmit={(event) => void createFolder(event)} className="dark-panel w-full max-w-md space-y-4 p-5"><h3 className="text-xl font-semibold t-dark">New folder</h3><p className="text-sm t-dark-muted">Inside {destination.label}</p><label className="block text-sm">Folder name<input autoFocus value={folderName} disabled={creating} onChange={(event) => { setFolderName(event.target.value); folderRequest.current = null; }} maxLength={255} className="dark-chip mt-2 w-full p-3" /></label>{folderError && <p role="alert" className="text-sm text-[var(--accent-peach)]">{folderError}</p>}<div className="flex justify-end gap-2"><button type="button" disabled={creating} onClick={() => setNewFolder(false)} className="dark-chip px-3 py-2">Cancel</button><button type="submit" disabled={creating} className="ink-button primary px-3 py-2">{creating ? "Creating…" : "Create folder"}</button></div></form></WorkspaceDialog>}
+   </section>;
+diff --git a/components/portfolio/PortfolioEditor.tsx b/components/portfolio/PortfolioEditor.tsx
+index 1086bee..148ac29 100644
+--- a/components/portfolio/PortfolioEditor.tsx
++++ b/components/portfolio/PortfolioEditor.tsx
+@@ -75,7 +75,7 @@ export function PortfolioEditor({ tab, onTabChange }: { tab: Tab; onTabChange: (
+     return <div className="space-y-4">{entries.length === 0 && <p className="t-dark-muted">No {label.toLowerCase()} added yet.</p>}{entries.map((entry, index) => <article key={entry.id} className="dark-inset min-w-0 rounded-xl p-4"><h3 className="break-words font-semibold">{entryTitle(entry)}</h3>{"start" in entry && <p className="mt-1 text-sm t-dark-muted">{entry.start}{"end" in entry ? ` – ${entry.current ? "Present" : entry.end}` : ` – ${entry.graduation}`}</p>}<div className="mt-3 flex flex-wrap gap-2"><button type="button" className={button} onClick={() => setEditor({ collection, entry: structuredClone(entry) })}>Edit</button><Toggle label={`Show ${entryTitle(entry)} publicly`} checked={entry.enabled} onChange={(enabled) => set(collection, entries.map((old) => old.id === entry.id ? { ...old, enabled } : old) as PortfolioContent[typeof collection])} /><Reorder label={entryTitle(entry)} index={index} count={entries.length} onMove={(direction) => set(collection, moveItem<Entry>(entries, index, direction) as PortfolioContent[typeof collection])} /><button type="button" className={button} onClick={() => setConfirmation({ label: `Delete ${entryTitle(entry)}?`, action: () => set(collection, entries.filter((old) => old.id !== entry.id) as PortfolioContent[typeof collection]) })}>Delete {label}</button></div></article>)}<button type="button" className={button} onClick={() => add(collection)}>+ Add {label}</button></div>;
+   }
+   const closeEditor = () => setConfirmation({ label: "Discard changes in this entry editor?", action: () => setEditor(null) });
+-  return <section className="dark-panel min-w-0 p-4 md:p-6" aria-labelledby="portfolio-editor-title">
++  return <section className="notebook-dense dark-panel min-w-0 p-4 md:p-6" aria-labelledby="portfolio-editor-title">
+     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 id="portfolio-editor-title" className="text-2xl font-semibold">Portfolio</h2><p className="mt-1 text-sm t-dark-muted">Edit your public professional content. Changes publish when you save.</p></div><a className={button} href="/" target="_blank" rel="noopener noreferrer">Preview Portfolio</a></div>
+     <nav aria-label="Portfolio editors" className="my-5 flex flex-wrap gap-2">{portfolioTabs.map((item) => <button key={item} type="button" className={button} aria-current={tab === item ? "page" : undefined} onClick={() => onTabChange(item)}>{item}</button>)}</nav>
+     <fieldset disabled={saving} className="min-w-0 space-y-5">
+@@ -98,7 +98,7 @@ export function PortfolioEditor({ tab, onTabChange }: { tab: Tab; onTabChange: (
+       {tab === "Contact & Links" && <><div className="grid gap-4 md:grid-cols-2">{(["email", "phone", "location", "cta", "note"] as const).map((key) => <Input key={key} label={{ email: "Public email", phone: "Public phone", location: "Location", cta: "Contact CTA text", note: "Availability / contact note" }[key]} value={d.contact[key]} type={key === "email" ? "email" : "text"} maxLength={key === "phone" ? 40 : key === "email" ? 254 : key === "note" ? 1000 : key === "cta" ? 160 : 240} onChange={(value) => set("contact", { ...d.contact, [key]: value })} />)}</div>{(["showEmail", "showPhone", "showLocation"] as const).map((key) => <Toggle key={key} label={{ showEmail: "Show email publicly", showPhone: "Show phone publicly", showLocation: "Show location publicly" }[key]} checked={d.contact[key]} onChange={(value) => set("contact", { ...d.contact, [key]: value })} />)}{collectionEditor("links", "Link")}</>}
+       {tab === "Public Settings" && <><Toggle label="Enable public profile" checked={draft.enabled} onChange={(enabled) => { setDraft({ ...draft, enabled }); setDirty(true); }} /><Toggle label="Enable Public AI (uses only approved public data)" checked={draft.aiEnabled} onChange={(aiEnabled) => { setDraft({ ...draft, aiEnabled }); setDirty(true); }} /><Input label="Projects section heading" value={d.projects.title} maxLength={160} onChange={(title) => set("projects", { ...d.projects, title })} /><Input label="Projects section intro" value={d.projects.intro} multiline maxLength={1000} onChange={(intro) => set("projects", { ...d.projects, intro })} /><p className="text-sm t-dark-muted">Section order is fixed to preserve the public design. Child collections support keyboard-accessible ordering. Disabled sections and hidden contact fields are excluded from both the public site and Public AI.</p>{sectionKeys.map((key) => <Toggle key={key} label={`Show ${key} section publicly`} checked={d.sections[key].enabled} onChange={(enabled) => set("sections", { ...d.sections, [key]: { ...d.sections[key], enabled } })} />)}</>}
+     </fieldset>
+-    <div className="mt-6 flex flex-wrap items-center gap-3 dark-inset rounded-xl p-3"><button type="button" className="ink-button primary min-h-10 px-4 py-2 text-sm disabled:opacity-50" disabled={saving || Boolean(editor)} onClick={() => void save()}>{saving ? "Saving…" : "Save portfolio"}</button><p role={failed ? "alert" : "status"} className="min-w-0 break-words text-sm">{notice || (dirty ? "Unsaved changes" : "All changes saved")}</p></div>
++    <div className="mt-6 flex flex-wrap items-center gap-3 dark-inset rounded-xl p-3"><button type="button" className="ink-button primary min-h-10 px-4 py-2 text-sm disabled:opacity-50" disabled={saving || Boolean(editor)} onClick={() => void save()}>{saving ? "Saving…" : "Save portfolio"}</button><p role={failed ? "alert" : "status"} className="min-w-0 break-words text-sm" data-feedback={failed ? "error" : !dirty && !saving ? "success" : undefined}>{notice || (dirty ? "Unsaved changes" : "All changes saved")}</p></div>
+     {editor && <WorkspaceDialog label={`Edit ${editor.collection}`} onClose={closeEditor}><div className="dark-panel w-full max-w-2xl min-w-0 space-y-4 p-4"><h3 className="text-lg font-semibold">Edit {editor.collection}</h3>{fields[editor.collection].map((field) => {
+       const record = editor.entry as unknown as Record<string, unknown>;
+       const change = (value: unknown) => setEditor({ ...editor, entry: { ...editor.entry, [field.key]: value } });
+diff --git a/components/profile/public-profile-settings.tsx b/components/profile/public-profile-settings.tsx
+index 7079cc2..505efda 100644
+--- a/components/profile/public-profile-settings.tsx
++++ b/components/profile/public-profile-settings.tsx
+@@ -85,7 +85,7 @@ export function PublicProfileSettings() {
+   );
+ 
+   return (
+-    <section className="mt-6 dark-panel p-5" aria-labelledby="public-profile-settings-title">
++    <section className="notebook-dense mt-6 dark-panel p-5" aria-labelledby="public-profile-settings-title">
+       <div className="flex flex-wrap items-start justify-between gap-3">
+         <div>
+           <h3 id="public-profile-settings-title" className="text-lg font-semibold t-dark">Public portfolio profile</h3>
+diff --git a/components/projects/public-accountability-settings.tsx b/components/projects/public-accountability-settings.tsx
+index f039550..e81360f 100644
+--- a/components/projects/public-accountability-settings.tsx
++++ b/components/projects/public-accountability-settings.tsx
+@@ -54,7 +54,7 @@ export function PublicAccountabilitySettings({ projectId }: Props) {
+   };
+ 
+   return (
+-    <section className="mt-3 dark-inset p-3" aria-labelledby="public-accountability-title">
++    <section className="notebook-dense mt-3 dark-inset p-3" aria-labelledby="public-accountability-title">
+       <div className="flex flex-wrap items-start justify-between gap-3">
+         <div>
+           <h3 id="public-accountability-title" className="font-medium t-dark">Public accountability</h3>

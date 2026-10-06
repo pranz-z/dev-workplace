@@ -1,0 +1,40 @@
+components\ui\notebook.tsx:20:      if (!media.matches && !document.hidden && visible.size) timer = setInterval(() => {
+components\ui\notebook.tsx:127:      if (points.length) frame = requestAnimationFrame(draw);
+components\ui\notebook.tsx:129:    const move = (event: PointerEvent) => { if (event.pointerType !== "mouse" || !allowed()) return; color = getComputedStyle(canvas).color; points.push({ x: event.clientX, y: event.clientY, time: performance.now() }); if (points.length > 200) points.shift(); if (!frame) frame = requestAnimationFrame(draw); };
+components\github\project-activity.tsx:78:        <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh activity
+app\app\page.tsx:444:    const timer = window.setInterval(() => setWorkspaceNow(new Date()), 60_000);
+app\app\page.tsx:676:    const timer = window.setInterval(updateTimer, 1000);
+app\login\page.tsx:60:          {loading ? <LoaderCircle size={16} className="animate-spin" /> : <FolderGit2 size={16} />}
+app\login\page.tsx:82:          <LoaderCircle size={20} className="animate-spin t-paper-muted" />
+app\globals.css:329:  transition: background-color 220ms ease, color 220ms ease;
+app\globals.css:604:  transition: transform 0.2s ease, box-shadow 0.2s ease;
+app\globals.css:682:  transition: transform 0.2s ease, box-shadow 0.2s ease;
+app\globals.css:752:  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+app\globals.css:1145:  transition: border-color 160ms ease, box-shadow 160ms ease;
+app\globals.css:1174:.task-kanban-drop-zone { display: flex; min-height: 82px; flex-direction: column; gap: 8px; border-radius: 14px; transition: background-color 160ms ease, box-shadow 160ms ease; }
+app\globals.css:1203:.task-kanban-ai-handle { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 10px; transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
+app\globals.css:1252:  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+app\globals.css:1401:    animation-duration: 0.01ms !important;
+app\globals.css:1402:    animation-iteration-count: 1 !important;
+app\globals.css:1403:    transition-duration: 0.01ms !important;
+app\globals.css:1468:  transition: background-color 160ms ease, box-shadow 160ms ease;
+app\globals.css:1539:.portfolio-project { border-top: 3px solid var(--accent-peach-solid); transition: box-shadow 160ms ease; }
+app\globals.css:1609:.notebook-button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 44px; padding: .5rem 1.2rem; border: 0; border-radius: var(--nb-radius); background: transparent; font-weight: 700; transition: transform .2s; }
+app\globals.css:1615:.notebook-card { min-width: 0; padding: 1.4rem 1.3rem; border-radius: var(--nb-card-radius); background: var(--nb-card); transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .25s; }
+app\globals.css:1616:.notebook-card::before { content: ""; position: absolute; top: -12px; right: 18px; width: 54px; height: 20px; background: var(--nb-accent); opacity: .7; transform: rotate(6deg); transition: transform .3s; pointer-events: none; }
+app\globals.css:1620:.notebook-underline path { fill: none; stroke: var(--nb-accent); stroke-width: 4; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 0; transition: stroke-dashoffset 1s .2s; }
+app\globals.css:1622:.notebook-chip { display: inline-block; padding: .15rem .8rem; border-radius: 8px; background: var(--nb-card); transform: rotate(var(--rotation, 0deg)); transition: background-color .3s, transform .3s; }
+app\globals.css:1626:.notebook-reveal { display: block; opacity: 1; transition: opacity .7s, transform .7s; }
+app\globals.css:1639:  .notebook-button, .notebook-card, .notebook-chip, .notebook-reveal, .notebook-card::before { transition: none; transform: none !important; }
+app\globals.css:1641:  .notebook-underline path { transition: none; stroke-dashoffset: 0 !important; }
+app\globals.css:1673:.notebook-floating-doodle { position: absolute; pointer-events: none; stroke: var(--nb-accent2); fill: none; stroke-width: 3; stroke-linecap: round; animation: notebook-float 7s ease-in-out infinite; }
+app\globals.css:1706:@media (prefers-reduced-motion: reduce) { .notebook-floating-doodle { animation: none; } .notebook-portrait { transform: none; } }
+app\globals.css:1729:html[data-theme] .notebook-login .ink-button.primary { background: var(--nb-accent-text); color: var(--nb-button-ink); border: 0; border-radius: var(--nb-radius); box-shadow: none; transform: none; transition: none; }
+app\globals.css:1856:.notebook-typing-pencil { animation: notebook-writing 1.2s ease-in-out infinite; transform-origin: 16px 12px; }
+app\globals.css:1857:.notebook-typing-line { stroke-dasharray: 24; animation: notebook-writing-line 1.2s ease-in-out infinite; }
+app\globals.css:1866:  .notebook-typing :is(.notebook-typing-pencil,.notebook-typing-line) { animation: none; transform: none; stroke-dashoffset: 0; }
+app\globals.css:1867:  .notebook-workspace :is(.notebook-dense,.workspace-dialog,.workspace-ai-panel) *, .public-ai-concierge * { transition: none; scroll-behavior: auto; }
+components\auth\user-menu.tsx:85:    return <span aria-hidden className="h-9 w-9 animate-pulse rounded-full border border-[var(--edge-cream)] bg-[var(--surface-cream)]" />;
+components\auth\user-menu.tsx:140:              {signingOut ? <LoaderCircle size={14} className="animate-spin t-dark-muted" /> : <LogOut size={14} className="t-dark-muted" />} Sign out
+components\calendar\WorkspaceCalendar.tsx:199:    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+components\portfolio\NotebookInteractions.tsx:14:    const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };

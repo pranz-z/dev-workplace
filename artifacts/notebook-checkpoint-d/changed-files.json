@@ -1,0 +1,16 @@
+[
+  "app/app/page.tsx",
+  "components/ai/ChatPresentation.tsx",
+  "components/google-drive/DriveFiles.tsx",
+  "components/google-drive/DriveConnectionControl.tsx",
+  "components/accountability/accountability-workspace.tsx",
+  "components/accountability/project-accountability-card.tsx",
+  "components/accountability/public-accountability-card.tsx",
+  "components/portfolio/PortfolioEditor.tsx",
+  "components/github/repository-browser.tsx",
+  "components/github/project-activity.tsx",
+  "components/ai/AiAssistant.tsx",
+  "app/globals.css",
+  "components/projects/public-accountability-settings.tsx",
+  "components/profile/public-profile-settings.tsx"
+]

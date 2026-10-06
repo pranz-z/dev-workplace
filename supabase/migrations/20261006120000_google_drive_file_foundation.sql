@@ -38,7 +38,9 @@ create index if not exists external_files_task_updated_idx
   on public.external_files (task_id, updated_at desc) where task_id is not null;
 
 alter table public.external_files enable row level security;
-revoke all on public.external_files from anon;
+-- Clear Supabase's default grants before granting row-level operations.
+-- In particular, TRUNCATE bypasses RLS and must not remain authenticated.
+revoke all on public.external_files from public, anon, authenticated;
 grant select, insert, update, delete on public.external_files to authenticated;
 
 drop policy if exists "own external files" on public.external_files;

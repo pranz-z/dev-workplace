@@ -1,0 +1,127 @@
+{
+  "routes": {
+    "/": {
+      "status": 200,
+      "width": 390,
+      "viewport": 390,
+      "title": "Franz Michael Cayanan — Full-Stack & AI Application Developer",
+      "header": {
+        "position": "sticky",
+        "paddingTop": "0px",
+        "rect": 390
+      }
+    },
+    "/login": {
+      "status": 200,
+      "width": 390,
+      "viewport": 390,
+      "title": "Frami — Developer Workplace",
+      "header": null
+    },
+    "/projects/notebook-audit": {
+      "status": 200,
+      "width": 390,
+      "viewport": 390,
+      "title": "Project unavailable | Developer Portfolio"
+    },
+    "/view": {
+      "status": 200,
+      "width": 390,
+      "viewport": 390,
+      "title": "Franz Michael Cayanan — Full-Stack & AI Application Developer",
+      "header": {
+        "position": "sticky",
+        "paddingTop": "0px",
+        "rect": 390
+      }
+    },
+    "/app": {
+      "status": 503,
+      "width": 980,
+      "viewport": 390,
+      "title": "",
+      "header": null
+    }
+  },
+  "landing": {
+    "anchors": [
+      "/projects/dev-workplace",
+      "/projects/furniture-business-system",
+      "/projects/autocare-automotive-service-website"
+    ],
+    "assistant": false,
+    "assistantLauncher": [],
+    "fontBytes": 167336,
+    "fonts": [
+      {
+        "size": 14040,
+        "path": "/_next/static/media/0fcab32fcfb2da9d-s.p.01npz8736q7k4.woff2"
+      },
+      {
+        "size": 23108,
+        "path": "/_next/static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
+      },
+      {
+        "size": 13224,
+        "path": "/_next/static/media/84780b0176be2d72-s.p.1hn1lzziu03wl.woff2"
+      },
+      {
+        "size": 13104,
+        "path": "/_next/static/media/970c428219233a3d-s.p.2c-43iqdh9ttx.woff2"
+      },
+      {
+        "size": 74572,
+        "path": "/_next/static/media/a85fe84266768609-s.p.0h6ig86gwutp4.woff2"
+      },
+      {
+        "size": 29288,
+        "path": "/_next/static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2"
+      }
+    ],
+    "boiling": 0,
+    "totalBorders": 67
+  },
+  "landingLayout": {
+    "width": 390,
+    "viewport": 390,
+    "tooWide": [
+      "A.",
+      "A.",
+      "A."
+    ],
+    "header": "0px"
+  },
+  "focus": {
+    "light": {
+      "target": "BUTTON",
+      "outline": "dashed",
+      "color": "rgb(178, 60, 21)",
+      "width": "3px",
+      "background": "rgb(246, 240, 229)"
+    },
+    "dark": {
+      "target": "A",
+      "outline": "dashed",
+      "color": "rgb(242, 184, 75)",
+      "width": "3px",
+      "background": "rgb(28, 25, 23)"
+    }
+  },
+  "dialogQA": {
+    "outline": "dashed",
+    "color": "rgb(242, 184, 75)",
+    "width": "3px",
+    "alertPrefix": "\"× \"",
+    "dialogWidth": 288.78125
+  },
+  "reduce": {
+    "floating": "1e-05s",
+    "spinner": "no spinner",
+    "errorPrefix": "\"× \""
+  },
+  "logs": [
+    "warning: The resource http://localhost:3102/_next/static/chunks/12ntnd04ytmpo.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://localhost:3102/_next/static/chunks/12ntnd04ytmpo.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "error: Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+  ]
+}

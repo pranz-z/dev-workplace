@@ -1,0 +1,193 @@
+{
+  "originGuard": "Application origin is not configured.",
+  "warnings": [
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "The resource http://localhost:3100/_next/static/chunks/12ntnd04ytmpo.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally."
+  ],
+  "themes": {
+    "light": {
+      "pageWidth": 390,
+      "viewport": 390,
+      "overflow": [],
+      "statusChip": {
+        "ratio": 12.47,
+        "foreground": [
+          42,
+          36,
+          32
+        ],
+        "background": [
+          238,
+          231,
+          220
+        ]
+      },
+      "minimumEnabledChip": 5.21,
+      "error": {
+        "ratio": 5.21,
+        "foreground": [
+          178,
+          60,
+          21
+        ],
+        "background": [
+          246,
+          240,
+          229
+        ]
+      },
+      "success": {
+        "ratio": 5.7,
+        "foreground": [
+          25,
+          106,
+          90
+        ],
+        "background": [
+          246,
+          240,
+          229
+        ]
+      },
+      "muted": {
+        "ratio": 5.47,
+        "foreground": [
+          107,
+          95,
+          82
+        ],
+        "background": [
+          246,
+          240,
+          229
+        ]
+      },
+      "privateBubble": {
+        "ratio": 11.59,
+        "foreground": [
+          42,
+          36,
+          32
+        ],
+        "background": [
+          220,
+          226,
+          214
+        ]
+      },
+      "publicBubble": {
+        "ratio": 11.56,
+        "foreground": [
+          42,
+          36,
+          32
+        ],
+        "background": [
+          241,
+          220,
+          205
+        ]
+      },
+      "codeFont": "\"Geist Mono\", \"Geist Mono Fallback\", monospace"
+    },
+    "dark": {
+      "pageWidth": 390,
+      "viewport": 390,
+      "overflow": [],
+      "statusChip": {
+        "ratio": 13.36,
+        "foreground": [
+          243,
+          235,
+          221
+        ],
+        "background": [
+          37,
+          34,
+          31
+        ]
+      },
+      "minimumEnabledChip": 9.77,
+      "error": {
+        "ratio": 9.77,
+        "foreground": [
+          242,
+          184,
+          75
+        ],
+        "background": [
+          28,
+          25,
+          23
+        ]
+      },
+      "success": {
+        "ratio": 9.76,
+        "foreground": [
+          127,
+          209,
+          185
+        ],
+        "background": [
+          28,
+          25,
+          23
+        ]
+      },
+      "muted": {
+        "ratio": 7.47,
+        "foreground": [
+          180,
+          168,
+          148
+        ],
+        "background": [
+          28,
+          25,
+          23
+        ]
+      },
+      "privateBubble": {
+        "ratio": 11.59,
+        "foreground": [
+          243,
+          235,
+          221
+        ],
+        "background": [
+          40,
+          47,
+          42
+        ]
+      },
+      "publicBubble": {
+        "ratio": 11.56,
+        "foreground": [
+          243,
+          235,
+          221
+        ],
+        "background": [
+          54,
+          44,
+          29
+        ]
+      },
+      "codeFont": "\"Geist Mono\", \"Geist Mono Fallback\", monospace"
+    }
+  },
+  "inputFocus": {
+    "style": "dashed",
+    "width": "3px",
+    "type": "email",
+    "required": true
+  },
+  "reducedMotion": {
+    "animation": "none",
+    "transform": "none"
+  },
+  "desktopWidth": {
+    "pageWidth": 1440,
+    "viewport": 1440
+  }
+}

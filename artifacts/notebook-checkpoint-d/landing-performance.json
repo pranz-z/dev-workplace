@@ -1,0 +1,225 @@
+{
+  "perf": {
+    "title": "Franz Michael Cayanan — Full-Stack & AI Application Developer",
+    "fontsReady": "loaded",
+    "fonts": [
+      {
+        "family": "Geist",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist Fallback",
+        "weight": "normal",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist Mono",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist Mono",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist Mono",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist Mono",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist Mono",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist Mono",
+        "weight": "100 900",
+        "status": "unloaded"
+      },
+      {
+        "family": "Geist Mono Fallback",
+        "weight": "normal",
+        "status": "unloaded"
+      },
+      {
+        "family": "Caveat",
+        "weight": "500",
+        "status": "unloaded"
+      },
+      {
+        "family": "Caveat",
+        "weight": "500",
+        "status": "unloaded"
+      },
+      {
+        "family": "Caveat",
+        "weight": "500",
+        "status": "unloaded"
+      },
+      {
+        "family": "Caveat",
+        "weight": "500",
+        "status": "loaded"
+      },
+      {
+        "family": "Caveat",
+        "weight": "700",
+        "status": "unloaded"
+      },
+      {
+        "family": "Caveat",
+        "weight": "700",
+        "status": "unloaded"
+      },
+      {
+        "family": "Caveat",
+        "weight": "700",
+        "status": "unloaded"
+      },
+      {
+        "family": "Caveat",
+        "weight": "700",
+        "status": "loaded"
+      },
+      {
+        "family": "Caveat Fallback",
+        "weight": "normal",
+        "status": "unloaded"
+      },
+      {
+        "family": "Kalam",
+        "weight": "300",
+        "status": "unloaded"
+      },
+      {
+        "family": "Kalam",
+        "weight": "300",
+        "status": "unloaded"
+      },
+      {
+        "family": "Kalam",
+        "weight": "300",
+        "status": "unloaded"
+      },
+      {
+        "family": "Kalam",
+        "weight": "400",
+        "status": "unloaded"
+      },
+      {
+        "family": "Kalam",
+        "weight": "400",
+        "status": "unloaded"
+      },
+      {
+        "family": "Kalam",
+        "weight": "400",
+        "status": "loaded"
+      },
+      {
+        "family": "Kalam",
+        "weight": "700",
+        "status": "unloaded"
+      },
+      {
+        "family": "Kalam",
+        "weight": "700",
+        "status": "unloaded"
+      },
+      {
+        "family": "Kalam",
+        "weight": "700",
+        "status": "loaded"
+      },
+      {
+        "family": "Kalam Fallback",
+        "weight": "normal",
+        "status": "unloaded"
+      }
+    ],
+    "fontResources": [
+      {
+        "name": "http://localhost:3101/_next/static/media/0fcab32fcfb2da9d-s.p.01npz8736q7k4.woff2",
+        "transferSize": 14340,
+        "encodedBodySize": 14040,
+        "decodedBodySize": 14040
+      },
+      {
+        "name": "http://localhost:3101/_next/static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+        "transferSize": 23408,
+        "encodedBodySize": 23108,
+        "decodedBodySize": 23108
+      },
+      {
+        "name": "http://localhost:3101/_next/static/media/84780b0176be2d72-s.p.1hn1lzziu03wl.woff2",
+        "transferSize": 13524,
+        "encodedBodySize": 13224,
+        "decodedBodySize": 13224
+      },
+      {
+        "name": "http://localhost:3101/_next/static/media/970c428219233a3d-s.p.2c-43iqdh9ttx.woff2",
+        "transferSize": 13404,
+        "encodedBodySize": 13104,
+        "decodedBodySize": 13104
+      },
+      {
+        "name": "http://localhost:3101/_next/static/media/a85fe84266768609-s.p.0h6ig86gwutp4.woff2",
+        "transferSize": 74872,
+        "encodedBodySize": 74572,
+        "decodedBodySize": 74572
+      },
+      {
+        "name": "http://localhost:3101/_next/static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
+        "transferSize": 29588,
+        "encodedBodySize": 29288,
+        "decodedBodySize": 29288
+      }
+    ],
+    "fontBytes": 167336,
+    "transferAll": 436308,
+    "encodedAll": 429108,
+    "animatedBorderCandidates": 5,
+    "visibleBorders": 1,
+    "boiling": 1,
+    "allBorders": 67,
+    "overflow": {
+      "width": 1280,
+      "viewport": 1280
+    },
+    "area": "portfolio",
+    "idle5s": {
+      "taskMs": 95.15,
+      "scriptMs": 6.48,
+      "layoutMs": 1.27,
+      "heapMB": 4.89
+    }
+  },
+  "logs": []
+}
