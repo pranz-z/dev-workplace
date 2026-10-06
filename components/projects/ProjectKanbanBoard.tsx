@@ -49,8 +49,9 @@ function ProjectCard({ project, selected, disabled, onSelect }: {
     <article
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.45 : undefined }}
-      className={`project-kanban-card flex items-center gap-2 rounded-lg dark-inset p-3 ${selected ? "ring-1 ring-[var(--ink-green)]" : ""}`}
+      className={`project-kanban-card ${isDragging ? "is-dragging" : ""} flex items-center gap-2 rounded-lg dark-inset p-3 ${selected ? "ring-1 ring-[var(--ink-green)]" : ""}`}
     >
+      <div className="notebook-drag-surface flex min-w-0 w-full items-center gap-2">
       <button
         type="button"
         onClick={onSelect}
@@ -73,6 +74,7 @@ function ProjectCard({ project, selected, disabled, onSelect }: {
         </button>
       )}
       <button type="button" draggable onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "project", id: project.id })); event.dataTransfer.effectAllowed = "copy"; }} aria-label={`Drag ${project.name} into Workspace AI context`} title={`Drag ${project.name} into Workspace AI`} className="dark-chip cursor-grab p-1.5 active:cursor-grabbing"><Sparkles size={14} /></button>
+      </div>
     </article>
   );
 }

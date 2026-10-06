@@ -67,7 +67,7 @@ function TaskCard({ task, projectName, projectScoped, onOpenTask, disabled, time
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : undefined }}
       className={`task-kanban-card ${task.status === "Completed" ? "is-completed" : ""} ${isDragging ? "is-dragging" : ""}`}
     >
-      <div className="flex items-start gap-2">
+      <div className="notebook-drag-surface flex items-start gap-2">
         {!disabled && <button
           type="button"
           {...attributes}
