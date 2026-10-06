@@ -139,7 +139,7 @@ export function AiAssistant(props: AiAssistantProps) {
     {mode === "note" && <p className="mt-1 text-[11px] t-dark-muted">Only this note is sent to Gemini.</p>}
 
     {action && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-3 backdrop-blur-sm sm:p-5">
-      <section role="dialog" aria-modal="true" aria-labelledby="ai-dialog-title" className="my-5 max-h-[92vh] w-full max-w-3xl overflow-y-auto dark-panel p-4 shadow-[var(--shadow-dark-lift)] sm:p-6">
+      <section role="dialog" aria-modal="true" aria-labelledby="ai-dialog-title" className="notebook-dense my-5 max-h-[92vh] w-full max-w-3xl overflow-y-auto dark-panel p-4 shadow-[var(--shadow-dark-lift)] sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div><p className="eyebrow t-mood">AI suggestion</p><h2 id="ai-dialog-title" className="mt-1 text-xl font-semibold t-dark">{labels[action]}</h2><p className="mt-1 text-xs t-dark-muted">Review generated content before applying it. Gemini cannot save changes.</p></div>
           <button type="button" aria-label="Close AI assistant" disabled={busy} onClick={() => { setAction(null); setOutput(null); setSelected(clearAiSelection()); }} className="dark-chip px-3 py-2 text-sm">Close</button>
@@ -160,7 +160,7 @@ export function AiAssistant(props: AiAssistantProps) {
           {output && <button type="button" onClick={() => { setOutput(null); setSelected(clearAiSelection()); }} disabled={busy} className="dark-chip px-3 py-2 text-sm">Discard result</button>}
         </div>
         {error && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{error}</p>}
-        {notice && <p role="status" className="mt-3 text-sm t-dark-muted">{notice}</p>}
+        {notice && <p role="status" data-feedback="success" className="mt-3 text-sm t-dark-muted">{notice}</p>}
 
         {output && <div className="mt-5 space-y-3">
           {("suggestions" in output || "tasks" in output || "actions" in output) && (() => {
