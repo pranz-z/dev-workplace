@@ -8,6 +8,7 @@ import { AGENT_SYSTEM_INSTRUCTION } from "@/lib/ai/agent/prompt";
 import { runAgentLoop } from "@/lib/ai/agent/executor";
 import type { AgentRequest } from "@/lib/ai/agent/contract";
 import type { ToolContext } from "@/lib/ai/agent/tools";
+import { proposalTools } from "@/lib/ai/agent/proposal-schema";
 
 export async function generateAgentResponse(request: AgentRequest, context: ToolContext) {
   const configuration = getGeminiConfiguration();
@@ -17,7 +18,7 @@ export async function generateAgentResponse(request: AgentRequest, context: Tool
     return await runAgentLoop(request, context, async (contents) => {
       const response = await ai.models.generateContent({ model: configuration.model!, contents, config: {
         systemInstruction: `${AGENT_SYSTEM_INSTRUCTION}\nTimezone: ${context.timeZone}. Today: ${localCalendarDate(context.now, context.timeZone)}.`,
-        tools: [{ functionDeclarations: agentTools }], maxOutputTokens: 1800, abortSignal: context.signal,
+        tools: [{ functionDeclarations: [...agentTools, ...proposalTools] }], maxOutputTokens: 1800, abortSignal: context.signal,
         automaticFunctionCalling: { disable: true },
       } });
       if (response.promptFeedback?.blockReason) throw new AiError("CONTENT_BLOCKED");

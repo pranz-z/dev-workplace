@@ -7,7 +7,9 @@ import { ChatMessageBubble, ChatTypingIndicator, type ChatMessage } from "@/comp
 import { MAX_CHAT_ENTITIES, MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, MAX_CHAT_TOTAL_FILE_BYTES, MAX_CHAT_HISTORY_MESSAGES, MAX_CHAT_MESSAGE_LENGTH, type WorkspaceEntityRef } from "@/lib/ai/chat-contract";
 import { parseWorkspaceEntityDragPayload, WORKSPACE_AI_DRAG_TYPE } from "@/lib/ai/chat-drag";
 import { PanelResizeHandle } from "@/components/workspace/PanelResizeHandle";
-import type { ToolActivity } from "@/lib/ai/agent/contract";
+import type { ToolActivity, ProposalBatch } from "@/lib/ai/agent/contract";
+import { normalizeAgentAnswer } from "@/lib/ai/agent/format";
+import { AgentProposalCards } from "@/components/ai/AgentProposalCards";
 
 const AGENT_PROMPTS = ["Plan my priorities today", "What is overdue?", "What is due this week?", "Which project needs attention?", "Show unscheduled high-priority tasks"];
 
@@ -20,12 +22,13 @@ function supportedFile(file: File): boolean {
   return supportedText.has(extension) || imageOrPdf;
 }
 
-interface Props { projects: Project[]; tasks: Task[]; plans: Plan[]; open: boolean; onOpenChange: (open: boolean) => void }
+interface Props { projects: Project[]; tasks: Task[]; plans: Plan[]; open: boolean; onOpenChange: (open: boolean) => void; onAgentApplied?: () => Promise<void> }
+type WorkspaceChatMessage = ChatMessage & { proposalBatch?: ProposalBatch };
 
-export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange }: Props) {
+export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange, onAgentApplied }: Props) {
   const [mode, setMode] = useState<"chat" | "agent">("chat");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [agentMessages, setAgentMessages] = useState<ChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<WorkspaceChatMessage[]>([]);
+  const [agentMessages, setAgentMessages] = useState<WorkspaceChatMessage[]>([]);
   const messages = mode === "chat" ? chatMessages : agentMessages;
   const setMessages = mode === "chat" ? setChatMessages : setAgentMessages;
   const [toolActivity, setToolActivity] = useState<ToolActivity[]>([]);
@@ -112,7 +115,7 @@ export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange }: 
     const abortController = new AbortController();
     controller.current = abortController;
     const timeout = window.setTimeout(() => abortController.abort(), 75_000);
-    const prior = messages.slice(-MAX_CHAT_HISTORY_MESSAGES);
+    const prior = messages.slice(-MAX_CHAT_HISTORY_MESSAGES).map(({ role, content }) => ({ role, content }));
     const submittedFiles = [...files];
     setMessages((current) => [...current, { role: "user" as const, content: question }].slice(-MAX_CHAT_HISTORY_MESSAGES * 2));
     setMessage(""); setBusy(true); setError("");
@@ -121,10 +124,11 @@ export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange }: 
       form.append("request", JSON.stringify({ message: question, history: prior, workspaceContext: entityContext }));
       submittedFiles.forEach((file) => form.append("files", file, file.name));
       const response = await fetch(mode === "agent" ? "/api/ai/agent" : "/api/ai/chat", { method: "POST", ...(mode === "agent" ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: question, history: prior, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" }) } : { body: form }), cache: "no-store", signal: abortController.signal });
-      const payload = await response.json() as { answer?: string; toolActivity?: ToolActivity[]; error?: { message?: string } };
+      const payload = await response.json() as { answer?: string; toolActivity?: ToolActivity[]; proposalBatch?: ProposalBatch; error?: { message?: string } };
       if (!response.ok || typeof payload.answer !== "string") throw new Error(payload.error?.message || "The workspace assistant is temporarily unavailable.");
       if (sequence === requestSequence.current) {
-        setMessages((current) => [...current, { role: "assistant" as const, content: payload.answer! }].slice(-MAX_CHAT_HISTORY_MESSAGES * 2));
+        if (mode === "agent") setAgentMessages(current => [...current, { role: "assistant" as const, content: payload.answer!, ...(payload.proposalBatch ? { proposalBatch: payload.proposalBatch } : {}) }].slice(-MAX_CHAT_HISTORY_MESSAGES * 2));
+        else setChatMessages(current => [...current, { role: "assistant" as const, content: payload.answer! }].slice(-MAX_CHAT_HISTORY_MESSAGES * 2));
         if (mode === "chat") setFiles([]);
         else setToolActivity(payload.toolActivity ?? []);
       }
@@ -141,7 +145,7 @@ export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange }: 
     {open && <PanelResizeHandle reverse label="Workspace AI panel width" value={panelWidth} min={300} max={520} onChange={setPanelWidth} />}
     {!open ? <button type="button" onClick={() => onOpenChange(true)} aria-label="Open Workspace AI chat" className="flex h-full w-full items-center justify-center gap-1 rounded-full t-dark"><Sparkles size={17} /><span className="text-xs font-bold">AI</span></button> : <>
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--edge-dark)] p-4">
-        <div className="min-w-0"><p className="eyebrow t-mood">Private workspace assistant</p><h2 className="mt-1 text-lg font-semibold t-dark">Workspace AI</h2><p className="mt-1 text-xs t-dark-muted">{mode === "agent" ? "Read-only Agent: inspect workspace data and recommend priorities. Workspace data used to answer is sent to Gemini." : "Only the message, attached context, and files are sent when you send."}</p>
+        <div className="min-w-0"><p className="eyebrow t-mood">Private workspace assistant</p><h2 className="mt-1 text-lg font-semibold t-dark">Workspace AI</h2><p className="mt-1 text-xs t-dark-muted">{mode === "agent" ? "Agent can inspect your workspace and propose task changes. Only Apply changes tasks. Relevant workspace data is sent to Gemini." : "Only the message, attached context, and files are sent when you send."}</p>
           <div role="group" aria-label="Workspace AI mode" className="mt-2 flex gap-2">{(["chat", "agent"] as const).map((value) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy} onClick={() => { setMode(value); setError(""); setDragging(false); }} className={`dark-chip px-3 py-1 text-xs disabled:opacity-50 ${mode === value ? "ring-1 ring-[var(--ink-lavender)]" : ""}`}>{value === "chat" ? "Chat" : "Agent"}</button>)}</div>
         </div>
         <div className="flex gap-1"><button type="button" title="Clear chat" aria-label="Clear chat" onClick={clearChat} className="dark-chip p-2"><Trash2 size={15} /></button><button type="button" title="Minimize chat" aria-label="Minimize chat" onClick={() => onOpenChange(false)} className="dark-chip p-2"><X size={15} /></button></div>
@@ -149,7 +153,7 @@ export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange }: 
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
         {messages.length === 0 && <ChatMessageBubble role="assistant">How can I help with your workspace?</ChatMessageBubble>}
         {mode === "agent" && messages.length === 0 && <div className="flex flex-wrap gap-2">{AGENT_PROMPTS.map((prompt) => <button key={prompt} type="button" disabled={busy} onClick={() => setMessage(prompt)} className="dark-chip max-w-full whitespace-normal px-3 py-2 text-left text-xs">{prompt}</button>)}</div>}
-        {messages.map((item, index) => <ChatMessageBubble key={`${index}-${item.role}`} role={item.role}>{item.content}</ChatMessageBubble>)}
+        {messages.map((item, index) => <div key={`${index}-${item.role}`} className="min-w-0 space-y-2"><ChatMessageBubble role={item.role}>{mode === "agent" && item.role === "assistant" ? normalizeAgentAnswer(item.content) : item.content}</ChatMessageBubble>{mode === "agent" && agentMessages[index]?.proposalBatch && <AgentProposalCards key={agentMessages[index].proposalBatch!.runId} batch={agentMessages[index].proposalBatch!} onChange={batch => setAgentMessages(current => current.map(turn => turn.proposalBatch?.runId === batch.runId ? { ...turn, proposalBatch: batch } : turn))} onApplied={onAgentApplied} onReview={setMessage} />}</div>)}
         {busy && <ChatTypingIndicator />}
         {busy && mode === "agent" && <p role="status" className="text-xs t-dark-muted">Inspecting workspace data…</p>}
         {mode === "agent" && !busy && toolActivity.length > 0 && <details className="text-xs t-dark-muted"><summary>Used workspace data</summary><ul className="mt-2 space-y-1">{toolActivity.map((item, index) => <li key={index}>✓ {item.tool.replace(/_/g, " ")}: {item.summary}</li>)}</ul></details>}
