@@ -62,3 +62,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Run the relevant checks defined by the repository, such as focused tests, lint, type checks, or build.
 - Fix failures caused by the change; report unrelated failures separately.
 - In the final response, summarize what changed, what checks passed or failed, and any remaining limitations.
+
+@RTK.md

@@ -8,6 +8,7 @@ export type AiErrorCode =
   | "MODEL_UNAVAILABLE"
   | "CONTENT_BLOCKED"
   | "MALFORMED_OUTPUT"
+  | "AGENT_LIMIT_REACHED"
   | "UPSTREAM_ERROR";
 
 const safeMessages: Record<AiErrorCode, string> = {
@@ -20,6 +21,7 @@ const safeMessages: Record<AiErrorCode, string> = {
   MODEL_UNAVAILABLE: "The configured Gemini model is temporarily unavailable. Try again later.",
   CONTENT_BLOCKED: "Gemini could not process this request. Review the selected content and try again.",
   MALFORMED_OUTPUT: "Gemini returned a response that could not be safely used. Please regenerate.",
+  AGENT_LIMIT_REACHED: "The Agent reached its inspection limit. Try a more specific question.",
   UPSTREAM_ERROR: "The AI assistant is temporarily unavailable. Try again later.",
 };
 
