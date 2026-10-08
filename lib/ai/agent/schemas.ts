@@ -36,5 +36,6 @@ export function parseToolArguments(name: string, value: unknown): ToolArguments 
     if (!valid || (key.endsWith("Id") && !uuid.test(String(value))) || (["date", "startDate", "endDate", "dueFrom", "dueTo"].includes(key) && !isValidCalendarDate(String(value)))) throw new AiError("INVALID_INPUT");
   }
   if ((row.startDate && row.endDate && String(row.startDate) > String(row.endDate)) || (row.dueFrom && row.dueTo && String(row.dueFrom) > String(row.dueTo))) throw new AiError("INVALID_INPUT");
+  if (name === "get_calendar_load" && (Date.parse(String(row.endDate)) - Date.parse(String(row.startDate))) / 86400000 >= 31) throw new AiError("INVALID_INPUT");
   return row as ToolArguments;
 }

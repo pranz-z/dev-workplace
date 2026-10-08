@@ -2832,7 +2832,7 @@ export default function Home() {
         sessionKey={authStatus === "authenticated" ? user?.id ?? "authenticated" : "anonymous"} aiOpen={aiOpen} onAiOpenChange={setAiOpen}
         focusSessionStatus={currentFocusSession?.status === "running" || currentFocusSession?.status === "paused" ? currentFocusSession.status : null}
         focusSessionRemainingSeconds={focusSessionRemainingSeconds} onFocusPause={pauseFocus} onFocusResume={resumeFocus} onFocusEnd={endFocusSession}
-        ai={authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id ? <WorkspaceAiChat key={user.id} projects={projects} tasks={tasks} plans={plans} open={aiOpen} onOpenChange={setAiOpen} onAgentApplied={async () => { setTasks(await listTasks()); }} /> : null}>
+        ai={authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id ? <WorkspaceAiChat key={user.id} projects={projects} tasks={tasks} plans={plans} open={aiOpen} onOpenChange={setAiOpen} onAgentApplied={async () => { const remote = await loadWorkspaceData(); if (!remote) throw new Error("Workspace refresh failed"); setTasks(remote.tasks); setProjects(remote.projects); setMilestones(remote.milestones); }} /> : null}>
             {workspaceStatus === "checking" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Loading your workspace...</div>}
             {workspaceStatus === "error" && <div className="mb-4 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}</div>}
             {workspaceStatus === "mock" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Prototype mode: showing local workspace data. Sign in with GitHub to sync with Supabase.</div>}

@@ -8,7 +8,7 @@ import { parseToolArguments, type ToolArguments } from "@/lib/ai/agent/schemas";
 export interface ToolContext { supabase: SupabaseClient; userId: string; timeZone: string; now: Date; signal: AbortSignal }
 type Row = Record<string, unknown>;
 const PROJECT_COLUMNS = "id,title,status,priority,workflow_stage,target_date,current_objective,next_action,visibility";
-const TASK_COLUMNS = "id,title,project_id,status,priority,due_date,projects!inner(id,title,user_id)";
+const TASK_COLUMNS = "id,title,project_id,status,priority,due_date,milestone_id,projects!inner(id,title,user_id)";
 const MILESTONE_COLUMNS = "id,title,project_id,status,target_date,projects!inner(id,title,user_id)";
 const PLAN_COLUMNS = "id,title,status,target_date";
 const SCAN_LIMIT = 1000;
@@ -23,6 +23,7 @@ async function read(context: ToolContext, table: "projects" | "tasks" | "milesto
     let query = context.supabase.from(table).select(columns).order("id", { ascending: true }).abortSignal(context.signal);
     query = table === "milestones" ? query.eq("projects.user_id", context.userId) : query.eq("user_id", context.userId);
     if (table === "tasks") query = query.eq("projects.user_id", context.userId);
+    if (args.milestoneId && table === "tasks") query = query.eq("milestone_id", args.milestoneId);
     if (resourceId) query = query.eq("id", resourceId);
     if (args.projectId && (table === "tasks" || table === "milestones")) query = query.eq("project_id", args.projectId);
     if (args.projectId && table === "projects") query = query.eq("id", args.projectId);
@@ -44,7 +45,7 @@ function projectSummary(row: Row) {
   return { id: text(row.id, 36), title: text(row.title), status: text(row.status, 40), priority: text(row.priority, 20), workflowStage: text(row.workflow_stage, 40), targetDate: text(row.target_date, 10), objective: text(row.current_objective, 500), nextAction: text(row.next_action, 300) };
 }
 function taskSummary(row: Row, zone: string) {
-  return { id: text(row.id, 36), title: text(row.title), projectId: text(row.project_id, 36), projectTitle: text(relatedProject(row)?.title), status: text(row.status, 40), priority: text(row.priority, 20), dueDate: taskCalendarDate(typeof row.due_date === "string" ? row.due_date : undefined, zone) };
+  return { id: text(row.id, 36), title: text(row.title), projectId: text(row.project_id, 36), projectTitle: text(relatedProject(row)?.title), status: text(row.status, 40), priority: text(row.priority, 20), milestoneId: row.milestone_id ?? null, dueDate: taskCalendarDate(typeof row.due_date === "string" ? row.due_date : undefined, zone) };
 }
 function planSummary(row: Row) { return { id: text(row.id, 36), title: text(row.title), status: text(row.status, 40), targetDate: text(row.target_date, 10) }; }
 function bounded<T>(items: T[], args: ToolArguments, scanTruncated: boolean) {
@@ -107,6 +108,15 @@ export async function executeReadTool(name: string, input: unknown, context: Too
     milestones.rows.map((row) => ({ id: row.id, title: text(row.title), projectId: row.project_id, status: row.status, targetDate: row.target_date ?? undefined })) as Milestone[], context.timeZone,
   );
   const truncated = projects.truncated || tasks.truncated || milestones.truncated;
+  if (name === "get_calendar_load") {
+    const items = [];
+    for (let day = Date.parse(String(args.startDate)); day <= Date.parse(String(args.endDate)); day += 86400000) {
+      const date = new Date(day).toISOString().slice(0, 10);
+      const matching = events.filter(event => !event.completed && event.date === date);
+      items.push({ date, incompleteTasks: matching.filter(event => event.entityType === "task").length, milestones: matching.filter(event => event.entityType === "milestone").length, projects: matching.filter(event => event.entityType === "project").length });
+    }
+    return { items, truncated, scope: "Incomplete owned Calendar entities. Counts are advisory, not time conflicts; truncated counts may be incomplete." };
+  }
   if (name === "get_calendar_summary") return { summary: getCalendarSummary(events, String(args.date ?? localCalendarDate(context.now, context.timeZone))), truncated, scope: truncated ? "Partial workspace counts (scan limit reached)." : "Owned workspace Calendar counts." };
   const filtered = filterCalendarEvents(events, { projectId: String(args.projectId ?? ""), enabledTypes: (args.entityTypes ?? ["task", "milestone", "project"]) as CalendarEventType[], showCompleted: args.includeCompleted === true });
   return bounded(filtered.filter((event) => within(event.date, args.startDate, args.endDate)).sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id.localeCompare(b.id)), args, truncated);

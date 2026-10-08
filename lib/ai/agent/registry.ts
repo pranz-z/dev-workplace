@@ -12,9 +12,10 @@ function tool(name: string, description: string, properties: Record<string, Fiel
   return { name, description, parametersJsonSchema: { type: "object", properties, required, additionalProperties: false } };
 }
 export const agentTools = [
+  tool("get_calendar_load", "Read incomplete task, milestone and project counts per day (maximum 31 days). Advisory load, not hourly conflicts. Use before spreading work.", { startDate: date, endDate: date, projectId }, ["startDate", "endDate"]),
   tool("list_projects", "Find owned projects. Bounded summaries; use get_project for detail.", { status, priority, visibility: { type: "string", enum: ["Private", "Public", "Unlisted"] }, limit }),
   tool("get_project", "Read one owned project with technologies.", { projectId }, ["projectId"]),
-  tool("list_tasks", "Read owned tasks; excludes completed by default.", { projectId, status, priority, dueFrom: date, dueTo: date, includeCompleted, unscheduledOnly: { type: "boolean" }, limit }),
+  tool("list_tasks", "Read owned tasks; excludes completed by default.", { projectId, milestoneId: id, status, priority, dueFrom: date, dueTo: date, includeCompleted, unscheduledOnly: { type: "boolean" }, limit }),
   tool("get_task", "Read one owned task and its owned project title.", { taskId: id }, ["taskId"]),
   tool("list_overdue_tasks", "Read incomplete tasks before today using Calendar timezone rules.", { projectId, limit }),
   tool("list_tasks_due_between", "Read tasks in an inclusive Calendar date range.", { startDate: date, endDate: date, projectId, includeCompleted, limit }, ["startDate", "endDate"]),

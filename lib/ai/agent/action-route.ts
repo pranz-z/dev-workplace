@@ -34,7 +34,7 @@ export async function handleAgentActions(request: Request, operation: "apply" | 
       const refreshed = await loadProposalBatch(admin, userId, batch.runId);
       const confirmedResults = results.map(result => {
         const action = refreshed.actions.find(action => action.id === result.id);
-        return action && action.status !== "pending" ? { ...result, status: action.status, entityId: action.taskId, errorCode: action.status === result.status ? result.errorCode : null } : result;
+        return action && action.status !== "pending" ? { ...result, status: action.status, entityId: action.entityId ?? action.taskId, errorCode: action.status === result.status ? result.errorCode : null } : result;
       });
       return NextResponse.json({ results: confirmedResults, proposalBatch: refreshed }, { headers: { "Cache-Control": "no-store" } });
     } finally { await releasePrivateAiLease(userId, leaseId); }

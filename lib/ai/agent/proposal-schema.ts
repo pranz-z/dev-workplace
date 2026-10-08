@@ -24,9 +24,17 @@ export function parseTaskChanges(value: unknown): TaskChanges {
   if (Object.hasOwn(row, "milestoneId")) result.milestoneId = row.milestoneId === null ? null : requireUuid(row.milestoneId);
   return result;
 }
-export type ProposalInput = { taskId: string; changes: TaskChanges } | ({ projectId: string; title: string } & TaskChanges);
+export type ScheduleInput = { entityId: string; entityType: "milestone" | "project"; targetDate: string | null };
+export type ProposalInput = ScheduleInput | { taskId: string; changes: TaskChanges } | ({ projectId: string; title: string } & TaskChanges);
 export function parseProposalTool(name: string, value: unknown): ProposalInput {
   const row = record(value);
+  if (name === "propose_reschedule_milestone" || name === "propose_reschedule_project") {
+    const entityType = name === "propose_reschedule_milestone" ? "milestone" : "project";
+    const key = `${entityType}Id`;
+    keys(row, [key, "targetDate"]);
+    if (row.targetDate !== null && (typeof row.targetDate !== "string" || !isValidCalendarDate(row.targetDate))) throw new AiError("INVALID_INPUT");
+    return { entityId: requireUuid(row[key]), entityType, targetDate: row.targetDate as string | null };
+  }
   if (name === "propose_update_task") {
     keys(row, ["taskId", "changes"]);
     return { taskId: requireUuid(row.taskId), changes: parseTaskChanges(row.changes) };
@@ -49,6 +57,7 @@ const fields = {
   dueDate: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear" }, milestoneId: { type: ["string", "null"], description: "UUID of a milestone in the same project, or null" },
 };
 export const proposalTools = [
+  ...(["milestone", "project"] as const).map(entity => ({ name: `propose_reschedule_${entity}`, description: `Prepare ONLY a ${entity} target date change for approval. Does not mutate data.`, parametersJsonSchema: { type: "object", properties: { [`${entity}Id`]: { type: "string" }, targetDate: { type: ["string", "null"], description: "Valid YYYY-MM-DD or null to clear" } }, required: [`${entity}Id`, "targetDate"], additionalProperties: false } })),
   { name: "propose_create_task", description: "Prepare a task creation for user review. Does NOT create a task. Never claim it was applied.", parametersJsonSchema: { type: "object", properties: { projectId: { type: "string" }, ...fields }, required: ["projectId", "title"], additionalProperties: false } },
   { name: "propose_update_task", description: "Prepare a task patch for user review. Does NOT update a task. Group fields for each task in one call.", parametersJsonSchema: { type: "object", properties: { taskId: { type: "string" }, changes: { type: "object", properties: fields, minProperties: 1, additionalProperties: false } }, required: ["taskId", "changes"], additionalProperties: false } },
 ];
