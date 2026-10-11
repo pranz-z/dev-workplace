@@ -1,5 +1,15 @@
 # Workspace Agent Phase 3A — production rollout and live acceptance
 
+## Final live sign-off — October 11, 2026
+
+The remaining real Gemini case passed in the authenticated production Workspace at https://frami-devplace.vercel.app/app. Prompt: “Spread my unscheduled high-priority tasks across next week.” The Agent answered: “No unscheduled high-priority tasks were found in your workspace to spread across next week (Monday, October 12 through Friday, October 16, 2026). All current tasks either have existing due dates or are set to other priorities.”
+
+Production SQL independently confirmed zero incomplete High/Critical unscheduled tasks. Before/after counts remained 16 audit runs and 19 actions; no proposal batch was persisted. Full-row hashes stayed identical for tasks (`ef04c8524ee755846f5a6ac5e657b018`), projects (`314adfc98b4f286761f224d222ec3e25`) and milestones (`f71b4b4952583d2941c63bd4be603343`). The response contained no raw Markdown markers, secrets or request payload; browser warning/error logs were empty. This closes item 18 below and satisfies the outstanding Phase 3A live acceptance gate. The historical observation qualifications elsewhere remain accurately recorded.
+
+Release validation was rerun: Phase 3A 19/19, Phase 2 17/17, Phase 1 21/21; TypeScript, changed-file ESLint, production build and diff check passed. No application code changed, so the prior full suite result of 227 passed, zero failed and two optional skips remains applicable. Both applied migrations are unchanged. The Phase 3A migration SHA-256 is `8fdbd66bc76b9a773cf0152c9948760be4591b8eac7e86be98f36c6edd8fb243`.
+
+Repository inspection found the implementation already committed and pushed on main as `ed8fa255c5d83a683c62f544be4df28604d2b452` (“ai agent: calendar and scheduling”). GitHub recorded a successful Vercel Production deployment for that exact commit, deployment ID `6949503923`, at https://frami-dev-workplace-e9paf2n62-pranzzz.vercel.app. The release sign-off commit records this new verification without duplicating or amending that implementation commit. Production alias verification and the release deployment's final hosted smoke results are reported separately at release completion.
+
 Run: October 9, 2026, Asia/Manila. Real local Workspace UI connected to production Supabase; real Gemini `gemini-3.5-flash-lite`. No commit, push or application deployment performed.
 
 ## 39-point report
