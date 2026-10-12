@@ -1,4 +1,5 @@
 import "server-only";
+import {parseTimeBlockTool,timeBlockProposalTools,type TimeBlockInput} from "@/lib/ai/agent/time-block-schema";
 import { AiError } from "@/lib/ai/errors";
 import { TASK_STATUSES } from "@/data/taskList";
 import { isValidCalendarDate } from "@/data/workspaceCalendar";
@@ -25,8 +26,9 @@ export function parseTaskChanges(value: unknown): TaskChanges {
   return result;
 }
 export type ScheduleInput = { entityId: string; entityType: "milestone" | "project"; targetDate: string | null };
-export type ProposalInput = ScheduleInput | { taskId: string; changes: TaskChanges } | ({ projectId: string; title: string } & TaskChanges);
+export type ProposalInput = TimeBlockInput | ScheduleInput | { taskId: string; changes: TaskChanges } | ({ projectId: string; title: string } & TaskChanges);
 export function parseProposalTool(name: string, value: unknown): ProposalInput {
+  if(timeBlockProposalTools.some(tool=>tool.name===name))return parseTimeBlockTool(name,value);
   const row = record(value);
   if (name === "propose_reschedule_milestone" || name === "propose_reschedule_project") {
     const entityType = name === "propose_reschedule_milestone" ? "milestone" : "project";
@@ -57,6 +59,7 @@ const fields = {
   dueDate: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear" }, milestoneId: { type: ["string", "null"], description: "UUID of a milestone in the same project, or null" },
 };
 export const proposalTools = [
+  ...timeBlockProposalTools,
   ...(["milestone", "project"] as const).map(entity => ({ name: `propose_reschedule_${entity}`, description: `Prepare ONLY a ${entity} target date change for approval. Does not mutate data.`, parametersJsonSchema: { type: "object", properties: { [`${entity}Id`]: { type: "string" }, targetDate: { type: ["string", "null"], description: "Valid YYYY-MM-DD or null to clear" } }, required: [`${entity}Id`, "targetDate"], additionalProperties: false } })),
   { name: "propose_create_task", description: "Prepare a task creation for user review. Does NOT create a task. Never claim it was applied.", parametersJsonSchema: { type: "object", properties: { projectId: { type: "string" }, ...fields }, required: ["projectId", "title"], additionalProperties: false } },
   { name: "propose_update_task", description: "Prepare a task patch for user review. Does NOT update a task. Group fields for each task in one call.", parametersJsonSchema: { type: "object", properties: { taskId: { type: "string" }, changes: { type: "object", properties: fields, minProperties: 1, additionalProperties: false } }, required: ["taskId", "changes"], additionalProperties: false } },

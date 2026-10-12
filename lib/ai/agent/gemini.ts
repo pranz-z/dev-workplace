@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { getGeminiConfiguration } from "@/lib/ai/config";
 import { AiError, normalizeGeminiError } from "@/lib/ai/errors";
 import { localCalendarDate } from "@/data/workspaceCalendar";
+import {localDateTime} from "@/data/timeBlocks";
 import { agentTools } from "@/lib/ai/agent/registry";
 import { AGENT_SYSTEM_INSTRUCTION } from "@/lib/ai/agent/prompt";
 import { runAgentLoop } from "@/lib/ai/agent/executor";
@@ -17,7 +18,7 @@ export async function generateAgentResponse(request: AgentRequest, context: Tool
   try {
     return await runAgentLoop(request, context, async (contents) => {
       const response = await ai.models.generateContent({ model: configuration.model!, contents, config: {
-        systemInstruction: `${AGENT_SYSTEM_INSTRUCTION}\nTimezone: ${context.timeZone}. Today: ${localCalendarDate(context.now, context.timeZone)}.`,
+        systemInstruction: `${AGENT_SYSTEM_INSTRUCTION}\nTimezone: ${context.timeZone}. Today: ${localCalendarDate(context.now, context.timeZone)}. Local date and time: ${localDateTime(context.now,context.timeZone)}.`,
         tools: [{ functionDeclarations: [...agentTools, ...proposalTools] }], maxOutputTokens: 1800, abortSignal: context.signal,
         automaticFunctionCalling: { disable: true },
       } });

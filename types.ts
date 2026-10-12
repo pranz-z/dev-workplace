@@ -1,3 +1,4 @@
+export type {WorkspaceTimeBlock,SchedulingPreferences,TimeBlockKind,TimeBlockStatus} from "@/data/timeBlocks";
 export type ProjectStatus =
   | "Planning"
   | "In Development"

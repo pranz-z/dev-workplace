@@ -12,6 +12,9 @@ function tool(name: string, description: string, properties: Record<string, Fiel
   return { name, description, parametersJsonSchema: { type: "object", properties, required, additionalProperties: false } };
 }
 export const agentTools = [
+  tool('list_time_blocks','Read owned blocks intersecting an instant range (max 31 days). For a local day prefer get_day_schedule. Cancelled excluded; completed optional.',{startAt:{type:'string',maxLength:35,description:'ISO timestamp with seconds and explicit offset, e.g. 2026-10-12T00:00:00+08:00.'},endAt:{type:'string',maxLength:35,description:'Exclusive ISO timestamp with seconds and explicit offset. Must be after startAt.'},projectId,taskId:id,includeCompleted},['startAt','endAt']),
+  tool('get_day_schedule','Read ordered day blocks, deadlines, scheduling preferences and timezone. No mutations.',{date},['date']),
+  tool('find_free_time','Server-calculated verified slots. Requires saved working hours or explicit earliest/latest HH:mm.',{date,durationMinutes:{type:'integer',minimum:1,maximum:720},earliestTime:{type:'string',maxLength:5},latestTime:{type:'string',maxLength:5}},['date','durationMinutes']),
   tool("get_calendar_load", "Read incomplete task, milestone and project counts per day (maximum 31 days). Advisory load, not hourly conflicts. Use before spreading work.", { startDate: date, endDate: date, projectId }, ["startDate", "endDate"]),
   tool("list_projects", "Find owned projects. Bounded summaries; use get_project for detail.", { status, priority, visibility: { type: "string", enum: ["Private", "Public", "Unlisted"] }, limit }),
   tool("get_project", "Read one owned project with technologies.", { projectId }, ["projectId"]),

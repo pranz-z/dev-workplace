@@ -2,15 +2,18 @@
 import { useRef, useState } from "react";
 import type { ProposalBatch, ProposalChanges } from "@/lib/ai/agent/contract";
 import { formatCalendarDate, isValidCalendarDate } from "@/data/workspaceCalendar";
+import {localDateTime} from "@/data/timeBlocks";
+import {buildAgentReviewPrompt} from "@/data/agentProposalReview";
 
-const LABELS: Record<keyof ProposalChanges, string> = { title: "Title", description: "Description", priority: "Priority", status: "Status", dueDate: "Due date", milestoneId: "Milestone", targetDate: "Target date" };
-function display(field: keyof ProposalChanges, value: string | null) {
+const LABELS: Record<keyof ProposalChanges, string> = { title: "Title", description: "Description", priority: "Priority", status: "Status", dueDate: "Due date", milestoneId: "Milestone", targetDate: "Target date",startAt:'Starts',endAt:'Ends',projectId:'Project',taskId:'Task',kind:'Block kind' };
+function display(field: keyof ProposalChanges, value: string | null,timeZone='UTC') {
   if (value === null || value === "") return field === "dueDate" || field === "targetDate" ? "Unscheduled" : "None";
   if ((field === "dueDate" || field === "targetDate") && isValidCalendarDate(value)) return formatCalendarDate(value, { month: "short", day: "numeric", year: "numeric" });
+  if(field==='startAt'||field==='endAt')try{return `${localDateTime(value,timeZone).replace('T',' ')} (${timeZone})`;}catch{return value;}
   return value;
 }
-interface Props { batch: ProposalBatch; onChange: (batch: ProposalBatch) => void; onApplied?: () => Promise<void>; onReview: (message: string) => void }
-export function AgentProposalCards({ batch, onChange, onApplied, onReview }: Props) {
+interface Props { batch: ProposalBatch; onChange: (batch: ProposalBatch) => void; onApplied?: () => Promise<void>; onReview: (message: string) => void;timeZone?:string;entityLabels?:Map<string,string> }
+export function AgentProposalCards({ batch, onChange, onApplied, onReview,timeZone='UTC',entityLabels }: Props) {
   const [selected, setSelected] = useState(() => batch.actions.filter(action => action.status === "pending").map(action => action.id));
   const [working, setWorking] = useState<"apply" | "cancel" | null>(null);
   const inFlight = useRef(false);
@@ -55,10 +58,10 @@ export function AgentProposalCards({ batch, onChange, onApplied, onReview }: Pro
   return <section aria-label="Proposed workspace changes" className="min-w-0 space-y-3 rounded-2xl dark-inset p-3 text-xs">
     <p className="font-semibold">{batch.actions.length} proposed change{batch.actions.length === 1 ? "" : "s"}</p>
     {batch.actions.map(action => <article key={action.id} className="min-w-0 space-y-2 rounded-xl border border-[var(--edge-dark)] p-3">
-      <label className="flex min-w-0 items-start gap-2"><input type="checkbox" aria-label={`Select ${action.title}`} disabled={working !== null || action.status !== "pending"} checked={selectedIds.includes(action.id)} onChange={event => setSelected(current => event.target.checked ? [...current, action.id] : current.filter(id => id !== action.id))} /><span className="min-w-0 break-words font-semibold">{action.type === "create_task" ? "Create task: " : action.type === "reschedule_milestone" ? "Milestone: " : action.type === "reschedule_project" ? "Project: " : "Task: "}{action.title}</span></label>
-      {action.diff.map(diff => <div key={diff.field} className="min-w-0"><p className="t-dark-muted">{LABELS[diff.field]}</p><p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{display(diff.field, diff.before)} → {display(diff.field, diff.after)}</p></div>)}
-      <p className="t-dark-muted">{action.status === "pending" ? "Pending approval" : action.status === "conflict" ? "Entity changed since this proposal was created. Review it again before applying." : action.status === "failed" ? "Could not apply this change. Review it again." : action.status === "applied" ? "Applied" : "Cancelled"}</p>
-      {(action.status === "conflict" || action.status === "failed") && <button type="button" className="dark-chip px-2 py-1" onClick={() => onReview(`Review the current state of ${action.type === "reschedule_milestone" ? "milestone" : action.type === "reschedule_project" ? "project" : "task"} ${action.title} (${action.entityId ?? action.taskId ?? action.projectId}) and prepare a fresh proposal for the requested changes.`)}>Review again</button>}
+      <label className="flex min-w-0 items-start gap-2"><input type="checkbox" aria-label={`Select ${action.title}`} disabled={working !== null || action.status !== "pending"} checked={selectedIds.includes(action.id)} onChange={event => setSelected(current => event.target.checked ? [...current, action.id] : current.filter(id => id !== action.id))} /><span className="min-w-0 break-words font-semibold">{action.type.endsWith('_time_block')?(action.type==='cancel_time_block'?'Cancel time block: ':action.type==='create_time_block'?'Create time block: ':'Edit time block: '):action.type === "create_task" ? "Create task: " : action.type === "reschedule_milestone" ? "Milestone: " : action.type === "reschedule_project" ? "Project: " : "Task: "}{action.title}</span></label>
+      {action.diff.map(diff => <div key={diff.field} className="min-w-0"><p className="t-dark-muted">{LABELS[diff.field]}</p><p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{diff.field==='taskId'||diff.field==='projectId'?diff.before?entityLabels?.get(`${diff.field==='taskId'?'task':'project'}:${diff.before}`)??diff.before:'None':display(diff.field,diff.before,timeZone)} → {diff.field==='taskId'||diff.field==='projectId'?diff.after?entityLabels?.get(`${diff.field==='taskId'?'task':'project'}:${diff.after}`)??diff.after:'None':display(diff.field,diff.after,timeZone)}</p></div>)}
+      <p className="t-dark-muted">{action.status === "pending" ? "Pending approval" : action.status === "conflict" ? "Entity or availability changed. Review again before applying." : action.status === "failed" ? "Could not apply this change. Review it again." : action.status === "applied" ? "Applied" : "Proposal cancelled"}</p>
+      {(action.status === "conflict" || action.status === "failed") && <button type="button" className="dark-chip px-2 py-1" onClick={() => onReview(buildAgentReviewPrompt(action,timeZone,entityLabels))}>Review again</button>}
     </article>)}
     {pending.length > 0 && <div className="flex flex-wrap gap-2"><button type="button" disabled={working !== null || selectedIds.length === 0} onClick={() => void perform("apply")} className="ink-button primary px-3 py-2 disabled:opacity-50">{working === "apply" ? "Applying…" : "Apply selected"}</button><button type="button" disabled={working !== null} onClick={() => void perform("cancel")} className="dark-chip px-3 py-2 disabled:opacity-50">{working === "cancel" ? "Cancelling…" : "Cancel"}</button></div>}
     {feedback && <p role="status" className="break-words">{feedback}</p>}

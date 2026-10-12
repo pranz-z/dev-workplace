@@ -1,8 +1,9 @@
 import { formatCalendarDate } from "@/data/workspaceCalendar";
 import type { ProposalDraft } from "@/lib/ai/agent/contract";
+import {localDateTime} from "@/data/timeBlocks";
 export interface CalendarLoadDay { date: string; incompleteTasks: number; milestones: number; projects: number }
 /** Summarize only canonical actions, never the model's claims about completed work. */
-export function proposalSummary(drafts: ProposalDraft[], load: CalendarLoadDay[], partial: boolean) {
+export function proposalSummary(drafts: ProposalDraft[], load: CalendarLoadDay[], partial: boolean,timeZone='UTC') {
   const groups = new Map<string, string[]>();
   for (const draft of drafts) {
     const diff = draft.diff.find(item => item.field === "dueDate" || item.field === "targetDate");
@@ -11,6 +12,7 @@ export function proposalSummary(drafts: ProposalDraft[], load: CalendarLoadDay[]
     groups.set(date, [...(groups.get(date) ?? []), draft.title.replace(/[\r\n]/g, " ")]);
   }
   const lines = [`Prepared ${drafts.length} proposal${drafts.length === 1 ? "" : "s"}. Nothing has been changed yet.`];
+  for(const block of drafts.filter(d=>d.type.endsWith('_time_block'))){const after={...block.before,...block.payload};if(after.startAt&&after.endAt)lines.push(`• ${block.title.replace(/[\r\n]/g,' ')}: ${localDateTime(after.startAt,timeZone).replace('T',' ')} – ${localDateTime(after.endAt,timeZone).replace('T',' ')} (${timeZone})${block.type==='cancel_time_block'?', proposed cancellation':''}.`);}
   for (const [date, titles] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
     lines.push("", date === "Unscheduled" ? date : formatCalendarDate(date, { weekday: "long", month: "short", day: "numeric", year: "numeric" }), ...titles.map(title => `• ${title}`));
     const day = load.find(day => day.date === date);

@@ -12,6 +12,7 @@ const {
   adjustFocusDuration,
   adjustPausedFocusSession,
   createFocusSession,
+  createTimeBlockFocusSession,
   formatFocusDuration,
   getEligibleFocusTasks,
   getFocusRemainingSeconds,
@@ -20,6 +21,17 @@ const {
   readFocusSessionSnapshot,
   resumeFocusSession,
 } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+
+test('time-block focus handoff respects remaining seconds, expiry and timer cap',()=>{
+  assert.equal(typeof createTimeBlockFocusSession,'function');
+  const now=Date.parse('2026-10-12T09:59:45Z');
+  const block={taskId:'task',status:'scheduled',startAt:'2026-10-12T09:00:00Z',endAt:'2026-10-12T10:00:00Z'};
+  assert.equal(createTimeBlockFocusSession(block,now).endsAt,Date.parse(block.endAt));
+  assert.equal(createTimeBlockFocusSession(block,Date.parse(block.endAt)),null);
+  assert.equal(createTimeBlockFocusSession({...block,status:'cancelled'},now),null);
+  const future=createTimeBlockFocusSession({...block,startAt:'2026-10-13T09:00:00Z',endAt:'2026-10-13T21:00:00Z'},now);
+  assert.equal(future.endsAt-future.startedAt,180*60000);
+});
 
 test("default duration and display formatting use standard countdown formats", () => {
   assert.equal(DEFAULT_FOCUS_DURATION_MINUTES, 25);

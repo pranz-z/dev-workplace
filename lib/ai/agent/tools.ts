@@ -4,8 +4,9 @@ import type { Project, Task, Milestone } from "@/types";
 import { AiError } from "@/lib/ai/errors";
 import { filterCalendarEvents, getCalendarSummary, isCalendarEventOverdue, localCalendarDate, normalizeCalendarEvents, taskCalendarDate, type CalendarEventType } from "@/data/workspaceCalendar";
 import { parseToolArguments, type ToolArguments } from "@/lib/ai/agent/schemas";
+import {executeTimeRead} from "@/lib/ai/agent/time-blocks";
 
-export interface ToolContext { supabase: SupabaseClient; userId: string; timeZone: string; now: Date; signal: AbortSignal }
+export interface ToolContext { supabase: SupabaseClient; userId: string; timeZone: string; now: Date; signal: AbortSignal; requestMessage?: string }
 type Row = Record<string, unknown>;
 const PROJECT_COLUMNS = "id,title,status,priority,workflow_stage,target_date,current_objective,next_action,visibility";
 const TASK_COLUMNS = "id,title,project_id,status,priority,due_date,milestone_id,projects!inner(id,title,user_id)";
@@ -57,6 +58,7 @@ function within(date: string | null, from: unknown, to: unknown) { return (!from
 export async function executeReadTool(name: string, input: unknown, context: ToolContext): Promise<Record<string, unknown>> {
   const args = parseToolArguments(name, input);
   context.signal.throwIfAborted();
+  if(['list_time_blocks','get_day_schedule','find_free_time'].includes(name))return executeTimeRead(name,args,context);
   if (args.projectId) await ownedProject(context, String(args.projectId));
   if (name === "list_projects" || name === "get_project") {
     const result = await read(context, "projects", `${PROJECT_COLUMNS}${name === "get_project" ? ",description" : ""}`, args, name === "get_project" ? String(args.projectId) : undefined);

@@ -287,6 +287,14 @@ export interface AccountabilitySnapshotRow {
   created_at: string; updated_at: string;
 }
 
+export interface WorkspaceTimeBlockRow {
+  id:string;user_id:string;project_id:string|null;task_id:string|null;title:string;
+  start_at:string;end_at:string;kind:'focus'|'task'|'break'|'custom';status:'scheduled'|'completed'|'cancelled';
+  notes:string|null;created_at:string;updated_at:string;
+}
+export interface WorkspaceSchedulingPreferencesRow {
+  user_id:string;workday_start:string;workday_end:string;weekdays:number[];focus_minutes:number;buffer_minutes:number;updated_at:string;
+}
 export interface AccountabilityGoalRow {
   id: string; user_id: string; project_id: string | null; title: string; description: string | null;
   metric: "tasks_completed" | "milestones_completed" | "plan_items_completed" | "manual";

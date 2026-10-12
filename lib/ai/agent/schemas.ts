@@ -4,6 +4,7 @@ import { parseChatRequest } from "@/lib/ai/chat";
 import { isValidCalendarDate } from "@/data/workspaceCalendar";
 import { isValidTimeZone } from "@/data/accountabilityReports";
 import { agentTools } from "@/lib/ai/agent/registry";
+import {canonicalInstant,validClock} from "@/data/timeBlocks";
 import type { AgentRequest } from "@/lib/ai/agent/contract";
 
 export type ToolArguments = Record<string, string | number | boolean | string[]>;
@@ -37,5 +38,7 @@ export function parseToolArguments(name: string, value: unknown): ToolArguments 
   }
   if ((row.startDate && row.endDate && String(row.startDate) > String(row.endDate)) || (row.dueFrom && row.dueTo && String(row.dueFrom) > String(row.dueTo))) throw new AiError("INVALID_INPUT");
   if (name === "get_calendar_load" && (Date.parse(String(row.endDate)) - Date.parse(String(row.startDate))) / 86400000 >= 31) throw new AiError("INVALID_INPUT");
+  if(name==='list_time_blocks')try{const start=canonicalInstant(String(row.startAt)),end=canonicalInstant(String(row.endAt));if(end<=start||Date.parse(end)-Date.parse(start)>31*86400000)throw new Error();}catch{throw new AiError('INVALID_INPUT');}
+  for(const key of ['earliestTime','latestTime'])if(row[key]!==undefined&&!validClock(String(row[key])))throw new AiError('INVALID_INPUT');
   return row as ToolArguments;
 }

@@ -49,6 +49,14 @@ export function createFocusSession(taskId: string | null, durationMinutes: numbe
   return { status: "running", taskId, startedAt: now, endsAt: now + validDuration * 60_000 };
 }
 
+export function createTimeBlockFocusSession(block:{taskId:string|null;startAt:string;endAt:string;status:string},now:number):FocusSession|null {
+  const start=Date.parse(block.startAt),end=Date.parse(block.endAt);
+  if(!block.taskId||block.status!=='scheduled'||!Number.isFinite(start)||!Number.isFinite(end)||end<=start||end<=now)return null;
+  const minutes=Math.max(1,Math.min(MAX_FOCUS_DURATION_MINUTES,Math.ceil((end-Math.max(start,now))/60000)));
+  const session=createFocusSession(block.taskId,minutes,now);
+  return session?.status==='running'?{...session,endsAt:Math.min(session.endsAt,end)}:null;
+}
+
 export function getFocusRemainingSeconds(session: FocusSession, now: number): number {
   if (session.status === "completed") return 0;
   if (session.status === "paused") return session.remainingSeconds;

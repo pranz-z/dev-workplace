@@ -29,6 +29,10 @@ import {
 } from "@/data/workspaceCalendar";
 import { isValidTimeZone } from "@/data/accountabilityReports";
 import type { Milestone, Project, Task } from "@/types";
+import {localDateTime,dayBoundaryInstant,type WorkspaceTimeBlock} from "@/data/timeBlocks";
+import {listTimeBlocks} from "@/data/timeBlockService";
+import {TimeBlockEditor} from "@/components/calendar/TimeBlockEditor";
+import {SchedulingPreferences} from "@/components/calendar/SchedulingPreferences";
 
 const EVENT_TYPES: Array<{ id: CalendarEventType; label: string; letter: string }> = [
   { id: "task", label: "Tasks", letter: "T" },
@@ -45,6 +49,8 @@ interface WorkspaceCalendarProps {
   onCreateTask: (date: string, projectId?: string) => void;
   onOpenEvent: (event: WorkspaceCalendarEvent) => void;
   onReschedule: (event: WorkspaceCalendarEvent, date: string | null) => void;
+  onStartBlockFocus?: (block: WorkspaceTimeBlock) => void;
+  canStartBlockFocus?:boolean;
 }
 
 function EventTypeIcon({ type }: { type: CalendarEventType }) {
@@ -124,6 +130,9 @@ function CalendarDayCell({
   busy,
   onSelect,
   onOpenEvent,
+  blocks = [],
+  onOpenBlock,
+  timeZone = 'UTC',
 }: {
   date: string;
   month: string;
@@ -133,6 +142,9 @@ function CalendarDayCell({
   busy: boolean;
   onSelect: () => void;
   onOpenEvent: (event: WorkspaceCalendarEvent) => void;
+  blocks?: WorkspaceTimeBlock[];
+  onOpenBlock?: (block:WorkspaceTimeBlock)=>void;
+  timeZone?: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}`, disabled: busy });
   const shown = events.slice(0, 3);
@@ -156,6 +168,8 @@ function CalendarDayCell({
         {dayNumber}
       </button>
       <div className="space-y-1">
+        {blocks.slice(0,2).map(block=><button key={block.id} type="button" onClick={()=>onOpenBlock?.(block)} className="block w-full min-w-0 truncate rounded border border-[var(--edge-cream)] p-1 text-left text-[9px]" title={`${block.title} · ${block.status}`}>{localDateTime(block.startAt,timeZone).slice(11)} {block.title}</button>)}
+        {blocks.length>2&&<p className="text-[9px]">+{blocks.length-2} blocks</p>}
         {shown.map((event) => (
           <CalendarEventCard key={event.id} event={event} today={today} busy={busy} compact onOpen={() => onOpenEvent(event)} />
         ))}
@@ -170,7 +184,7 @@ function UnscheduledDropTarget({ children, disabled }: { children: ReactNode; di
   return <section ref={setNodeRef} className={`dark-panel min-w-0 p-4 transition-colors ${isOver ? "ring-2 ring-[var(--ink-green)]" : ""}`} aria-label="Unscheduled work">{children}</section>;
 }
 
-export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateTask, onOpenEvent, onReschedule }: WorkspaceCalendarProps) {
+export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateTask, onOpenEvent, onReschedule, onStartBlockFocus,canStartBlockFocus=true }: WorkspaceCalendarProps) {
   const detectedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [timeZone, setTimeZone] = useState(detectedTimeZone);
   const [now, setNow] = useState(() => new Date());
@@ -178,6 +192,10 @@ export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateT
   const [projectFilter, setProjectFilter] = useState("");
   const [enabledTypes, setEnabledTypes] = useState<CalendarEventType[]>(["task", "milestone", "project"]);
   const [showCompleted, setShowCompleted] = useState(true);
+  const [blocks,setBlocks]=useState<WorkspaceTimeBlock[]>([]);
+  const [blockError,setBlockError]=useState('');const [blockLoading,setBlockLoading]=useState(false);
+  const [editingBlock,setEditingBlock]=useState<WorkspaceTimeBlock|null|undefined>(undefined);
+  const [blockRevision,setBlockRevision]=useState(0);
 
   useEffect(() => {
     let active = true;
@@ -204,6 +222,17 @@ export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateT
   const selectedMonth = selectedDate.slice(0, 7);
   const [year, month] = selectedMonth.split("-").map(Number);
   const monthDates = useMemo(() => monthGridDates(year, month - 1), [year, month]);
+  useEffect(()=>{
+    let active=true;
+    void Promise.resolve().then(()=>{if(!active)return;setBlockLoading(true);setBlocks([]);setBlockError('');
+    try {
+      const after=new Date(`${monthDates[monthDates.length-1]}T00:00:00Z`);after.setUTCDate(after.getUTCDate()+1);
+      void listTimeBlocks(dayBoundaryInstant(monthDates[0],timeZone),dayBoundaryInstant(after.toISOString().slice(0,10),timeZone)).then(result=>{if(active){setBlocks(result.items);if(result.truncated)setBlockError('Partial time-block list. Narrow the range before relying on this schedule.');}}).catch(()=>{if(active)setBlockError('Time blocks could not be loaded. Reload before planning.');}).finally(()=>{if(active)setBlockLoading(false);});
+    }catch(e){setBlockError(e instanceof Error?e.message:'Time blocks could not be loaded.');setBlockLoading(false);}});
+    return()=>{active=false;};
+  },[monthDates,timeZone,blockRevision,projects]);
+  const visibleBlocks=blocks.filter(b=>(!projectFilter||b.projectId===projectFilter)&&(showCompleted||b.status!=='completed'));
+  const blocksOnDate=(date:string)=>visibleBlocks.filter(b=>localDateTime(b.startAt,timeZone).slice(0,10)<=date&&localDateTime(new Date(Date.parse(b.endAt)-1),timeZone).slice(0,10)>=date);
   const allEvents = useMemo(() => normalizeCalendarEvents(projects, tasks, milestones, timeZone), [projects, tasks, milestones, timeZone]);
   const visibleEvents = useMemo(() => filterCalendarEvents(allEvents, { projectId: projectFilter, enabledTypes, showCompleted }), [allEvents, projectFilter, enabledTypes, showCompleted]);
   const eventsByDate = useMemo(() => {
@@ -256,8 +285,8 @@ export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateT
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold t-dark">{formatCalendarDate(`${selectedMonth}-01`, { month: "long", year: "numeric" })}</h2>
-            <label className="flex items-center gap-2 text-sm t-dark-muted">Project
-              <select value={projectFilter} onChange={(item) => setProjectFilter(item.target.value)} className="max-w-[min(60vw,18rem)] dark-chip px-2 py-1.5 text-sm t-dark" aria-label="Filter calendar by project">
+            <label className="flex w-full min-w-0 items-center gap-2 text-sm t-dark-muted sm:w-auto">Project
+              <select value={projectFilter} onChange={(item) => setProjectFilter(item.target.value)} className="w-0 min-w-0 flex-1 sm:w-auto max-w-[min(60vw,18rem)] dark-chip px-2 py-1.5 text-sm t-dark" aria-label="Filter calendar by project">
                 <option value="">All projects</option>
                 {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
               </select>
@@ -278,7 +307,7 @@ export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateT
             <div role="row" className="col-span-7 mb-1 grid grid-cols-7 gap-1">{WEEKDAYS.map((weekday) => <div role="columnheader" key={weekday} className="py-1 text-center text-[9px] font-semibold tracking-wide t-dark-muted sm:text-xs">{weekday}</div>)}</div>
             {Array.from({ length: monthDates.length / 7 }, (_, week) => (
               <div role="row" key={`week-${week}`} className="col-span-7 grid grid-cols-7 gap-1">
-                {monthDates.slice(week * 7, week * 7 + 7).map((date) => <CalendarDayCell key={date} date={date} month={selectedMonth} today={today} selected={date === selectedDate} events={eventsByDate.get(date) ?? []} busy={busy} onSelect={() => setSelectedDate(date)} onOpenEvent={onOpenEvent} />)}
+                {monthDates.slice(week * 7, week * 7 + 7).map((date) => <CalendarDayCell key={date} date={date} month={selectedMonth} today={today} selected={date === selectedDate} events={eventsByDate.get(date) ?? []} blocks={blocksOnDate(date)} onOpenBlock={setEditingBlock} timeZone={timeZone} busy={busy} onSelect={() => setSelectedDate(date)} onOpenEvent={onOpenEvent} />)}
               </div>
             ))}
           </div>
@@ -291,11 +320,20 @@ export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateT
           </div>
           <p className="mt-2 text-xs t-dark-muted">{selectedEvents.filter((item) => item.entityType === "task").length} tasks · {selectedEvents.filter((item) => item.entityType === "milestone").length} milestones · {selectedEvents.filter((item) => item.entityType === "project").length} projects</p>
           <div className="mt-3 space-y-2">
+            <button type="button" disabled={busy||blockLoading||Boolean(blockError)} onClick={()=>setEditingBlock(null)} className="dark-chip px-3 py-2 text-sm">New time block</button>
+            {blockLoading&&<p role="status">Loading time blocks…</p>}{blockError&&<p role="alert">{blockError} <button type="button" className="underline" onClick={()=>setBlockRevision(r=>r+1)}>Reload blocks</button></p>}
+            {blocksOnDate(selectedDate).map(block=><article key={block.id} className="dark-inset min-w-0 space-y-2 p-3 text-sm">
+              <button type="button" className="w-full break-words text-left font-semibold" onClick={()=>setEditingBlock(block)}>{localDateTime(block.startAt,timeZone).replace('T',' ')} – {localDateTime(block.endAt,timeZone).replace('T',' ')} · {block.title}</button>
+              <p className="text-xs t-dark-muted">{block.kind} · {block.status} · {timeZone}</p>
+              <div className="flex flex-wrap gap-2">{block.projectId&&<button type="button" className="underline" onClick={()=>onOpenEvent({id:`project:${block.projectId}`,entityId:block.projectId!,entityType:'project',projectId:block.projectId!,projectTitle:projects.find(p=>p.id===block.projectId)?.name??'Project',title:block.title,date:selectedDate,completed:false})}>Open project</button>}{block.taskId&&<button type="button" className="underline" onClick={()=>onOpenEvent({id:`task:${block.taskId}`,entityId:block.taskId!,entityType:'task',projectId:block.projectId!,projectTitle:'',title:block.title,date:selectedDate,completed:false})}>Open task</button>}{block.taskId&&block.status==='scheduled'&&onStartBlockFocus&&tasks.some(t=>t.id===block.taskId&&t.status!=='Completed')&&<button type="button" className="dark-chip p-2 disabled:opacity-50" disabled={!canStartBlockFocus||Date.parse(block.endAt)<=now.getTime()} title={!canStartBlockFocus?"Finish the current focus session first":undefined} onClick={()=>onStartBlockFocus(block)}>Start focus</button>}</div>
+            </article>)}
             {selectedEvents.map((item) => <CalendarEventCard key={item.id} event={item} today={today} busy={busy} onOpen={() => onOpenEvent(item)} />)}
             {selectedEvents.length === 0 && <p className="dark-inset p-3 text-sm t-dark-muted">No matching events on this date. Choose another day or create a task.</p>}
           </div>
         </section>
 
+        {editingBlock!==undefined&&<TimeBlockEditor key={editingBlock?.id??selectedDate} block={editingBlock??undefined} date={selectedDate} timeZone={timeZone} projects={projects} tasks={tasks} onClose={()=>setEditingBlock(undefined)} onSaved={()=>{setEditingBlock(undefined);setBlockRevision(r=>r+1);}}/>}
+        <SchedulingPreferences/>
         <UnscheduledDropTarget disabled={busy}>
           <div className="flex items-center justify-between gap-3"><div><p className="eyebrow t-mood">Unscheduled</p><h2 className="text-lg font-semibold t-dark">Work without a date</h2></div><span className="dark-chip px-2 py-1 text-xs">{unscheduled.length}</span></div>
           <div className="mt-3 space-y-2">

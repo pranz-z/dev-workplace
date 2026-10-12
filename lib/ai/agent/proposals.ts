@@ -5,11 +5,13 @@ import { taskCalendarDate } from "@/data/workspaceCalendar";
 import { MAX_PROPOSED_ACTIONS_PER_RUN, type ProposalDraft, type TaskChanges } from "@/lib/ai/agent/contract";
 import { parseProposalTool } from "@/lib/ai/agent/proposal-schema";
 import type { ToolContext } from "@/lib/ai/agent/tools";
+import {collectTimeProposal} from "@/lib/ai/agent/time-blocks";
 
 function excerpt(value: unknown, limit: number) { const text = String(value ?? ""); return text.length > limit ? `${text.slice(0, limit - 1)}…` : text; }
 
 export async function collectProposal(name: string, input: unknown, context: ToolContext, drafts: ProposalDraft[]) {
   const parsed = parseProposalTool(name, input);
+  if('blockAction' in parsed)return collectTimeProposal(parsed,context,drafts);
   if ("entityType" in parsed) {
     const milestone = parsed.entityType === "milestone";
     let query = context.supabase.from(milestone ? "milestones" : "projects").select(milestone ? "id,title,project_id,target_date,updated_at,projects!inner(id,user_id)" : "id,title,target_date,updated_at").eq("id", parsed.entityId);

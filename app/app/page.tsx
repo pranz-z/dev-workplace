@@ -35,9 +35,10 @@ import { GithubRepositoryBrowser } from "@/components/github/repository-browser"
 import { ProjectScreenshots } from "@/components/projects/project-screenshots";
 import { ProjectKanbanBoard } from "@/components/projects/ProjectKanbanBoard";
 import { WorkspaceCalendar } from "@/components/calendar/WorkspaceCalendar";
+import { SchedulingPreferences } from "@/components/calendar/SchedulingPreferences";
 import { SortableList } from "@/components/dnd/SortableList";
 import { TaskKanbanBoard } from "@/components/tasks/TaskKanbanBoard";
-import { adjustFocusDuration, adjustPausedFocusSession, createFocusSession, DEFAULT_FOCUS_DURATION_MINUTES, FOCUS_DURATION_PRESETS, FOCUS_DURATION_STEP_MINUTES, formatFocusDuration, getEligibleFocusTasks, getFocusRemainingSeconds, getFocusTimestamp, MAX_FOCUS_DURATION_MINUTES, MIN_FOCUS_DURATION_MINUTES, parseFocusDuration, pauseFocusSession, readFocusSessionSnapshot, resumeFocusSession, type FocusSession } from "@/data/focusSession";
+import { adjustFocusDuration, adjustPausedFocusSession, createFocusSession, createTimeBlockFocusSession, DEFAULT_FOCUS_DURATION_MINUTES, FOCUS_DURATION_PRESETS, FOCUS_DURATION_STEP_MINUTES, formatFocusDuration, getEligibleFocusTasks, getFocusRemainingSeconds, getFocusTimestamp, MAX_FOCUS_DURATION_MINUTES, MIN_FOCUS_DURATION_MINUTES, parseFocusDuration, pauseFocusSession, readFocusSessionSnapshot, resumeFocusSession, type FocusSession } from "@/data/focusSession";
 import { PublicAccountabilitySettings } from "@/components/projects/public-accountability-settings";
 import { PortfolioEditor, portfolioTabs } from "@/components/portfolio/PortfolioEditor";
 import { AiAssistant, AiSettingsStatus } from "@/components/ai/AiAssistant";
@@ -2740,6 +2741,7 @@ export default function Home() {
           <p className="mt-2 text-sm t-dark-muted">GitHub activity is read-only. Accountability results stay in your authenticated private workspace.</p>
         </div>
         {authStatus === "authenticated" && <AiSettingsStatus />}
+        {authStatus === "authenticated" && <SchedulingPreferences />}
         {authStatus === "authenticated" && <DriveConnectionControl key={user?.id} onOpenFiles={() => { setFilesOpened(true); setActiveView("files"); }} />}
       </div>
       <button type="button" onClick={() => void handleSignOut()} className="mt-4 ink-button coral px-3 py-2 text-sm">Sign out</button>
@@ -2760,6 +2762,14 @@ export default function Home() {
               onCreateTask={handleCreateTask}
               onOpenEvent={openCalendarEvent}
               onReschedule={rescheduleCalendarEvent}
+              canStartBlockFocus={focusStateReady && currentFocusSession?.status!=="running" && currentFocusSession?.status!=="paused"}
+              onStartBlockFocus={(block)=>{
+                if(!focusStateReady||currentFocusSession?.status==='running'||currentFocusSession?.status==='paused')return;
+                const timestamp=getFocusTimestamp();
+                const session=createTimeBlockFocusSession(block,timestamp);if(!session||session.status!=="running")return;
+                const minutes=Math.ceil((session.endsAt-session.startedAt)/60000);
+                setSelectedFocusTaskId(block.taskId);setPreferredFocusMinutes(minutes);setCustomFocusMinutes(String(minutes));setFocusNow(timestamp);setFocusSession(session);setActiveView('today');
+              }}
             />
           : <section className="dark-panel p-5"><h1 className="text-xl font-semibold t-dark">Private workspace calendar</h1><p className="mt-2 text-sm t-dark-muted">Sign in and load your Supabase workspace to plan tasks, milestones, and project targets.</p></section>;
       case "today":
@@ -2832,7 +2842,7 @@ export default function Home() {
         sessionKey={authStatus === "authenticated" ? user?.id ?? "authenticated" : "anonymous"} aiOpen={aiOpen} onAiOpenChange={setAiOpen}
         focusSessionStatus={currentFocusSession?.status === "running" || currentFocusSession?.status === "paused" ? currentFocusSession.status : null}
         focusSessionRemainingSeconds={focusSessionRemainingSeconds} onFocusPause={pauseFocus} onFocusResume={resumeFocus} onFocusEnd={endFocusSession}
-        ai={authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id ? <WorkspaceAiChat key={user.id} projects={projects} tasks={tasks} plans={plans} open={aiOpen} onOpenChange={setAiOpen} onAgentApplied={async () => { const remote = await loadWorkspaceData(); if (!remote) throw new Error("Workspace refresh failed"); setTasks(remote.tasks); setProjects(remote.projects); setMilestones(remote.milestones); }} /> : null}>
+        ai={authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id ? <WorkspaceAiChat key={user.id} projects={projects} tasks={tasks} plans={plans} timeZone={workspaceTimeZone} open={aiOpen} onOpenChange={setAiOpen} onAgentApplied={async () => { const remote = await loadWorkspaceData(); if (!remote) throw new Error("Workspace refresh failed"); setTasks(remote.tasks); setProjects(remote.projects); setMilestones(remote.milestones); }} /> : null}>
             {workspaceStatus === "checking" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Loading your workspace...</div>}
             {workspaceStatus === "error" && <div className="mb-4 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}</div>}
             {workspaceStatus === "mock" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Prototype mode: showing local workspace data. Sign in with GitHub to sync with Supabase.</div>}
