@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarDays, CheckSquare2, ChevronLeft, ChevronRight, Flag, FolderKanban, GripVertical, Plus } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getProfileTimeZone, saveTimeZone } from "@/data/accountabilityDataService";
 import {
   filterCalendarEvents,
@@ -51,6 +51,8 @@ interface WorkspaceCalendarProps {
   onReschedule: (event: WorkspaceCalendarEvent, date: string | null) => void;
   onStartBlockFocus?: (block: WorkspaceTimeBlock) => void;
   canStartBlockFocus?:boolean;
+  activityTarget?:{id:string;date:string;request:number}|null;
+  onActivityTargetHandled?:()=>void;
 }
 
 function EventTypeIcon({ type }: { type: CalendarEventType }) {
@@ -184,7 +186,7 @@ function UnscheduledDropTarget({ children, disabled }: { children: ReactNode; di
   return <section ref={setNodeRef} className={`dark-panel min-w-0 p-4 transition-colors ${isOver ? "ring-2 ring-[var(--ink-green)]" : ""}`} aria-label="Unscheduled work">{children}</section>;
 }
 
-export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateTask, onOpenEvent, onReschedule, onStartBlockFocus,canStartBlockFocus=true }: WorkspaceCalendarProps) {
+export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateTask, onOpenEvent, onReschedule, onStartBlockFocus,canStartBlockFocus=true,activityTarget,onActivityTargetHandled }: WorkspaceCalendarProps) {
   const detectedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [timeZone, setTimeZone] = useState(detectedTimeZone);
   const [now, setNow] = useState(() => new Date());
@@ -196,6 +198,9 @@ export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateT
   const [blockError,setBlockError]=useState('');const [blockLoading,setBlockLoading]=useState(false);
   const [editingBlock,setEditingBlock]=useState<WorkspaceTimeBlock|null|undefined>(undefined);
   const [blockRevision,setBlockRevision]=useState(0);
+  const handledActivityRequest=useRef<number|null>(null);
+  useEffect(()=>{let active=true;void Promise.resolve().then(()=>{if(active&&activityTarget)setSelectedDate(activityTarget.date);});return()=>{active=false;};},[activityTarget]);
+  useEffect(()=>{let active=true;void Promise.resolve().then(()=>{if(active&&activityTarget&&!blockLoading&&handledActivityRequest.current!==activityTarget.request){const block=blocks.find(b=>b.id===activityTarget.id);if(block){handledActivityRequest.current=activityTarget.request;setEditingBlock(block);onActivityTargetHandled?.();}}});return()=>{active=false;};},[activityTarget,blocks,blockLoading,onActivityTargetHandled]);
 
   useEffect(() => {
     let active = true;

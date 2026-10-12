@@ -2,7 +2,9 @@
 
 import { CheckSquare, FolderGit2, ListChecks, Paperclip, Send, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
-import type { Plan, Project, Task } from "@/types";
+import {AgentActivity} from '@/components/ai/AgentActivity';
+import type {ActivityTarget} from '@/data/agentActivity';
+import type { Milestone, Plan, Project, Task } from "@/types";
 import { ChatMessageBubble, ChatTypingIndicator, type ChatMessage } from "@/components/ai/ChatPresentation";
 import { MAX_CHAT_ENTITIES, MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, MAX_CHAT_TOTAL_FILE_BYTES, MAX_CHAT_HISTORY_MESSAGES, MAX_CHAT_MESSAGE_LENGTH, type WorkspaceEntityRef } from "@/lib/ai/chat-contract";
 import { parseWorkspaceEntityDragPayload, WORKSPACE_AI_DRAG_TYPE } from "@/lib/ai/chat-drag";
@@ -22,10 +24,11 @@ function supportedFile(file: File): boolean {
   return supportedText.has(extension) || imageOrPdf;
 }
 
-interface Props { projects: Project[]; tasks: Task[]; plans: Plan[]; open: boolean; onOpenChange: (open: boolean) => void; onAgentApplied?: () => Promise<void>; timeZone?:string }
+interface Props { projects: Project[]; tasks: Task[]; plans: Plan[]; milestones?:Milestone[]; open: boolean; onOpenChange: (open: boolean) => void; onAgentApplied?: () => Promise<void>; timeZone?:string;onActivityNavigate?:(target:ActivityTarget)=>void }
 type WorkspaceChatMessage = ChatMessage & { proposalBatch?: ProposalBatch };
 
-export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange, onAgentApplied,timeZone="UTC" }: Props) {
+export function WorkspaceAiChat({ projects, tasks, plans, milestones=[], open, onOpenChange, onAgentApplied,timeZone="UTC",onActivityNavigate }: Props) {
+  const [activityOpen,setActivityOpen]=useState(false);
   const [mode, setMode] = useState<"chat" | "agent">("chat");
   const [chatMessages, setChatMessages] = useState<WorkspaceChatMessage[]>([]);
   const [agentMessages, setAgentMessages] = useState<WorkspaceChatMessage[]>([]);
@@ -52,7 +55,8 @@ export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange, on
     ...projects.map((item) => [`project:${item.id}`, item.name] as const),
     ...tasks.map((item) => [`task:${item.id}`, item.title] as const),
     ...plans.map((item) => [`plan:${item.id}`, item.title] as const),
-  ]), [projects, tasks, plans]);
+    ...milestones.map((item) => [`milestone:${item.id}`, item.title] as const),
+  ]), [projects, tasks, plans, milestones]);
   const choices = entities[contextType].filter((item) => item.title.toLowerCase().includes(query.toLowerCase())).slice(0, 100);
   const entityContext = context;
 
@@ -146,19 +150,21 @@ export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange, on
     {!open ? <button type="button" onClick={() => onOpenChange(true)} aria-label="Open Workspace AI chat" className="flex h-full w-full items-center justify-center gap-1 rounded-full t-dark"><Sparkles size={17} /><span className="text-xs font-bold">AI</span></button> : <>
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--edge-dark)] p-4">
         <div className="min-w-0"><p className="eyebrow t-mood">Private workspace assistant</p><h2 className="mt-1 text-lg font-semibold t-dark">Workspace AI</h2><p className="mt-1 text-xs t-dark-muted">{mode === "agent" ? "Agent can inspect your workspace and propose task changes, deadline dates, and time blocks. Plan my day uses saved working hours. Only Apply changes workspace data. Relevant workspace data is sent to Gemini." : "Only the message, attached context, and files are sent when you send."}</p>
-          <div role="group" aria-label="Workspace AI mode" className="mt-2 flex gap-2">{(["chat", "agent"] as const).map((value) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy} onClick={() => { setMode(value); setError(""); setDragging(false); }} className={`dark-chip px-3 py-1 text-xs disabled:opacity-50 ${mode === value ? "ring-1 ring-[var(--ink-lavender)]" : ""}`}>{value === "chat" ? "Chat" : "Agent"}</button>)}</div>
+          <div role="group" aria-label="Workspace AI mode" className="mt-2 flex flex-wrap gap-2">{(["chat", "agent"] as const).map((value) => <button key={value} type="button" aria-pressed={!activityOpen&&mode === value} disabled={busy} onClick={() => { setActivityOpen(false);setMode(value); setError(""); setDragging(false); }} className={`dark-chip px-3 py-1 text-xs disabled:opacity-50 ${!activityOpen&&mode === value ? "ring-1 ring-[var(--ink-lavender)]" : ""}`}>{value === "chat" ? "Chat" : "Agent"}</button>)}<button type="button" aria-pressed={activityOpen} disabled={busy} className="dark-chip px-3 py-1 text-xs disabled:opacity-50" onClick={()=>setActivityOpen(true)}>Activity</button></div>
         </div>
         <div className="flex gap-1"><button type="button" title="Clear chat" aria-label="Clear chat" onClick={clearChat} className="dark-chip p-2"><Trash2 size={15} /></button><button type="button" title="Minimize chat" aria-label="Minimize chat" onClick={() => onOpenChange(false)} className="dark-chip p-2"><X size={15} /></button></div>
       </header>
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+        {activityOpen&&open?<AgentActivity timeZone={timeZone} entityLabels={labels} onApplied={onAgentApplied} onNavigate={onActivityNavigate} onReview={prompt=>{setActivityOpen(false);setMode("agent");setMessage(prompt);}}/>:<>
         {messages.length === 0 && <ChatMessageBubble role="assistant">How can I help with your workspace?</ChatMessageBubble>}
         {mode === "agent" && messages.length === 0 && <div className="flex flex-wrap gap-2">{AGENT_PROMPTS.map((prompt) => <button key={prompt} type="button" disabled={busy} onClick={() => setMessage(prompt)} className="dark-chip max-w-full whitespace-normal px-3 py-2 text-left text-xs">{prompt}</button>)}</div>}
         {messages.map((item, index) => <div key={`${index}-${item.role}`} className="min-w-0 space-y-2"><ChatMessageBubble role={item.role}>{mode === "agent" && item.role === "assistant" ? normalizeAgentAnswer(item.content) : item.content}</ChatMessageBubble>{mode === "agent" && agentMessages[index]?.proposalBatch && <AgentProposalCards key={agentMessages[index].proposalBatch!.runId} batch={agentMessages[index].proposalBatch!} onChange={batch => setAgentMessages(current => current.map(turn => turn.proposalBatch?.runId === batch.runId ? { ...turn, proposalBatch: batch } : turn))} onApplied={onAgentApplied} onReview={setMessage} timeZone={timeZone} entityLabels={labels} />}</div>)}
         {busy && <ChatTypingIndicator />}
         {busy && mode === "agent" && <p role="status" className="text-xs t-dark-muted">Inspecting workspace data…</p>}
         {mode === "agent" && !busy && toolActivity.length > 0 && <details className="text-xs t-dark-muted"><summary>Used workspace data</summary><ul className="mt-2 space-y-1">{toolActivity.map((item, index) => <li key={index}>✓ {item.tool.replace(/_/g, " ")}: {item.summary}</li>)}</ul></details>}
+        </>}
       </div>
-      <div className="shrink-0 space-y-2 border-t border-[var(--edge-dark)] p-3">
+      {!activityOpen&&<div className="shrink-0 space-y-2 border-t border-[var(--edge-dark)] p-3">
         {mode === "chat" && <>
         <div className="flex flex-wrap gap-1.5" aria-label="Attached workspace context">
           {entityContext.map((item) => <span key={`${item.type}:${item.id}`} data-kind={item.type} className="ai-context-chip dark-chip inline-flex max-w-full items-center gap-1 px-2 py-1 text-xs">{item.type === "project" ? <FolderGit2 size={12} aria-hidden="true" /> : item.type === "task" ? <CheckSquare size={12} aria-hidden="true" /> : <ListChecks size={12} aria-hidden="true" />}<span className="min-w-0 truncate">{item.type}: {labels.get(`${item.type}:${item.id}`) ?? "Selected item"}</span><button type="button" onClick={() => setContext((current) => current.filter((ref) => ref.id !== item.id || ref.type !== item.type))} aria-label={`Remove ${item.type} context`}><X size={12} /></button></span>)}
@@ -179,7 +185,7 @@ export function WorkspaceAiChat({ projects, tasks, plans, open, onOpenChange, on
           <button type="submit" disabled={busy || !message.trim()} aria-label="Send message" className="ink-button primary p-2 disabled:opacity-50">{busy ? <span className="px-1 text-xs">…</span> : <Send size={16} />}</button>
         </form>
         {error && <p role="alert" className="text-xs text-[var(--accent-peach)]">{error}</p>}
-      </div>
+      </div>}
     </>}
   </section>;
 
