@@ -6,6 +6,7 @@ import {loadProposalBatch} from '@/lib/ai/agent/store';
 import {buildAgentReviewPrompt} from '@/data/agentProposalReview';
 import {localDateTime} from '@/data/timeBlocks';
 import type {ProposalDraft} from '@/lib/ai/agent/contract';
+import {projectUndoEligibility,projectUndoReference} from '@/lib/ai/agent/undo';
 type Row=Record<string,unknown>;
 const text=(v:unknown,max=180)=>typeof v==='string'?v.slice(0,max):'';
 function projectRun(row:Row):AgentActivityRun {
@@ -44,6 +45,9 @@ export async function getAgentRun(admin:SupabaseClient,supabase:SupabaseClient,u
   const diff:ProposalDraft['diff']=(Array.isArray(row.diff)?row.diff:[]).filter((d:Row)=>fields.has(String(d.field))).slice(0,12).map((d:Row)=>({field:d.field as ProposalDraft['diff'][number]['field'],before:typeof d.before==='string'?d.before.slice(0,4000):null,after:typeof d.after==='string'?d.after.slice(0,4000):null}));
   const action:AgentActivityAction={id:text(row.id),runId,actionType:text(row.actionType),entityId:text(row.entityId)||null,title:text(row.title),status,createdAt:text(row.createdAt),approvedAt:text(row.approvedAt)||null,executedAt:text(row.executedAt)||null,errorCode:reasons[String(row.errorCode)]?String(row.errorCode):null,diff,humanSummary:actionLabel(text(row.actionType)),entityLabel:resolved.label,navigationTarget:resolved.target,entityState:resolved.state};
   const draft=canonical.find(a=>a.id===row.id);
+  if(row.undo)action.undo=projectUndoEligibility(row.undo);
+  if(row.undoOf)action.undoOf=projectUndoReference(row.undoOf);
+  if(row.reversedBy)action.reversedBy=projectUndoReference(row.reversedBy);
   if(status==='conflict'||status==='failed'){
    const labels=new Map<string,string>();
    // Labels for review are resolved through the authenticated owner client.

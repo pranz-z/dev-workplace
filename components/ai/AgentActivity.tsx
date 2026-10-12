@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
-import {ACTIVITY_STATUSES,STATUS_LABELS,activityDateRange,activityQueryString,type ActivityPage,type AgentActivityRun,type ActivityTarget} from '@/data/agentActivity';
+import {ACTIVITY_STATUSES,STATUS_LABELS,activityDateRange,activityQueryString,type ActivityPage,type AgentActivityRun,type ActivityTarget,type AgentActivityAction} from '@/data/agentActivity';
 import {localDateTime} from '@/data/timeBlocks';
 import type {ProposalBatch} from '@/lib/ai/agent/contract';
 import {AgentProposalCards} from '@/components/ai/AgentProposalCards';
@@ -11,6 +11,22 @@ export function AgentActivity({timeZone,entityLabels,onReview,onNavigate,onAppli
  const [page,setPage]=useState<ActivityPage>(empty),[status,setStatus]=useState(''),[period,setPeriod]=useState('7'),[revision,setRevision]=useState(0);
  const [loading,setLoading]=useState(true),[error,setError]=useState(''),[runId,setRunId]=useState<string|null>(null),[detail,setDetail]=useState<AgentActivityRun|null>(null),[batch,setBatch]=useState<ProposalBatch|null>(null),[detailBusy,setDetailBusy]=useState(false),[detailError,setDetailError]=useState(''),[detailRevision,setDetailRevision]=useState(0);
  const listAbort=useRef<AbortController|null>(null);
+ const [preparing,setPreparing]=useState(false),[undoError,setUndoError]=useState('');
+ const undoRequest=useRef(0),undoAbort=useRef<AbortController|null>(null),undoFlight=useRef(false);
+ function selectRun(id:string|null){if(id!==null&&id===runId)return;undoRequest.current++;undoAbort.current?.abort();undoFlight.current=false;setPreparing(false);setUndoError('');setRunId(id);setBatch(null);}
+ useEffect(()=>()=>{undoRequest.current++;undoAbort.current?.abort();},[]);
+ async function prepareUndo(action:AgentActivityAction){
+  if(undoFlight.current)return;undoFlight.current=true;setPreparing(true);setUndoError('');
+  const identity=++undoRequest.current,controller=new AbortController();undoAbort.current=controller;
+  try{
+   const response=await fetch('/api/ai/agent/activity/undo-proposal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:action.runId,actionId:action.id}),cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(20_000)])});
+   if(!response.ok)throw new Error();const result=await response.json() as {proposalBatch?:ProposalBatch;eligibility:{explanation:string}};
+   if(identity!==undoRequest.current||controller.signal.aborted)return;
+   if(result.proposalBatch){selectRun(result.proposalBatch.runId);setBatch(result.proposalBatch);setRevision(n=>n+1);}
+   else {setUndoError(result.eligibility.explanation.slice(0,240));setDetailRevision(n=>n+1);}
+  }catch{if(identity===undoRequest.current&&!controller.signal.aborted){setUndoError('Undo proposal status could not be confirmed. Refresh status to recover a saved proposal, or try Prepare undo again. Nothing is applied automatically.');setDetailRevision(n=>n+1);}}
+  finally{if(identity===undoRequest.current){undoFlight.current=false;setPreparing(false);}}
+ }
  const stamp=(value:string|null)=>{if(!value)return 'Not recorded';try{return new Intl.DateTimeFormat(undefined,{timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date(value));}catch{return 'Not recorded';}};
  const query=()=>({limit:20,...(status?{status:status as typeof ACTIVITY_STATUSES[number]}:{}),...activityDateRange(period,timeZone)});
  useEffect(()=>{
@@ -37,14 +53,20 @@ export function AgentActivity({timeZone,entityLabels,onReview,onNavigate,onAppli
   <p className="text-xs">Loaded runs: {counts}</p>
   {loading&&<p role="status">Loading activity…</p>}{error&&<p role="alert">{error}</p>}
   {!loading&&!error&&!page.items.length&&<p>No Agent activity yet. Saved suggestions will appear here when you approve, cancel, or review them.</p>}
-  <ol className="min-w-0 divide-y divide-[var(--edge-dark)]">{page.items.map((run,index)=>{let day='Unknown date';try{day=localDateTime(run.createdAt,timeZone).slice(0,10);}catch{}let previous='';try{previous=index?localDateTime(page.items[index-1].createdAt,timeZone).slice(0,10):'';}catch{}return <li key={run.id} className="min-w-0 py-2">{day!==previous&&<h4 className="mb-2 text-xs font-semibold">{day}</h4>}<button type="button" className="w-full min-w-0 space-y-1 text-left" aria-expanded={runId===run.id} onClick={()=>setRunId(run.id)}><span className="block font-semibold">{run.status} · {run.primaryEntityLabel??'Agent run'}</span><span className="block text-xs">{run.actionCount} proposed changes · {run.summary}</span><time className="block text-xs t-dark-muted">{stamp(run.createdAt)}</time></button></li>;})}</ol>
+  <ol className="min-w-0 divide-y divide-[var(--edge-dark)]">{page.items.map((run,index)=>{let day='Unknown date';try{day=localDateTime(run.createdAt,timeZone).slice(0,10);}catch{}let previous='';try{previous=index?localDateTime(page.items[index-1].createdAt,timeZone).slice(0,10):'';}catch{}return <li key={run.id} className="min-w-0 py-2">{day!==previous&&<h4 className="mb-2 text-xs font-semibold">{day}</h4>}<button type="button" className="w-full min-w-0 space-y-1 text-left" aria-expanded={runId===run.id} onClick={()=>selectRun(run.id)}><span className="block font-semibold">{run.status} · {run.primaryEntityLabel??'Agent run'}</span><span className="block text-xs">{run.actionCount} proposed changes · {run.summary}</span><time className="block text-xs t-dark-muted">{stamp(run.createdAt)}</time></button></li>;})}</ol>
   {page.nextCursor&&<button type="button" disabled={loading} className="dark-chip p-2" onClick={()=>void more()}>Load more</button>}
   {runId&&<section aria-label="Agent run details" className="min-w-0 space-y-3 border-t border-[var(--edge-dark)] pt-3">
-   <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">Agent run details</h3><button type="button" className="dark-chip p-1" onClick={()=>{setRunId(null);setDetail(null);setBatch(null);}}>Close details</button></div>
+   <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">Agent run details</h3><button type="button" className="dark-chip p-1" onClick={()=>{selectRun(null);setDetail(null);}}>Close details</button></div>
+   {undoError&&<p role="alert" className="break-words">{undoError}</p>}
    {detailBusy&&<p role="status">Loading current status…</p>}{detailError&&<p role="alert">{detailError}</p>}
    {detail&&<><p className="text-xs">{detail.summary}<br/>Created: {stamp(detail.createdAt)}<br/>Completed: {stamp(detail.completedAt)}</p>
     <ol className="min-w-0 space-y-3">{detail.actions?.map(action=><li key={action.id} className="min-w-0 border-l-2 border-[var(--edge-dark)] pl-2">
      <h4 className="font-semibold">{action.humanSummary}: {action.entityLabel}</h4><p>{STATUS_LABELS[action.status]}</p>
+     {action.undoOf&&<button type="button" className="dark-chip max-w-full p-1 text-left" onClick={()=>selectRun(action.undoOf!.runId)}>Undo of action from {stamp(action.undoOf.createdAt)}</button>}
+     {action.reversedBy&&<button type="button" className="dark-chip max-w-full p-1 text-left" onClick={()=>selectRun(action.reversedBy!.runId)}>Reversed by action from {stamp(action.reversedBy.createdAt)}</button>}
+     {action.undo&&<div className="min-w-0 space-y-1"><p className="text-xs">{action.undo.explanation}</p>{action.undo.inverseSummary&&<p className="text-xs">{action.undo.inverseSummary}</p>}
+      {action.undo.existingInverse?.status==='pending'?<button type="button" className="dark-chip p-2" disabled={preparing||detailBusy} onClick={()=>selectRun(action.undo!.existingInverse!.runId)}>Review undo proposal</button>:action.undo.state==='available'&&<button type="button" className="dark-chip p-2" disabled={preparing||detailBusy} onClick={()=>void prepareUndo(action)}>Prepare undo</button>}
+     </div>}
      {action.errorCode&&<p className="text-xs">{action.errorCode==='STALE_ENTITY'?'The item changed before approval.':action.errorCode==='TIME_BLOCK_OVERLAP'?'That time is no longer available.':'The change could not be applied safely.'}</p>}
      {action.diff.map((d,index)=><p key={index} className="whitespace-pre-wrap text-xs">{d.field.replace(/([A-Z])/g,' $1')}: {value(d.field,d.before)} → {value(d.field,d.after)}</p>)}
      <p className="mt-1 text-xs t-dark-muted">Created: {stamp(action.createdAt)}<br/>Approval/decision: {stamp(action.approvedAt)}<br/>Executed: {stamp(action.executedAt)}</p>

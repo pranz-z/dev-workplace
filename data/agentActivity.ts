@@ -1,9 +1,10 @@
 import {dayBoundaryInstant,localDateTime} from '@/data/timeBlocks';
-import type {ActionStatus,ProposalDraft} from '@/lib/ai/agent/contract';
+import type {ActionStatus,ProposalDraft,UndoEligibility,AgentActionReference} from '@/lib/ai/agent/contract';
 
 export type ActivityCounts=Record<ActionStatus,number>;
 export type ActivityTarget={type:'task'|'project'|'milestone'|'time_block';id:string;projectId?:string;date?:string};
 export interface AgentActivityAction {
+ undo?:UndoEligibility;undoOf?:AgentActionReference|null;reversedBy?:AgentActionReference|null;
  id:string;runId:string;actionType:string;entityId:string|null;title:string;status:ActionStatus;
  createdAt:string;approvedAt:string|null;executedAt:string|null;errorCode:string|null;
  diff:ProposalDraft['diff'];humanSummary:string;entityLabel:string;navigationTarget:ActivityTarget|null;

@@ -22,8 +22,9 @@ export async function applySelectedActions(admin: SupabaseClient, userId: string
   const results: ActionResult[] = [];
   for (const id of actionIds) {
     // SQL reloads and revalidates canonical payload, ownership and version under locks.
-    const type=batch.actions.find(action=>action.id===id)!.type;
-    const { data, error } = await admin.rpc(type.endsWith('_time_block')?'apply_agent_time_block_action':type.startsWith("reschedule_") ? "apply_agent_schedule_action" : "apply_agent_task_action", { p_user_id: userId, p_run_id: batch.runId, p_action_id: id });
+    const action=batch.actions.find(action=>action.id===id)!;
+    const type=action.type;
+    const { data, error } = await admin.rpc(action.undoOf?'apply_agent_inverse_action':type.endsWith('_time_block')?'apply_agent_time_block_action':type.startsWith("reschedule_") ? "apply_agent_schedule_action" : "apply_agent_task_action", { p_user_id: userId, p_run_id: batch.runId, p_action_id: id });
     if (error || !data) results.push({ id, status: "pending", errorCode: "RETRY_STATUS" });
     else results.push(data as ActionResult);
   }

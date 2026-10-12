@@ -9,6 +9,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export function requireUuid(value: unknown): string { if (typeof value !== "string" || !UUID.test(value)) throw new AiError("INVALID_INPUT"); return value; }
 function record(value: unknown) { if (!value || typeof value !== "object" || Array.isArray(value)) throw new AiError("INVALID_INPUT"); return value as Record<string, unknown>; }
 function keys(row: Record<string, unknown>, allowed: string[]) { if (Object.keys(row).some(key => !allowed.includes(key))) throw new AiError("INVALID_INPUT"); }
+export function parseUndoSelection(value: unknown): {runId:string;actionId:string} {
+ const row=record(value);keys(row,['runId','actionId']);
+ return {runId:requireUuid(row.runId),actionId:requireUuid(row.actionId)};
+}
 export function parseTaskChanges(value: unknown): TaskChanges {
   const row = record(value);
   keys(row, ["title", "description", "status", "priority", "dueDate", "milestoneId"]);
