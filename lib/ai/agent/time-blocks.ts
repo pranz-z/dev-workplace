@@ -4,7 +4,7 @@ import {AiError} from "@/lib/ai/errors";
 import {TIME_BLOCK_COLUMNS,PREFERENCE_COLUMNS,dayBoundaryInstant,canonicalInstant,resolveBlockTime,validateBlockRange,blocksOverlap,findFreeSlots,planDay,type SchedulingPreferences,type PlanningTask,type TimeSlot} from "@/data/timeBlocks";
 import {taskCalendarDate} from "@/data/workspaceCalendar";
 import type {ToolContext} from "@/lib/ai/agent/tools";
-import type {ProposalDraft,ProposalChanges} from "@/lib/ai/agent/contract";
+import type {ProposalDraft,ProposalChanges,LegacyProposalDraft} from "@/lib/ai/agent/contract";
 import type {TimeBlockInput,TimeBlockChanges} from "@/lib/ai/agent/time-block-schema";
 import {resolveTimeBlockCandidates,hasRequestedMoveTime,moveEndFromCanonical} from "@/lib/ai/agent/block-resolution";
 type Row=Record<string,unknown>;
@@ -78,7 +78,7 @@ async function canonicalProposal(input:TimeBlockInput,context:ToolContext,drafts
  if(after.status!=='cancelled') {
   const persisted=await readTimeBlocks(context,range.startAt,range.endAt,{includeCompleted:true});if(persisted.truncated)fail();
   if(persisted.items.some(b=>b.id!==input.timeBlockId&&blocksOverlap(range,b)))fail();
-  for(const draft of drafts)if(draft!==previous&&draft.type.endsWith('_time_block')&&draft.type!=='cancel_time_block'){
+  for(const draft of drafts)if(draft!==previous&&(draft.type==='create_time_block'||draft.type==='update_time_block')){
    const candidate={...draft.before,...draft.payload};if(candidate.startAt&&candidate.endAt&&candidate.status!=='cancelled'&&blocksOverlap(range,candidate as TimeSlot))fail();
   }
  }
@@ -94,7 +94,7 @@ export async function collectTimeProposal(input:TimeBlockInput,context:ToolConte
  if(input.blockAction==='plan'||input.blockAction==='find') {
   const day=await dayContext(context,input.date!,true);
   if(day.blocks.truncated)fail();if(!day.preferences&&!(input.earliestTime&&input.latestTime))return {pendingApproval:false,count:0,requiresPreferences:true,reason:'Ask the user to save scheduling preferences or specify an explicit start/end range and duration. No proposal created.'};
-  const reserved=drafts.filter(d=>d.type.endsWith('_time_block')).map(d=>({...d.before,...d.payload})).filter((p):p is typeof p & TimeSlot=>Boolean(p.startAt&&p.endAt));
+  const reserved=drafts.filter((d):d is LegacyProposalDraft=>['create_time_block','update_time_block','cancel_time_block'].includes(d.type)).map(d=>({...d.before,...d.payload})).filter((p):p is typeof p & TimeSlot=>Boolean(p.startAt&&p.endAt));
   let tasks=day.tasks;
   if(input.blockAction==='find') {const task=await one(context,'tasks','id,title,project_id,status,priority,due_date',input.taskId!);if(!task||task.status==='Completed')fail();tasks=[{id:String(task.id),title:String(task.title),projectId:String(task.project_id),status:String(task.status),priority:String(task.priority)}];}
   const plan=planDay({date:input.date!,timeZone:context.timeZone,preferences:day.preferences,blocks:[...day.blocks.items,...reserved],tasks,durationMinutes:input.durationMinutes,earliestTime:input.earliestTime,latestTime:input.latestTime,now:context.now});

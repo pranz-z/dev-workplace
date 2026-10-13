@@ -63,6 +63,7 @@ export function AgentActivity({timeZone,entityLabels,onReview,onNavigate,onAppli
     <ol className="min-w-0 space-y-3">{detail.actions?.map(action=><li key={action.id} className="min-w-0 border-l-2 border-[var(--edge-dark)] pl-2">
      <h4 className="font-semibold">{action.humanSummary}: {action.entityLabel}</h4><p>{STATUS_LABELS[action.status]}</p>
      {action.undoOf&&<button type="button" className="dark-chip max-w-full p-1 text-left" onClick={()=>selectRun(action.undoOf!.runId)}>Undo of action from {stamp(action.undoOf.createdAt)}</button>}
+     {action.undoOf&&action.reversedBy&&<p>Reversed later</p>}
      {action.reversedBy&&<button type="button" className="dark-chip max-w-full p-1 text-left" onClick={()=>selectRun(action.reversedBy!.runId)}>Reversed by action from {stamp(action.reversedBy.createdAt)}</button>}
      {action.undo&&<div className="min-w-0 space-y-1"><p className="text-xs">{action.undo.explanation}</p>{action.undo.inverseSummary&&<p className="text-xs">{action.undo.inverseSummary}</p>}
       {action.undo.existingInverse?.status==='pending'?<button type="button" className="dark-chip p-2" disabled={preparing||detailBusy} onClick={()=>selectRun(action.undo!.existingInverse!.runId)}>Review undo proposal</button>:action.undo.state==='available'&&<button type="button" className="dark-chip p-2" disabled={preparing||detailBusy} onClick={()=>void prepareUndo(action)}>Prepare undo</button>}

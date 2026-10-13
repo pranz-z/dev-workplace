@@ -19,13 +19,13 @@ export async function listAgentRuns(admin:SupabaseClient,userId:string,query:Act
  if(error||!data||!Array.isArray(data.items)||data.items.length>query.limit)throw new AiError('UPSTREAM_ERROR');
  return {items:data.items.map(projectRun),nextCursor:data.nextCursor??null};
 }
-const reasons:Record<string,string>={STALE_ENTITY:'The item changed before approval.',TIME_BLOCK_OVERLAP:'That time is no longer available.',FORBIDDEN:'The item or its links are no longer available.',INVALID_INPUT:'The change could not be validated.',TIME_BLOCK_SAVE_FAILED:'The time block could not be saved.',TASK_SAVE_FAILED:'The task could not be saved.'};
+const reasons:Record<string,string>={MILESTONE_SAVE_FAILED:'The milestone could not be saved.',STALE_ENTITY:'The item changed before approval.',TIME_BLOCK_OVERLAP:'That time is no longer available.',FORBIDDEN:'The item or its links are no longer available.',INVALID_INPUT:'The change could not be validated.',TIME_BLOCK_SAVE_FAILED:'The time block could not be saved.',TASK_SAVE_FAILED:'The task could not be saved.'};
 const fields=new Set(['title','description','priority','status','dueDate','milestoneId','targetDate','startAt','endAt','projectId','taskId','kind']);
 async function resolveTarget(supabase:SupabaseClient,userId:string,row:Row,timeZone:string):Promise<{target:ActivityTarget|null;state:AgentActivityAction['entityState'];label:string}> {
  const label=text(row.title)||'Workspace item',id=text(row.entityId),type=text(row.actionType);
- if(!['create_task','update_task','reschedule_project','reschedule_milestone','create_time_block','update_time_block','cancel_time_block'].includes(type))return {target:null,state:'unsupported',label};
+ if(!['create_milestone','update_milestone','create_task','update_task','reschedule_project','reschedule_milestone','create_time_block','update_time_block','cancel_time_block'].includes(type))return {target:null,state:'unsupported',label};
  if(!id)return {target:null,state:type.startsWith('create_')?'uncreated':'missing',label};
- const entityType=type.endsWith('_time_block')?'time_block':type==='reschedule_project'?'project':type==='reschedule_milestone'?'milestone':'task';
+ const entityType=type.endsWith('_time_block')?'time_block':type==='reschedule_project'?'project':['reschedule_milestone','create_milestone','update_milestone'].includes(type)?'milestone':'task';
  const table={time_block:'workspace_time_blocks',task:'tasks',project:'projects',milestone:'milestones'}[entityType];
  let query=supabase.from(table).select(entityType==='time_block'?'id,title,start_at,project_id':entityType==='milestone'?'id,title,project_id,projects!inner(user_id)':'id,title').eq('id',id);
  query=entityType==='milestone'?query.eq('projects.user_id',userId):query.eq('user_id',userId);
@@ -48,10 +48,10 @@ export async function getAgentRun(admin:SupabaseClient,supabase:SupabaseClient,u
   if(row.undo)action.undo=projectUndoEligibility(row.undo);
   if(row.undoOf)action.undoOf=projectUndoReference(row.undoOf);
   if(row.reversedBy)action.reversedBy=projectUndoReference(row.reversedBy);
-  if(status==='conflict'||status==='failed'){
+  if(resolved.state!=='unsupported'&&(status==='conflict'||status==='failed')){
    const labels=new Map<string,string>();
    // Labels for review are resolved through the authenticated owner client.
-   for(const [kind,id] of [['task',draft?.payload.taskId],['project',draft?.payload.projectId??draft?.projectId]] as const)if(id){const {data:label,error:labelError}=await supabase.from(kind==='task'?'tasks':'projects').select('title').eq('id',id).eq('user_id',userId).maybeSingle();if(labelError)throw new AiError('UPSTREAM_ERROR');if(label)labels.set(`${kind}:${id}`,text(label.title));}
+   for(const [kind,id] of [['task',draft&&'taskId' in draft.payload?draft.payload.taskId:null],['project',draft&&'projectId' in draft.payload?draft.payload.projectId??draft.projectId:draft?.projectId]] as const)if(id){const {data:label,error:labelError}=await supabase.from(kind==='task'?'tasks':'projects').select('title').eq('id',id).eq('user_id',userId).maybeSingle();if(labelError)throw new AiError('UPSTREAM_ERROR');if(label)labels.set(`${kind}:${id}`,text(label.title));}
    try{action.reviewPrompt=draft?buildAgentReviewPrompt(draft,timeZone,labels):`Review the current ${action.entityLabel} and ask me which change to retry.`;}catch{action.reviewPrompt='Review the current workspace item and ask me which change to retry.';}
   }
   return action;

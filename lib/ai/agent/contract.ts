@@ -16,7 +16,16 @@ export interface UndoEligibility {
 }
 export type TaskChanges = { title?: string; description?: string; status?: import("@/types").TaskStatus; priority?: import("@/types").Priority; dueDate?: string | null; milestoneId?: string | null };
 export type ProposalChanges = Omit<TaskChanges,'status'> & {status?:TaskChanges['status']|'scheduled'|'completed'|'cancelled';targetDate?:string|null;startAt?:string;endAt?:string;projectId?:string|null;taskId?:string|null;kind?:'focus'|'task'|'break'|'custom'};
-export interface ProposalDraft { undoOf?: AgentActionReference | null; id: string; type: "create_task" | "update_task" | "reschedule_milestone" | "reschedule_project" | 'create_time_block' | 'update_time_block' | 'cancel_time_block'; entityId?: string | null; taskId: string | null; projectId: string|null; title: string; payload: ProposalChanges; before: ProposalChanges; expectedUpdatedAt: string | null; diff: Array<{ field: keyof ProposalChanges; before: string | null; after: string | null }>; status: ActionStatus }
+export type MilestoneStatus = 'pending' | 'active' | 'completed';
+export type MilestoneChanges = {title?:string;description?:string;status?:MilestoneStatus;targetDate?:string|null};
+export type MilestoneCreatePayload = {title:string;description:string;status:'pending';targetDate:string|null};
+export type MilestoneProposalInput = {milestoneAction:'create';projectId:string;title:string;description?:string;targetDate?:string|null} | {milestoneAction:'update';milestoneId:string;changes:MilestoneChanges};
+interface DraftEnvelope { undoOf?: AgentActionReference | null; id:string;entityId?:string|null;taskId:string|null;projectId:string|null;title:string;expectedUpdatedAt:string|null;diff:Array<{field:keyof ProposalChanges;before:string|null;after:string|null}>;status:ActionStatus }
+export type LegacyProposalDraft = DraftEnvelope & {type:'create_task'|'update_task'|'reschedule_milestone'|'reschedule_project'|'create_time_block'|'update_time_block'|'cancel_time_block';payload:ProposalChanges;before:ProposalChanges};
+export type ProposalDraft = LegacyProposalDraft | DraftEnvelope & (
+  {type:'create_milestone';payload:MilestoneCreatePayload;before:MilestoneChanges & {projectId?:string}} |
+  {type:'update_milestone';payload:MilestoneChanges;before:MilestoneChanges & {projectId?:string}}
+);
 export interface ProposalBatch { runId: string; actions: ProposalDraft[] }
 export interface ActionResult { id: string; status: ActionStatus; errorCode?: string | null; entityId?: string | null }
 export interface AgentRequest { message: string; history: ChatTurn[]; timeZone: string }

@@ -1984,3 +1984,17 @@ revoke all on function public.set_google_drive_upload_parent(uuid,uuid,uuid) fro
 revoke all on function public.get_google_drive_upload_parent(uuid,uuid) from public, anon, authenticated;
 grant execute on function public.set_google_drive_upload_parent(uuid,uuid,uuid) to service_role;
 grant execute on function public.get_google_drive_upload_parent(uuid,uuid) to service_role;
+
+-- Workspace Agent milestone support is installed by the ordered migration chain,
+-- not this entity-schema snapshot. See 20261013090001_workspace_agent_milestones.sql.
+-- That additive migration adds create_milestone/update_milestone to the private
+-- audit action-kind/version checks, keeps all old action shapes, and adds the
+-- partial (run_id,entity_id) milestone target uniqueness guard after preflight.
+-- private.agent_milestone_patch_valid(jsonb,boolean) validates canonical fields.
+-- private.agent_apply_milestone_patch(uuid,uuid,uuid,jsonb,timestamptz) guards the
+-- project-before-milestone write shared with legacy date scheduling, without audit.
+-- public.apply_agent_milestone_action(uuid,uuid,uuid) is service-only and records
+-- creation/update plus its audit result atomically. Creation is not undoable.
+-- The existing save, schedule Apply, Undo evaluator/context/guard and Activity
+-- projection are extended in that migration; inverse lineage/grants stay private.
+-- Milestone entity columns, RLS, timestamps, task links and manual CRUD are unchanged.

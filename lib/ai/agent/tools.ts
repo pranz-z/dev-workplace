@@ -57,6 +57,12 @@ function within(date: string | null, from: unknown, to: unknown) { return (!from
 
 export async function executeReadTool(name: string, input: unknown, context: ToolContext): Promise<Record<string, unknown>> {
   const args = parseToolArguments(name, input);
+  if(name==='get_milestone'){
+    const result=await read(context,'milestones',MILESTONE_COLUMNS+',description',{},String(args.milestoneId));
+    const row=result.rows[0];if(!row)throw new AiError('FORBIDDEN');
+    const project=relatedProject(row);
+    return {milestoneId:row.id,projectId:row.project_id,projectTitle:text(project?.title),title:text(row.title),description:text(row.description,4000),status:text(row.status,40),targetDate:row.target_date??null,titleTruncated:String(row.title??'').length>180,descriptionTruncated:String(row.description??'').length>4000,projectTitleTruncated:String(project?.title??'').length>180};
+  }
   context.signal.throwIfAborted();
   if(['list_time_blocks','get_day_schedule','find_free_time'].includes(name))return executeTimeRead(name,args,context);
   if (args.projectId) await ownedProject(context, String(args.projectId));

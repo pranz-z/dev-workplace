@@ -3,7 +3,7 @@ import {parseTimeBlockTool,timeBlockProposalTools,type TimeBlockInput} from "@/l
 import { AiError } from "@/lib/ai/errors";
 import { TASK_STATUSES } from "@/data/taskList";
 import { isValidCalendarDate } from "@/data/workspaceCalendar";
-import { MAX_PROPOSED_ACTIONS_PER_RUN, type TaskChanges } from "@/lib/ai/agent/contract";
+import { MAX_PROPOSED_ACTIONS_PER_RUN, type TaskChanges, type MilestoneChanges, type MilestoneProposalInput } from "@/lib/ai/agent/contract";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function requireUuid(value: unknown): string { if (typeof value !== "string" || !UUID.test(value)) throw new AiError("INVALID_INPUT"); return value; }
@@ -30,10 +30,26 @@ export function parseTaskChanges(value: unknown): TaskChanges {
   return result;
 }
 export type ScheduleInput = { entityId: string; entityType: "milestone" | "project"; targetDate: string | null };
-export type ProposalInput = TimeBlockInput | ScheduleInput | { taskId: string; changes: TaskChanges } | ({ projectId: string; title: string } & TaskChanges);
+export type ProposalInput = MilestoneProposalInput | TimeBlockInput | ScheduleInput | { taskId: string; changes: TaskChanges } | ({ projectId: string; title: string } & TaskChanges);
+function milestoneChanges(value:unknown):MilestoneChanges {
+ const row=record(value);keys(row,['title','description','status','targetDate']);
+ if(!Object.keys(row).length)throw new AiError('INVALID_INPUT');
+ const result:MilestoneChanges={};
+ if(Object.hasOwn(row,'title')){if(typeof row.title!=='string'||!row.title.trim()||row.title.trim().length>180)throw new AiError('INVALID_INPUT');result.title=row.title.trim();}
+ if(Object.hasOwn(row,'description')){if(typeof row.description!=='string'||row.description.length>4000)throw new AiError('INVALID_INPUT');result.description=row.description;}
+ if(Object.hasOwn(row,'status')){if(typeof row.status!=='string'||!['pending','active','completed'].includes(row.status))throw new AiError('INVALID_INPUT');result.status=row.status as MilestoneChanges['status'];}
+ if(Object.hasOwn(row,'targetDate')){if(row.targetDate!==null&&(typeof row.targetDate!=='string'||!isValidCalendarDate(row.targetDate)))throw new AiError('INVALID_INPUT');result.targetDate=row.targetDate as string|null;}
+ return result;
+}
 export function parseProposalTool(name: string, value: unknown): ProposalInput {
   if(timeBlockProposalTools.some(tool=>tool.name===name))return parseTimeBlockTool(name,value);
   const row = record(value);
+  if(name==='propose_create_milestone'){
+   keys(row,['projectId','title','description','targetDate']);const {projectId,...fields}=row;
+   const changes=milestoneChanges(fields);if(!changes.title)throw new AiError('INVALID_INPUT');
+   return {milestoneAction:'create',projectId:requireUuid(projectId),...changes,title:changes.title};
+  }
+  if(name==='propose_update_milestone'){keys(row,['milestoneId','changes']);return {milestoneAction:'update',milestoneId:requireUuid(row.milestoneId),changes:milestoneChanges(row.changes)};}
   if (name === "propose_reschedule_milestone" || name === "propose_reschedule_project") {
     const entityType = name === "propose_reschedule_milestone" ? "milestone" : "project";
     const key = `${entityType}Id`;
@@ -63,6 +79,8 @@ const fields = {
   dueDate: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear" }, milestoneId: { type: ["string", "null"], description: "UUID of a milestone in the same project, or null" },
 };
 export const proposalTools = [
+  {name:'propose_create_milestone',description:'Prepare one milestone creation for approval. Nothing changes until Apply.',parametersJsonSchema:{type:'object',properties:{projectId:{type:'string'},title:fields.title,description:fields.description,targetDate:{type:['string','null'],description:'YYYY-MM-DD or null'}},required:['projectId','title'],additionalProperties:false}},
+  {name:'propose_update_milestone',description:'Prepare one milestone patch for approval. Group all changes in one call; do not mix with another mutation.',parametersJsonSchema:{type:'object',properties:{milestoneId:{type:'string'},changes:{type:'object',properties:{title:fields.title,description:fields.description,status:{type:'string',enum:['pending','active','completed']},targetDate:{type:['string','null'],description:'YYYY-MM-DD or null to clear'}},minProperties:1,additionalProperties:false}},required:['milestoneId','changes'],additionalProperties:false}},
   ...timeBlockProposalTools,
   ...(["milestone", "project"] as const).map(entity => ({ name: `propose_reschedule_${entity}`, description: `Prepare ONLY a ${entity} target date change for approval. Does not mutate data.`, parametersJsonSchema: { type: "object", properties: { [`${entity}Id`]: { type: "string" }, targetDate: { type: ["string", "null"], description: "Valid YYYY-MM-DD or null to clear" } }, required: [`${entity}Id`, "targetDate"], additionalProperties: false } })),
   { name: "propose_create_task", description: "Prepare a task creation for user review. Does NOT create a task. Never claim it was applied.", parametersJsonSchema: { type: "object", properties: { projectId: { type: "string" }, ...fields }, required: ["projectId", "title"], additionalProperties: false } },

@@ -15,7 +15,10 @@ export function wallClock(value: string): string | undefined {
 }
 const clockPattern = '(?:\\d{1,2}:[0-5]\\d\\s*(?:AM|PM)?|\\d{1,2}\\s*(?:AM|PM))';
 export function hasRequestedMoveTime(message: string) { return new RegExp(`(?:to|at|start(?:ing)?(?: at)?)\\s+${clockPattern}`, 'i').test(message); }
-export function isBlockMoveRequest(message: string) { return /\b(move|reschedule|cancel)\b/i.test(message) && /\b(block|it|this)\b/i.test(message); }
+export function isBlockMoveRequest(message: string) {
+  if(/\bmilestone\b/i.test(message)&&!/\bblock\b/i.test(message))return false;
+  return /\b(move|reschedule|cancel)\b/i.test(message) && /\b(block|it|this)\b/i.test(message);
+}
 
 /** Model IDs are suggestions. Resolve against the human request and owned canonical rows. */
 export async function resolveTimeBlockCandidates(message: string, context: ToolContext) {

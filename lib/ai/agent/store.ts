@@ -24,7 +24,9 @@ export async function applySelectedActions(admin: SupabaseClient, userId: string
     // SQL reloads and revalidates canonical payload, ownership and version under locks.
     const action=batch.actions.find(action=>action.id===id)!;
     const type=action.type;
-    const { data, error } = await admin.rpc(action.undoOf?'apply_agent_inverse_action':type.endsWith('_time_block')?'apply_agent_time_block_action':type.startsWith("reschedule_") ? "apply_agent_schedule_action" : "apply_agent_task_action", { p_user_id: userId, p_run_id: batch.runId, p_action_id: id });
+    const routes:Record<string,string>={create_task:'apply_agent_task_action',update_task:'apply_agent_task_action',reschedule_milestone:'apply_agent_schedule_action',reschedule_project:'apply_agent_schedule_action',create_time_block:'apply_agent_time_block_action',update_time_block:'apply_agent_time_block_action',cancel_time_block:'apply_agent_time_block_action',create_milestone:'apply_agent_milestone_action',update_milestone:'apply_agent_milestone_action'};
+    if(!Object.hasOwn(routes,type))throw new AiError('INVALID_INPUT');
+    const { data, error } = await admin.rpc(action.undoOf?'apply_agent_inverse_action':routes[type], { p_user_id: userId, p_run_id: batch.runId, p_action_id: id });
     if (error || !data) results.push({ id, status: "pending", errorCode: "RETRY_STATUS" });
     else results.push(data as ActionResult);
   }

@@ -2,6 +2,8 @@ import type { ProposalDraft } from '@/lib/ai/agent/contract';
 import { localDateTime } from '@/data/timeBlocks';
 
 export function buildAgentReviewPrompt(action: ProposalDraft, timeZone: string, labels?: Map<string, string>): string {
+  if(action.type==='create_milestone')return `Review creating milestone ${action.title} in ${labels?.get(`project:${action.projectId}`)??'the original project'} (project ${action.projectId}) and prepare a fresh proposal after checking current state.`;
+  if(action.type==='update_milestone')return `Review the current milestone ${action.title} (${action.entityId}) and prepare a fresh proposal for the requested changes.`;
   if (action.type === 'create_time_block') {
     const start = localDateTime(action.payload.startAt!, timeZone);
     const end = localDateTime(action.payload.endAt!, timeZone);

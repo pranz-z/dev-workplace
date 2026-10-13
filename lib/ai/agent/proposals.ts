@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { AiError } from "@/lib/ai/errors";
 import { taskCalendarDate } from "@/data/workspaceCalendar";
-import { MAX_PROPOSED_ACTIONS_PER_RUN, type ProposalDraft, type TaskChanges } from "@/lib/ai/agent/contract";
+import { MAX_PROPOSED_ACTIONS_PER_RUN, type ProposalDraft, type LegacyProposalDraft, type TaskChanges, type MilestoneChanges } from "@/lib/ai/agent/contract";
 import { parseProposalTool } from "@/lib/ai/agent/proposal-schema";
 import type { ToolContext } from "@/lib/ai/agent/tools";
 import {collectTimeProposal} from "@/lib/ai/agent/time-blocks";
@@ -11,6 +11,38 @@ function excerpt(value: unknown, limit: number) { const text = String(value ?? "
 
 export async function collectProposal(name: string, input: unknown, context: ToolContext, drafts: ProposalDraft[]) {
   const parsed = parseProposalTool(name, input);
+  const newDraft=drafts.find(d=>d.type==='create_milestone'||d.type==='update_milestone');
+  if('milestoneAction' in parsed){
+    if(drafts.length && (parsed.milestoneAction!=='update'||drafts.length!==1||newDraft?.type!=='update_milestone'||newDraft.entityId!==parsed.milestoneId))throw new AiError('INVALID_INPUT');
+    if(parsed.milestoneAction==='create'){
+      const {data,error}=await context.supabase.from('projects').select('id,title').eq('id',parsed.projectId).eq('user_id',context.userId).abortSignal(context.signal).maybeSingle();
+      if(error)throw new AiError('UPSTREAM_ERROR');if(!data)throw new AiError('FORBIDDEN');
+      const payload={title:parsed.title,description:parsed.description??'',status:'pending' as const,targetDate:parsed.targetDate??null};
+      drafts.push({id:randomUUID(),type:'create_milestone',entityId:null,taskId:null,projectId:parsed.projectId,title:payload.title,payload,before:{},expectedUpdatedAt:null,diff:Object.entries(payload).map(([field,after])=>({field:field as keyof MilestoneChanges,before:null,after})),status:'pending'});
+    }else{
+      const {data,error}=await context.supabase.from('milestones').select('id,project_id,title,description,status,target_date,updated_at,projects!inner(id,user_id)').eq('id',parsed.milestoneId).eq('projects.user_id',context.userId).abortSignal(context.signal).maybeSingle();
+      if(error)throw new AiError('UPSTREAM_ERROR');if(!data)throw new AiError('FORBIDDEN');
+      const row=data as unknown as {id:string;project_id:string;title:string;description:string;status:MilestoneChanges['status'];target_date:string|null;updated_at:string};
+      if(newDraft&&(newDraft.expectedUpdatedAt!==row.updated_at||newDraft.projectId!==row.project_id))throw new AiError('FORBIDDEN');
+      const initial:MilestoneChanges={title:row.title,description:row.description,status:row.status,targetDate:row.target_date};
+      const merged={...(newDraft?.payload??{}),...parsed.changes} as MilestoneChanges;
+      const payload:MilestoneChanges={},before:MilestoneChanges & {projectId:string}={projectId:row.project_id};
+      const diff:ProposalDraft['diff']=[];
+      for(const field of Object.keys(merged) as (keyof MilestoneChanges)[]){
+        const old=initial[field],after=merged[field];if(old===after)continue;
+        // Exact affected history must be representable by the same field contract.
+        const checked=parseProposalTool('propose_update_milestone',{milestoneId:row.id,changes:{[field]:old}});
+        if(!('milestoneAction' in checked)||checked.milestoneAction!=='update'||checked.changes[field]!==old)throw new AiError('INVALID_INPUT');
+        Object.assign(payload,{[field]:after});Object.assign(before,{[field]:old});diff.push({field,before:old as string|null,after:after as string|null});
+      }
+      if(Buffer.byteLength(JSON.stringify(before),'utf8')>40000||Buffer.byteLength(JSON.stringify(payload),'utf8')>40000||Buffer.byteLength(JSON.stringify(diff),'utf8')>80000)throw new AiError('INVALID_INPUT');
+      if(!diff.length){if(newDraft)drafts.splice(drafts.indexOf(newDraft),1);return {pendingApproval:false,summary:'No milestone changes are needed.',proposedActions:drafts.length};}
+      if(newDraft?.type==='update_milestone'){newDraft.payload=payload;newDraft.before=before;newDraft.diff=diff;}
+      else drafts.push({id:randomUUID(),type:'update_milestone',entityId:row.id,taskId:null,projectId:row.project_id,title:excerpt(row.title,180),payload,before,expectedUpdatedAt:row.updated_at,diff,status:'pending'});
+    }
+    return {pendingApproval:true,summary:'Prepared a milestone proposal. Nothing has changed yet.',proposedActions:drafts.length};
+  }
+  if(newDraft)throw new AiError('INVALID_INPUT');
   if('blockAction' in parsed)return collectTimeProposal(parsed,context,drafts);
   if ("entityType" in parsed) {
     const milestone = parsed.entityType === "milestone";
@@ -58,7 +90,7 @@ export async function collectProposal(name: string, input: unknown, context: Too
     if (!data) throw new AiError("FORBIDDEN");
     newMilestoneTitle = String(data.title ?? "Milestone").slice(0, 180);
   }
-  const existing = taskId ? drafts.find(draft => draft.taskId === taskId) : undefined;
+  const existing = taskId ? drafts.find((draft):draft is LegacyProposalDraft => draft.type==='update_task'&&draft.taskId === taskId) : undefined;
   if (existing && existing.expectedUpdatedAt !== version) throw new AiError("FORBIDDEN");
   const payload = { ...existing?.payload, ...changes };
   const diff = (Object.keys(payload) as Array<keyof TaskChanges>).filter(field => taskId ? before[field] !== payload[field] : payload[field] !== null && payload[field] !== "").map(field => ({ field, before: before[field] ?? null, after: payload[field] ?? null }));
