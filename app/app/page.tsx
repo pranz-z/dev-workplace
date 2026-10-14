@@ -2847,10 +2847,11 @@ export default function Home() {
         focusSessionRemainingSeconds={focusSessionRemainingSeconds} onFocusPause={pauseFocus} onFocusResume={resumeFocus} onFocusEnd={endFocusSession}
         ai={authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id ? <WorkspaceAiChat key={user.id} onActivityNavigate={target=>{
           if(target.type==='time_block'&&target.date){setActivityCalendarTarget({id:target.id,date:target.date,request:Date.now()});setActiveView('calendar');return;}
+          if(target.type==='plan'){const plan=plans.find(p=>p.id===target.id);setActiveView('plans');if(plan)handleEditPlan(plan);return;}
           if(target.type==='task'){const task=tasks.find(t=>t.id===target.id);if(task)handleEditTask(task);return;}
           if(target.type==='project'){const project=projects.find(p=>p.id===target.id);if(project)openProjectDetail(project);return;}
           if(target.type==='milestone'){const milestone=milestones.find(m=>m.id===target.id);if(milestone){setSelectedProjectId(milestone.projectId);setProjectTab('Milestones');setActiveView('projects');handleEditMilestone(milestone);}}
-        }} projects={projects} tasks={tasks} plans={plans} milestones={milestones} timeZone={workspaceTimeZone} open={aiOpen} onOpenChange={setAiOpen} onAgentApplied={async () => { const remote = await loadWorkspaceData(); if (!remote) throw new Error("Workspace refresh failed"); setTasks(remote.tasks); setProjects(remote.projects); setMilestones(remote.milestones); }} /> : null}>
+        }} projects={projects} tasks={tasks} plans={plans} milestones={milestones} timeZone={workspaceTimeZone} open={aiOpen} onOpenChange={setAiOpen} onAgentApplied={async () => { const remote = await loadWorkspaceData(); if (!remote) throw new Error("Workspace refresh failed"); setTasks(remote.tasks); setProjects(remote.projects); setMilestones(remote.milestones); setPlans(remote.plans); }} /> : null}>
             {workspaceStatus === "checking" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Loading your workspace...</div>}
             {workspaceStatus === "error" && <div className="mb-4 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}</div>}
             {workspaceStatus === "mock" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Prototype mode: showing local workspace data. Sign in with GitHub to sync with Supabase.</div>}

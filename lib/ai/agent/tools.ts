@@ -93,13 +93,14 @@ export async function executeReadTool(name: string, input: unknown, context: Too
     return bounded(items, args, result.truncated);
   }
   if (name === "list_plans" || name === "get_plan") {
-    const result = await read(context, "plans", `${PLAN_COLUMNS}${name === "get_plan" ? ",description" : ""}`, args, name === "get_plan" ? String(args.planId) : undefined);
+    const result = await read(context, "plans", `${PLAN_COLUMNS}${name === "get_plan" ? ",description,timeframe" : ""}`, args, name === "get_plan" ? String(args.planId) : undefined);
     if (name === "list_plans") return bounded(result.rows.filter((row) => (args.includeCompleted || row.status !== "Completed") && within(text(row.target_date, 10) || null, args.startDate, args.endDate)).map(planSummary), args, result.truncated);
     const row = result.rows[0];
     if (!row) throw new AiError("FORBIDDEN");
     const { data, error } = await context.supabase.from("project_plan_items").select("label,done").eq("plan_id", row.id).order("sort_order", { ascending: true }).limit(21).abortSignal(context.signal);
     if (error) readFailure();
-    return { ...planSummary(row), goal: text(row.description, 1000), checklist: ((data ?? []) as unknown as Row[]).slice(0, 20).map((item) => ({ label: text(item.label, 160), done: item.done === true })), checklistTruncated: (data?.length ?? 0) > 20 };
+    const title = Array.from(String(row.title ?? "")), description = Array.from(String(row.description ?? "")), timeframe = row.timeframe == null ? null : Array.from(String(row.timeframe));
+    return { ...planSummary(row), title:title.slice(0,180).join(''), targetDate:row.target_date??null, description:description.slice(0,4000).join(''), timeframe:timeframe?.slice(0,180).join('')??null, titleTruncated:title.length>180, descriptionTruncated:description.length>4000, timeframeTruncated:(timeframe?.length??0)>180, goal:description.slice(0,1000).join(''), goalTruncated:description.length>1000, checklist: ((data ?? []) as unknown as Row[]).slice(0, 20).map((item) => ({ label: text(item.label, 160), done: item.done === true })), checklistTruncated: (data?.length ?? 0) > 20 };
   }
   if (name === "list_milestones") {
     const result = await read(context, "milestones", MILESTONE_COLUMNS, args);

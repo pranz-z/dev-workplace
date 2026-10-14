@@ -6,11 +6,37 @@ import { MAX_PROPOSED_ACTIONS_PER_RUN, type ProposalDraft, type LegacyProposalDr
 import { parseProposalTool } from "@/lib/ai/agent/proposal-schema";
 import type { ToolContext } from "@/lib/ai/agent/tools";
 import {collectTimeProposal} from "@/lib/ai/agent/time-blocks";
+import type {PlanChanges,PlanCreatePayload} from '@/lib/ai/agent/contract';
 
 function excerpt(value: unknown, limit: number) { const text = String(value ?? ""); return text.length > limit ? `${text.slice(0, limit - 1)}…` : text; }
 
 export async function collectProposal(name: string, input: unknown, context: ToolContext, drafts: ProposalDraft[]) {
   const parsed = parseProposalTool(name, input);
+  const planDraft=drafts.find(d=>d.type==='create_plan'||d.type==='update_plan');
+  if('planAction' in parsed){
+    if(drafts.length&&(parsed.planAction!=='update'||drafts.length!==1||planDraft?.type!=='update_plan'||planDraft.entityId!==parsed.planId))throw new AiError('INVALID_INPUT');
+    if(parsed.planAction==='create'){
+      const payload:PlanCreatePayload={title:parsed.title,description:parsed.description??'',timeframe:parsed.timeframe??null,status:parsed.status??'Planning',targetDate:parsed.targetDate??null};
+      drafts.push({id:randomUUID(),type:'create_plan',entityId:null,taskId:null,projectId:null,title:payload.title,payload,before:{},expectedUpdatedAt:null,diff:Object.entries(payload).map(([field,after])=>({field:field as keyof PlanChanges,before:null,after})),status:'pending'});
+    }else{
+      const {data,error}=await context.supabase.from('plans').select('id,title,description,timeframe,status,target_date,updated_at').eq('id',parsed.planId).eq('user_id',context.userId).abortSignal(context.signal).maybeSingle();
+      if(error)throw new AiError('UPSTREAM_ERROR');if(!data)throw new AiError('FORBIDDEN');
+      const row=data as unknown as {id:string;title:string;description:string;timeframe:string|null;status:PlanChanges['status'];target_date:string|null;updated_at:string};
+      if(planDraft&&planDraft.expectedUpdatedAt!==row.updated_at)throw new AiError('FORBIDDEN');
+      const initial:PlanChanges={title:row.title,description:row.description,timeframe:row.timeframe,status:row.status,targetDate:row.target_date};
+      const merged={...(planDraft?.payload??{}),...parsed.changes} as PlanChanges,payload:PlanChanges={},before:PlanChanges={},diff:ProposalDraft['diff']=[];
+      for(const field of Object.keys(merged) as (keyof PlanChanges)[]){const old=initial[field],after=merged[field];if(old===after)continue;
+        const checked=parseProposalTool('propose_update_plan',{planId:row.id,changes:{[field]:old}});
+        if(!('planAction' in checked)||checked.planAction!=='update'||checked.changes[field]!==old)throw new AiError('INVALID_INPUT');
+        Object.assign(payload,{[field]:after});Object.assign(before,{[field]:old});diff.push({field,before:old as string|null,after:after as string|null});
+      }
+      if(!diff.length)throw new AiError('INVALID_INPUT');
+      if(planDraft?.type==='update_plan'){planDraft.payload=payload;planDraft.before=before;planDraft.diff=diff;}
+      else drafts.push({id:randomUUID(),type:'update_plan',entityId:row.id,taskId:null,projectId:null,title:Array.from(row.title).slice(0,180).join(''),payload,before,expectedUpdatedAt:row.updated_at,diff,status:'pending'});
+    }
+    return {pendingApproval:true,summary:'Prepared a Plan proposal. Nothing has changed yet.',proposedActions:drafts.length};
+  }
+  if(planDraft)throw new AiError('INVALID_INPUT');
   const newDraft=drafts.find(d=>d.type==='create_milestone'||d.type==='update_milestone');
   if('milestoneAction' in parsed){
     if(drafts.length && (parsed.milestoneAction!=='update'||drafts.length!==1||newDraft?.type!=='update_milestone'||newDraft.entityId!==parsed.milestoneId))throw new AiError('INVALID_INPUT');

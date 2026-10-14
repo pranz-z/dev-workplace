@@ -5,9 +5,10 @@ import { formatCalendarDate, isValidCalendarDate } from "@/data/workspaceCalenda
 import {localDateTime} from "@/data/timeBlocks";
 import {buildAgentReviewPrompt} from "@/data/agentProposalReview";
 
-const LABELS: Record<keyof ProposalChanges, string> = { title: "Title", description: "Description", priority: "Priority", status: "Status", dueDate: "Due date", milestoneId: "Milestone", targetDate: "Target date",startAt:'Starts',endAt:'Ends',projectId:'Project',taskId:'Task',kind:'Block kind' };
-const HEADINGS:Record<string,string>={create_task:'Create task: ',update_task:'Task: ',reschedule_milestone:'Milestone: ',reschedule_project:'Project: ',create_time_block:'Create time block: ',update_time_block:'Edit time block: ',cancel_time_block:'Cancel time block: ',create_milestone:'Create milestone: ',update_milestone:'Update milestone: '};
-function display(field: keyof ProposalChanges, value: string | null,timeZone='UTC') {
+const LABELS: Record<keyof ProposalChanges|'timeframe', string> = { timeframe:'Timeframe',title: "Title", description: "Description", priority: "Priority", status: "Status", dueDate: "Due date", milestoneId: "Milestone", targetDate: "Target date",startAt:'Starts',endAt:'Ends',projectId:'Project',taskId:'Task',kind:'Block kind' };
+const HEADINGS:Record<string,string>={create_plan:'Create Plan: ',update_plan:'Update Plan: ',create_task:'Create task: ',update_task:'Task: ',reschedule_milestone:'Milestone: ',reschedule_project:'Project: ',create_time_block:'Create time block: ',update_time_block:'Edit time block: ',cancel_time_block:'Cancel time block: ',create_milestone:'Create milestone: ',update_milestone:'Update milestone: '};
+function display(field: keyof ProposalChanges|'timeframe', value: string | null,timeZone='UTC') {
+  if(field==='timeframe')return value===null?'None':value===''?'Empty':value;
   if (value === null || value === "") return field === "dueDate" || field === "targetDate" ? "Unscheduled" : "None";
   if(field==='status'&&['pending','active','completed'].includes(value))return value[0].toUpperCase()+value.slice(1);
   if ((field === "dueDate" || field === "targetDate") && isValidCalendarDate(value)) return formatCalendarDate(value, { month: "short", day: "numeric", year: "numeric" });

@@ -17,14 +17,19 @@ export interface UndoEligibility {
 export type TaskChanges = { title?: string; description?: string; status?: import("@/types").TaskStatus; priority?: import("@/types").Priority; dueDate?: string | null; milestoneId?: string | null };
 export type ProposalChanges = Omit<TaskChanges,'status'> & {status?:TaskChanges['status']|'scheduled'|'completed'|'cancelled';targetDate?:string|null;startAt?:string;endAt?:string;projectId?:string|null;taskId?:string|null;kind?:'focus'|'task'|'break'|'custom'};
 export type MilestoneStatus = 'pending' | 'active' | 'completed';
+export type PlanChanges = {title?:string;description?:string;timeframe?:string|null;status?:import('@/types').PlanStatus;targetDate?:string|null};
+export type PlanCreatePayload = Required<PlanChanges>;
+export type PlanProposalInput = {planAction:'create';title:string;description?:string;timeframe?:string|null;status?:import('@/types').PlanStatus;targetDate?:string|null}|{planAction:'update';planId:string;changes:PlanChanges};
 export type MilestoneChanges = {title?:string;description?:string;status?:MilestoneStatus;targetDate?:string|null};
 export type MilestoneCreatePayload = {title:string;description:string;status:'pending';targetDate:string|null};
 export type MilestoneProposalInput = {milestoneAction:'create';projectId:string;title:string;description?:string;targetDate?:string|null} | {milestoneAction:'update';milestoneId:string;changes:MilestoneChanges};
-interface DraftEnvelope { undoOf?: AgentActionReference | null; id:string;entityId?:string|null;taskId:string|null;projectId:string|null;title:string;expectedUpdatedAt:string|null;diff:Array<{field:keyof ProposalChanges;before:string|null;after:string|null}>;status:ActionStatus }
+interface DraftEnvelope { undoOf?: AgentActionReference | null; id:string;entityId?:string|null;taskId:string|null;projectId:string|null;title:string;expectedUpdatedAt:string|null;diff:Array<{field:keyof ProposalChanges|'timeframe';before:string|null;after:string|null}>;status:ActionStatus }
 export type LegacyProposalDraft = DraftEnvelope & {type:'create_task'|'update_task'|'reschedule_milestone'|'reschedule_project'|'create_time_block'|'update_time_block'|'cancel_time_block';payload:ProposalChanges;before:ProposalChanges};
 export type ProposalDraft = LegacyProposalDraft | DraftEnvelope & (
   {type:'create_milestone';payload:MilestoneCreatePayload;before:MilestoneChanges & {projectId?:string}} |
-  {type:'update_milestone';payload:MilestoneChanges;before:MilestoneChanges & {projectId?:string}}
+  {type:'update_milestone';payload:MilestoneChanges;before:MilestoneChanges & {projectId?:string}} |
+  {type:'create_plan';payload:PlanCreatePayload;before:PlanChanges} |
+  {type:'update_plan';payload:PlanChanges;before:PlanChanges}
 );
 export interface ProposalBatch { runId: string; actions: ProposalDraft[] }
 export interface ActionResult { id: string; status: ActionStatus; errorCode?: string | null; entityId?: string | null }

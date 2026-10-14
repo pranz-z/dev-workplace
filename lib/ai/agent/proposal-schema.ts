@@ -4,6 +4,7 @@ import { AiError } from "@/lib/ai/errors";
 import { TASK_STATUSES } from "@/data/taskList";
 import { isValidCalendarDate } from "@/data/workspaceCalendar";
 import { MAX_PROPOSED_ACTIONS_PER_RUN, type TaskChanges, type MilestoneChanges, type MilestoneProposalInput } from "@/lib/ai/agent/contract";
+import type {PlanChanges,PlanProposalInput} from '@/lib/ai/agent/contract';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function requireUuid(value: unknown): string { if (typeof value !== "string" || !UUID.test(value)) throw new AiError("INVALID_INPUT"); return value; }
@@ -30,7 +31,24 @@ export function parseTaskChanges(value: unknown): TaskChanges {
   return result;
 }
 export type ScheduleInput = { entityId: string; entityType: "milestone" | "project"; targetDate: string | null };
-export type ProposalInput = MilestoneProposalInput | TimeBlockInput | ScheduleInput | { taskId: string; changes: TaskChanges } | ({ projectId: string; title: string } & TaskChanges);
+export type ProposalInput = PlanProposalInput | MilestoneProposalInput | TimeBlockInput | ScheduleInput | { taskId: string; changes: TaskChanges } | ({ projectId: string; title: string } & TaskChanges);
+function planChanges(value:unknown):PlanChanges {
+ const row=record(value);keys(row,['title','description','timeframe','status','targetDate']);if(!Object.keys(row).length)throw new AiError('INVALID_INPUT');
+ const out:PlanChanges={};
+ for(const field of ['title','description','timeframe'] as const)if(Object.hasOwn(row,field)){
+  if(field==='timeframe'&&row[field]===null){out.timeframe=null;continue;}
+  if(typeof row[field]!=='string')throw new AiError('INVALID_INPUT');
+  const raw=row[field] as string,text=field==='description'?raw:raw.trim();
+  if(text.includes('\0')||/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(text)||Array.from(text).length>(field==='description'?4000:180)||(field==='title'&&!text))throw new AiError('INVALID_INPUT');
+  out[field]=text;
+ }
+ if(Object.hasOwn(row,'status')){if(typeof row.status!=='string'||!['Planning','Active','Paused','Completed','Cancelled'].includes(row.status))throw new AiError('INVALID_INPUT');out.status=row.status as PlanChanges['status'];}
+ if(Object.hasOwn(row,'targetDate')){
+  if(row.targetDate!==null){const date=row.targetDate;if(typeof date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date)||date.startsWith('0000')||!Number.isFinite(Date.parse(date+'T00:00:00Z'))||new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date)throw new AiError('INVALID_INPUT');}
+  out.targetDate=row.targetDate as string|null;
+ }
+ return out;
+}
 function milestoneChanges(value:unknown):MilestoneChanges {
  const row=record(value);keys(row,['title','description','status','targetDate']);
  if(!Object.keys(row).length)throw new AiError('INVALID_INPUT');
@@ -44,6 +62,8 @@ function milestoneChanges(value:unknown):MilestoneChanges {
 export function parseProposalTool(name: string, value: unknown): ProposalInput {
   if(timeBlockProposalTools.some(tool=>tool.name===name))return parseTimeBlockTool(name,value);
   const row = record(value);
+  if(name==='propose_create_plan'){keys(row,['title','description','timeframe','status','targetDate']);const changes=planChanges(row);if(!changes.title)throw new AiError('INVALID_INPUT');return {planAction:'create',...changes,title:changes.title};}
+  if(name==='propose_update_plan'){keys(row,['planId','changes']);return {planAction:'update',planId:requireUuid(row.planId),changes:planChanges(row.changes)};}
   if(name==='propose_create_milestone'){
    keys(row,['projectId','title','description','targetDate']);const {projectId,...fields}=row;
    const changes=milestoneChanges(fields);if(!changes.title)throw new AiError('INVALID_INPUT');
@@ -79,6 +99,8 @@ const fields = {
   dueDate: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear" }, milestoneId: { type: ["string", "null"], description: "UUID of a milestone in the same project, or null" },
 };
 export const proposalTools = [
+  {name:'propose_create_plan',description:'Prepare one user-owned Plan record for approval, without checklist items.',parametersJsonSchema:{type:'object',properties:{title:fields.title,description:fields.description,timeframe:{type:['string','null'],maxLength:180},status:{type:'string',enum:['Planning','Active','Paused','Completed','Cancelled']},targetDate:fields.dueDate},required:['title'],additionalProperties:false}},
+  {name:'propose_update_plan',description:'Prepare one Plan record patch. Group fields in one call; do not mix mutations.',parametersJsonSchema:{type:'object',properties:{planId:{type:'string'},changes:{type:'object',properties:{title:fields.title,description:fields.description,timeframe:{type:['string','null'],maxLength:180},status:{type:'string',enum:['Planning','Active','Paused','Completed','Cancelled']},targetDate:fields.dueDate},minProperties:1,additionalProperties:false}},required:['planId','changes'],additionalProperties:false}},
   {name:'propose_create_milestone',description:'Prepare one milestone creation for approval. Nothing changes until Apply.',parametersJsonSchema:{type:'object',properties:{projectId:{type:'string'},title:fields.title,description:fields.description,targetDate:{type:['string','null'],description:'YYYY-MM-DD or null'}},required:['projectId','title'],additionalProperties:false}},
   {name:'propose_update_milestone',description:'Prepare one milestone patch for approval. Group all changes in one call; do not mix with another mutation.',parametersJsonSchema:{type:'object',properties:{milestoneId:{type:'string'},changes:{type:'object',properties:{title:fields.title,description:fields.description,status:{type:'string',enum:['pending','active','completed']},targetDate:{type:['string','null'],description:'YYYY-MM-DD or null to clear'}},minProperties:1,additionalProperties:false}},required:['milestoneId','changes'],additionalProperties:false}},
   ...timeBlockProposalTools,

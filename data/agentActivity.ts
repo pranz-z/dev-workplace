@@ -2,7 +2,7 @@ import {dayBoundaryInstant,localDateTime} from '@/data/timeBlocks';
 import type {ActionStatus,ProposalDraft,UndoEligibility,AgentActionReference} from '@/lib/ai/agent/contract';
 
 export type ActivityCounts=Record<ActionStatus,number>;
-export type ActivityTarget={type:'task'|'project'|'milestone'|'time_block';id:string;projectId?:string;date?:string};
+export type ActivityTarget={type:'plan'|'task'|'project'|'milestone'|'time_block';id:string;projectId?:string;date?:string};
 export interface AgentActivityAction {
  undo?:UndoEligibility;undoOf?:AgentActionReference|null;reversedBy?:AgentActionReference|null;
  id:string;runId:string;actionType:string;entityId:string|null;title:string;status:ActionStatus;
@@ -19,7 +19,7 @@ export interface ActivityPage {items:AgentActivityRun[];nextCursor:ActivityCurso
 export interface ActivityQuery {limit:number;cursor?:ActivityCursor;status?:ActionStatus;from?:string;to?:string}
 export const ACTIVITY_STATUSES:ActionStatus[]=['pending','applied','cancelled','conflict','failed'];
 export const STATUS_LABELS:Record<ActionStatus,string>={pending:'Pending approval',applied:'Applied',cancelled:'Cancelled',conflict:'Conflict',failed:'Failed'};
-const ACTION_LABELS:Record<string,string>={create_milestone:'Created milestone',update_milestone:'Updated milestone',create_task:'Create task',update_task:'Update task',reschedule_milestone:'Reschedule milestone',reschedule_project:'Reschedule project',create_time_block:'Create time block',update_time_block:'Update time block',cancel_time_block:'Cancel time block'};
+const ACTION_LABELS:Record<string,string>={create_plan:'Created Plan',update_plan:'Updated Plan',create_milestone:'Created milestone',update_milestone:'Updated milestone',create_task:'Create task',update_task:'Update task',reschedule_milestone:'Reschedule milestone',reschedule_project:'Reschedule project',create_time_block:'Create time block',update_time_block:'Update time block',cancel_time_block:'Cancel time block'};
 export function actionLabel(type:string){return ACTION_LABELS[type]??'Historical action';}
 export function runStatus(counts:ActivityCounts){const states=ACTIVITY_STATUSES.filter(s=>counts[s]>0);return counts.pending?'Pending approval':states.length===1?STATUS_LABELS[states[0]]:states.length?'Mixed outcomes':'No actions';}
 export function activitySummary(counts:ActivityCounts){return ACTIVITY_STATUSES.filter(s=>counts[s]>0).map(s=>`${counts[s]} ${STATUS_LABELS[s].toLowerCase()}`).join(' · ')||'No proposed changes';}
