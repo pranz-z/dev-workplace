@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  const deadlineAt = Date.now() + AGENT_TIMEOUT_MS;
   const signal = AbortSignal.any([request.signal, AbortSignal.timeout(AGENT_TIMEOUT_MS)]);
   try {
     const supabase = await getSupabaseServerClient();
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
       const { data: profile, error: profileError } = await supabase!.from("profiles").select("time_zone").eq("id", userId).abortSignal(signal).maybeSingle();
       if (profileError) throw new AiError("UPSTREAM_ERROR");
       const timeZone = validTimeZone(profile?.time_zone) ? profile.time_zone : body.timeZone;
-      const { drafts, ...result } = await generateAgentResponse(body, { supabase: supabase!, userId, timeZone, now: new Date(), signal });
+      const { drafts, ...result } = await generateAgentResponse(body, { supabase: supabase!, userId, timeZone, now: new Date(), signal, deadlineAt });
       if (drafts?.length) result.proposalBatch = await saveProposalBatch(getSupabaseAdminClient(), userId, drafts);
       return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
     } finally { await releasePrivateAiLease(userId, leaseId); }

@@ -6,7 +6,7 @@ import { filterCalendarEvents, getCalendarSummary, isCalendarEventOverdue, local
 import { parseToolArguments, type ToolArguments } from "@/lib/ai/agent/schemas";
 import {executeTimeRead} from "@/lib/ai/agent/time-blocks";
 
-export interface ToolContext { supabase: SupabaseClient; userId: string; timeZone: string; now: Date; signal: AbortSignal; requestMessage?: string }
+export interface ToolContext { supabase: SupabaseClient; userId: string; timeZone: string; now: Date; signal: AbortSignal; deadlineAt?: number; requestMessage?: string }
 type Row = Record<string, unknown>;
 const PROJECT_COLUMNS = "id,title,status,priority,workflow_stage,target_date,current_objective,next_action,visibility";
 const TASK_COLUMNS = "id,title,project_id,status,priority,due_date,milestone_id,projects!inner(id,title,user_id)";
