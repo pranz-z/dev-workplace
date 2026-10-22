@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { SketchDoodle } from "@/components/ui/SketchDoodle";
 import { ArrowUpRight, FolderGit2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { PublicPortfolioProject } from "@/lib/portfolio/project-card";
@@ -13,8 +12,9 @@ import { useAuth } from "@/components/auth/auth-provider";
 import type { PublicProfessionalContent } from "@/lib/portfolio/resume-content";
 import { ProfessionalEducation, ProfessionalExperience, ProfessionalFocus, ProfessionalSkills } from "@/components/portfolio/ProfessionalSections";
 import { Logo } from "@/components/brand/Logo";
-import { Card, Chip, SketchBorder, UnderlineHeading } from "@/components/ui/notebook";
+import { Card, Chip, UnderlineHeading } from "@/components/ui/notebook";
 import { DoodlePad } from "./NotebookInteractions";
+import { PortfolioHero } from "./PortfolioHero";
 
 type ThemeMode = "light" | "dark" | "system";
 const THEME_STORAGE_KEY = "developer-workspace-theme";
@@ -120,35 +120,20 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
 
       <main className="mx-auto max-w-6xl space-y-10 px-4 pb-16">
         {(loadError || supabaseMissing) && <p role="alert" className="public-card p-4 text-sm text-[var(--muted)]">The public portfolio could not be loaded right now.</p>}
-        {(professional?.sections.hero.enabled ?? true) && <section className="public-hero notebook-hero">
-          <svg className="notebook-floating-doodle notebook-star" aria-hidden="true" viewBox="0 0 40 40"><path d="M20 4l4 11 12 1-9 8 3 12-10-7-10 7 3-12-9-8 12-1z" /></svg>
-          <svg className="notebook-floating-doodle notebook-scribble" aria-hidden="true" viewBox="0 0 70 30"><path d="M2 20c10-16 18 12 28-2s18 8 38-10" /></svg>
-          <div className="hero-note"><span className="handwritten">A notebook of things I build</span><SketchDoodle kind="arrow" /></div>
-          <div className="notebook-hero-grid">
-            <div className="min-w-0">
-              <h1 className="break-words text-3xl font-black tracking-tight text-[var(--ink)] sm:text-4xl md:text-6xl"><UnderlineHeading>{displayName || "Selected work"}</UnderlineHeading></h1>
-              {introduction.headline && <p className="mt-4 text-xl font-bold leading-snug text-[var(--ink)] md:text-2xl"><span className="marker-highlight">{introduction.headline}</span></p>}
-              {professional?.hero.description && <p className="mt-4 max-w-3xl text-base leading-7 text-[var(--muted)]">{professional.hero.description}</p>}
-              {introduction.bio && <p className="mt-4 max-w-3xl whitespace-pre-line text-base leading-7 text-[var(--muted)]">{introduction.bio}</p>}
-              {professional?.hero.tagline && <p className="mt-4 text-sm text-[var(--muted)]">{professional.hero.tagline}</p>}
-              <div className="mt-6 flex flex-wrap gap-3">
-                {(professional?.sections.projects.enabled ?? true) && <Link href="#projects" className="notebook-button notebook-button-primary">View Projects <ArrowUpRight size={16} /></Link>}
-                <a href="/resume/Franz_Michael_Cayanan_Resume.pdf" download className="notebook-button"><SketchBorder />Download Resume</a>
-                {contactEnabled && (contactEmail || socialLinks.length > 0) && <Link href="#contact" className="notebook-button"><SketchBorder />Contact me</Link>}
-                {status === "authenticated" && <Link href="/app" className="inline-flex items-center px-2 text-sm text-[var(--muted)] underline underline-offset-4">Open Workspace</Link>}
-              </div>
-            </div>
-            {avatar && <div className="notebook-portrait"><SketchBorder animated />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={avatar} alt="" decoding="async" />
-            </div>}
-          </div>
+        {(professional?.sections.hero.enabled ?? true) && <PortfolioHero
+          name={displayName || ""} headline={introduction.headline} avatar={avatar}
+          projectsEnabled={professional?.sections.projects.enabled ?? true} authenticated={status === "authenticated"}
+        >
+          {professional?.hero.description && <p>{professional.hero.description}</p>}
+          {introduction.bio && <p className="mt-3 whitespace-pre-line">{introduction.bio}</p>}
+          {professional?.hero.tagline && <p className="mt-3">{professional.hero.tagline}</p>}
+          {contactEnabled && (contactEmail || socialLinks.length > 0) && <Link href="#contact" className="public-link mt-3">Contact me <ArrowUpRight size={14} /></Link>}
           {professional ? professional.stack.length > 0 && <div className="mt-7 border-t border-[var(--public-border)] pt-4"><p className="public-eyebrow">Core application stack</p><p className="mt-2 text-sm leading-7 text-[var(--muted)]">{professional.stack.map((item) => item.name).join(" · ")}</p></div> : publicProjects.length > 0 && <div className="mt-8 flex flex-wrap gap-3 border-t border-[var(--public-border)] pt-5 text-sm text-[var(--muted)]" aria-label="Public portfolio facts">
             <span>{publicProjects.length} public {publicProjects.length === 1 ? "project" : "projects"}</span>
             <span aria-hidden="true">·</span><span>{publicProjects.filter((project) => project.status === "Completed").length} completed</span>
             <span aria-hidden="true">·</span><span>{technologyCount} project technologies</span>
           </div>}
-        </section>}
+        </PortfolioHero>}
 
         {(professional?.sections.projects.enabled ?? true) && <section id="projects" className="space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
