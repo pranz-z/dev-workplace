@@ -26,7 +26,7 @@ export function PortfolioHero({ name, headline, avatar, projectsEnabled, authent
           <a href="/resume/Franz_Michael_Cayanan_Resume.pdf" download className="notebook-button"><SketchBorder />View résumé <span aria-hidden="true">↓</span></a>
         </div>
         <div className={styles.personal}>
-          {avatar && <div className={styles.avatar}>
+          {avatar && <div className={styles.avatar} tabIndex={0} role="img" aria-label={`Portrait of ${name || "the portfolio owner"}. Focus to enlarge.`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={avatar} alt="" decoding="async" width={44} height={44} />
           </div>}
