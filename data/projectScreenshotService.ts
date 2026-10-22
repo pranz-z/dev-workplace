@@ -18,6 +18,12 @@ const IMAGE_TYPES: Record<string, string> = {
 };
 const SCREENSHOT_COLUMNS = "id, user_id, project_id, storage_path, caption, is_public, sort_order, created_at";
 
+export function validateProjectScreenshotFile(file: Pick<File, "type" | "size">): string | null {
+  if (!IMAGE_TYPES[file.type]) return "Choose a JPEG, PNG, or WebP image.";
+  if (file.size === 0 || file.size > MAX_FILE_SIZE) return "Choose an image smaller than 10 MB.";
+  return null;
+}
+
 export interface ProjectScreenshot {
   id: string;
   projectId: string;
@@ -93,11 +99,11 @@ export async function addProjectScreenshot(
   projectId: string,
   file: File,
   caption: string,
-): Promise<ServiceResult<ProjectScreenshot>> {
+): Promise<ServiceResult<ProjectScreenshot> | { ok: false; error: string; saved: true }> {
   if (!isUuid(projectId)) return serviceFail("That project is no longer available. Refresh and try again.");
+  const validationError = validateProjectScreenshotFile(file);
+  if (validationError) return serviceFail(validationError);
   const extension = IMAGE_TYPES[file.type];
-  if (!extension) return serviceFail("Choose a JPEG, PNG, or WebP image.");
-  if (file.size === 0 || file.size > MAX_FILE_SIZE) return serviceFail("Choose an image smaller than 10 MB.");
   if (caption.trim().length > 200) return serviceFail("Keep the caption under 200 characters.");
 
   const context = await getWorkspaceContext();
@@ -136,12 +142,14 @@ export async function addProjectScreenshot(
   }
 
   const row = data as unknown as ProjectScreenshotRow;
-  const { data: signed, error: signedUrlError } = await context.supabase.storage.from(BUCKET).createSignedUrl(storagePath, 60 * 60);
-  if (signedUrlError) {
-    logScreenshotFailure("sign_project_screenshot", signedUrlError);
-    return serviceFail("Screenshot saved, but couldn't open it. Refresh the project and check the Storage policies.");
+  try {
+    const { data: signed, error: signedUrlError } = await context.supabase.storage.from(BUCKET).createSignedUrl(storagePath, 60 * 60);
+    if (signedUrlError) throw signedUrlError;
+    return serviceOk(mapScreenshot(row, signed.signedUrl));
+  } catch (error) {
+    logScreenshotFailure("sign_project_screenshot", error);
+    return { ok: false, saved: true, error: "Screenshot saved, but couldn't open it. Refresh the project and check the Storage policies." };
   }
-  return serviceOk(mapScreenshot(row, signed.signedUrl));
 }
 
 export async function setProjectScreenshotPublic(projectId: string, screenshotId: string, isPublic: boolean): Promise<ServiceResult<ProjectScreenshot>> {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { SortableList } from "@/components/dnd/SortableList";
-import { addProjectScreenshot, deleteProjectScreenshot, reorderProjectScreenshots, setProjectScreenshotPublic, type ProjectScreenshot } from "@/data/projectScreenshotService";
+import { addProjectScreenshot, deleteProjectScreenshot, reorderProjectScreenshots, setProjectScreenshotPublic, validateProjectScreenshotFile, type ProjectScreenshot } from "@/data/projectScreenshotService";
 
 interface ProjectScreenshotsProps {
   projectId: string;
@@ -14,40 +14,120 @@ interface ProjectScreenshotsProps {
   onRefresh: () => Promise<void>;
 }
 
+interface SelectedScreenshot {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+  error: string;
+}
+
 export function ProjectScreenshots({ projectId, screenshots, loading, loadError, onChange, onRefresh }: ProjectScreenshotsProps) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<SelectedScreenshot[]>([]);
   const [caption, setCaption] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const [notice, setNotice] = useState("");
+  const uploadLock = useRef(false);
+  const mounted = useRef(true);
+  const previewUrls = useRef(new Set<string>());
+  const uploadableCount = files.filter((item) => !validateProjectScreenshotFile(item.file)).length;
+
+  useEffect(() => {
+    mounted.current = true;
+    const urls = previewUrls.current;
+    return () => {
+      mounted.current = false;
+      urls.forEach((url) => URL.revokeObjectURL(url));
+      urls.clear();
+    };
+  }, []);
+
+  const releasePreview = (item: SelectedScreenshot) => {
+    if (item.previewUrl && previewUrls.current.delete(item.previewUrl)) URL.revokeObjectURL(item.previewUrl);
+  };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setFile(event.target.files?.[0] ?? null);
+    if (saving || uploadLock.current) return;
+    const selected = Array.from(event.target.files ?? []);
+    if (!selected.length) return;
+    files.forEach(releasePreview);
+    setFiles(selected.map((file) => {
+      const validationError = validateProjectScreenshotFile(file);
+      const previewUrl = validationError ? null : URL.createObjectURL(file);
+      if (previewUrl) previewUrls.current.add(previewUrl);
+      return { id: crypto.randomUUID(), file, previewUrl, error: validationError ?? "" };
+    }));
+    event.target.value = "";
     setError("");
+    setNotice("");
+  };
+
+  const removeSelectedFile = (item: SelectedScreenshot) => {
+    if (saving || uploadLock.current) return;
+    releasePreview(item);
+    setFiles((current) => current.filter((file) => file.id !== item.id));
+    setNotice("");
   };
 
   const handleUpload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!file) {
-      setError("Choose an image to upload.");
+    if (saving || loading || uploadLock.current) return;
+    const batch = files.filter((item) => !validateProjectScreenshotFile(item.file));
+    if (!batch.length) {
+      setError("Choose a JPEG, PNG, or WebP image to upload.");
       return;
     }
+    uploadLock.current = true;
     setSaving(true);
     setError("");
+    setNotice("");
+    const updated = [...screenshots];
+    let uploaded = 0;
+    let refreshNeeded = false;
     try {
-      const result = await addProjectScreenshot(projectId, file, caption);
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      for (const [index, item] of batch.entries()) {
+        if (!mounted.current) return;
+        setProgress({ current: index + 1, total: batch.length });
+        let itemError = "";
+        let saved = false;
+        try {
+          const result = await addProjectScreenshot(projectId, item.file, caption);
+          if (!mounted.current) return;
+          if (result.ok) {
+            updated.push(result.data);
+            onChange([...updated]);
+            saved = true;
+          } else {
+            itemError = result.error;
+            saved = "saved" in result && result.saved;
+            if (saved) refreshNeeded = true;
+          }
+        } catch {
+          itemError = "Couldn't upload this screenshot. Check your connection and try again.";
+        }
+        if (!mounted.current) return;
+        if (saved) {
+          uploaded++;
+          releasePreview(item);
+          setFiles((current) => current.filter((file) => file.id !== item.id));
+          if (itemError) setError(itemError);
+        } else {
+          setFiles((current) => current.map((file) => file.id === item.id ? { ...file, error: itemError } : file));
+        }
       }
-      onChange([...screenshots, result.data]);
-      setFile(null);
-      setCaption("");
-      formRef.current?.reset();
-    } catch {
-      setError("Couldn't upload the screenshot. Check your connection and Supabase Storage setup.");
+      if (refreshNeeded) {
+        try { await onRefresh(); } catch { if (mounted.current) setError("Screenshots were saved, but the gallery couldn't refresh. Refresh screenshots before uploading more."); }
+      }
+      if (!mounted.current) return;
+      setNotice(`Uploaded ${uploaded} of ${batch.length} screenshots.${uploaded < batch.length ? " Failed files remain selected for retry." : ""}`);
+      if (uploaded === files.length) setCaption("");
     } finally {
-      setSaving(false);
+      uploadLock.current = false;
+      if (mounted.current) {
+        setSaving(false);
+        setProgress(null);
+      }
     }
   };
 
@@ -114,15 +194,27 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
         <h3 id="project-screenshots-title" className="text-lg font-semibold t-dark">Project screenshots</h3>
         <p className="mt-1 text-sm t-dark-muted">Images are private by default. Share individual screenshots on public project pages when they are ready.</p>
       </div>
-      <form ref={formRef} onSubmit={(event) => void handleUpload(event)} className="grid gap-3 rounded-xl dark-inset p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-        <label className="min-w-0 text-sm t-dark-muted">Image
-          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileChange} className="mt-1 block w-full min-w-0 text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-inherit" />
+      <form onSubmit={(event) => void handleUpload(event)} className="grid gap-3 rounded-xl dark-inset p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+        <label className="min-w-0 text-sm t-dark-muted">Images
+          <input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={saving} onChange={handleFileChange} className="mt-1 block w-full min-w-0 text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-inherit" />
         </label>
-        <label className="min-w-0 text-sm t-dark-muted">Caption (optional)
-          <input value={caption} maxLength={200} onChange={(event) => setCaption(event.target.value)} className="mt-1 w-full min-w-0 dark-chip px-3 py-2 text-sm" />
+        <label className="min-w-0 text-sm t-dark-muted">Caption for all (optional)
+          <input value={caption} disabled={saving} maxLength={200} onChange={(event) => setCaption(event.target.value)} className="mt-1 w-full min-w-0 dark-chip px-3 py-2 text-sm" />
         </label>
-        <button type="submit" disabled={saving || !file} className="ink-button primary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"><ImagePlus size={15} className="mr-1 inline" />{saving ? "Saving…" : "Add screenshot"}</button>
+        <button type="submit" disabled={saving || loading || !uploadableCount} className="ink-button primary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"><ImagePlus size={15} className="mr-1 inline" />{progress ? `Uploading ${progress.current} of ${progress.total}…` : "Upload screenshots"}</button>
+        {files.length > 0 && <div className="min-w-0 space-y-2 sm:col-span-3">
+          <p className="text-sm t-dark">Selected screenshots ({files.length})</p>
+          <ul className="space-y-2">{files.map((item) => <li key={item.id} className="flex min-w-0 items-start gap-3 rounded-lg dark-chip p-2">
+            {item.previewUrl && <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.previewUrl} alt="" className="h-14 w-16 shrink-0 rounded object-cover" />
+            </>}
+            <div className="min-w-0 flex-1"><p className="break-all text-sm t-dark">{item.file.name}</p><p className="text-xs t-dark-muted">{(item.file.size / 1024 / 1024).toFixed(2)} MB</p>{item.error && <p role="alert" className="break-words text-sm t-dark">{item.error}</p>}</div>
+            <button type="button" disabled={saving} onClick={() => removeSelectedFile(item)} aria-label={`Remove selected screenshot: ${item.file.name}`} className="dark-chip shrink-0 px-2 py-2 text-xs disabled:opacity-50">Remove</button>
+          </li>)}</ul>
+        </div>}
       </form>
+      {(progress || notice) && <p role="status" className="text-sm t-dark-muted">{progress ? `Uploading screenshot ${progress.current} of ${progress.total}…` : notice}</p>}
       {(error || loadError) && <p role="alert" className="text-sm text-amber-300">{error || loadError}</p>}
       {loading ? <p role="status" className="text-sm t-dark-muted">Loading screenshots…</p> : screenshots.length ? (
         <SortableList

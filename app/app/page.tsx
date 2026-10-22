@@ -2287,6 +2287,7 @@ export default function Home() {
             {projectTab === "Screenshots" && (
               authStatus === "authenticated" && workspaceStatus === "ready"
                 ? <ProjectScreenshots
+                    key={selectedProject.id}
                     projectId={selectedProject.id}
                     screenshots={projectScreenshots}
                     loading={projectScreenshotsLoading}
