@@ -43,6 +43,7 @@ import { PublicAccountabilitySettings } from "@/components/projects/public-accou
 import { PortfolioEditor, portfolioTabs } from "@/components/portfolio/PortfolioEditor";
 import { AiAssistant, AiSettingsStatus } from "@/components/ai/AiAssistant";
 import { WorkspaceAiChat } from "@/components/ai/WorkspaceAiChat";
+import { AgentPulseBrief } from "@/components/ai/AgentPulseBrief";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 import { WorkspaceDialog } from "@/components/workspace/WorkspaceDialog";
 import { DriveConnectionControl } from "@/components/google-drive/DriveConnectionControl";
@@ -349,6 +350,12 @@ export default function Home() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [githubImportOpen, setGithubImportOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [inboxOpenRequest, setInboxOpenRequest] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (aiOpen && inboxOpenRequest !== undefined) {
+      document.querySelector<HTMLButtonElement>('[aria-label="Workspace AI mode"] button[aria-pressed="true"]')?.focus();
+    }
+  }, [aiOpen, inboxOpenRequest]);
   const [activityCalendarTarget,setActivityCalendarTarget]=useState<{id:string;date:string;request:number}|null>(null);
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
   const [contextQuery, setContextQuery] = useState("");
@@ -1603,6 +1610,8 @@ export default function Home() {
         </div>
       </div>
 
+      {authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id && <AgentPulseBrief key={user.id} onOpenInbox={() => { setAiOpen(true); setInboxOpenRequest(previous => (previous ?? 0) + 1); }} />}
+
       {/* STAT SHEETS — cream cards, pastel corner accents, deep warm numbers */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
@@ -2851,7 +2860,7 @@ export default function Home() {
           if(target.type==='task'){const task=tasks.find(t=>t.id===target.id);if(task)handleEditTask(task);return;}
           if(target.type==='project'){const project=projects.find(p=>p.id===target.id);if(project)openProjectDetail(project);return;}
           if(target.type==='milestone'){const milestone=milestones.find(m=>m.id===target.id);if(milestone){setSelectedProjectId(milestone.projectId);setProjectTab('Milestones');setActiveView('projects');handleEditMilestone(milestone);}}
-        }} projects={projects} tasks={tasks} plans={plans} milestones={milestones} timeZone={workspaceTimeZone} open={aiOpen} onOpenChange={setAiOpen} onAgentApplied={async () => { const remote = await loadWorkspaceData(); if (!remote) throw new Error("Workspace refresh failed"); setTasks(remote.tasks); setProjects(remote.projects); setMilestones(remote.milestones); setPlans(remote.plans); }} /> : null}>
+        }} projects={projects} tasks={tasks} plans={plans} milestones={milestones} timeZone={workspaceTimeZone} open={aiOpen} onOpenChange={setAiOpen} inboxOpenRequest={inboxOpenRequest} onAgentApplied={async () => { const remote = await loadWorkspaceData(); if (!remote) throw new Error("Workspace refresh failed"); setTasks(remote.tasks); setProjects(remote.projects); setMilestones(remote.milestones); setPlans(remote.plans); }} /> : null}>
             {workspaceStatus === "checking" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Loading your workspace...</div>}
             {workspaceStatus === "error" && <div className="mb-4 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}</div>}
             {workspaceStatus === "mock" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Prototype mode: showing local workspace data. Sign in with GitHub to sync with Supabase.</div>}
