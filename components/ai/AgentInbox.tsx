@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { AgentPulseStatus } from '@/components/ai/AgentPulseStatus';
-import { AgentPulseSettings } from '@/components/ai/AgentPulseSettings';
 import { AgentInboxError, agentInboxService, inboxErrorMessage } from '@/data/agentInboxService';
 import { buildInboxReviewDraft } from '@/data/agentInbox';
 import type { InboxFilter, InboxItem, InboxPage, PulseJournalPage, PulseSettingsResponse } from '@/data/agentInbox';
@@ -19,7 +18,7 @@ export function AgentInbox(props: Props) {
 }
 function InboxSession({ onReview, onNavigate }: Props) {
   const [filter, setFilter] = useState<InboxFilter>('active'), [page, setPage] = useState<InboxPage>(emptyPage), [loading, setLoading] = useState(true), [error, setError] = useState('');
-  const [settings, setSettings] = useState<PulseSettingsResponse | null>(null), [settingsError, setSettingsError] = useState(''), [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<PulseSettingsResponse | null>(null), [settingsError, setSettingsError] = useState('');
   const [journalOpen, setJournalOpen] = useState(false), [journal, setJournal] = useState<PulseJournalPage>(emptyJournal), [journalLoading, setJournalLoading] = useState(false), [journalError, setJournalError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null), [actionError, setActionError] = useState(''), [ackMessage, setAckMessage] = useState('');
   const [snoozeDays, setSnoozeDays] = useState<Record<string, 1 | 3 | 7>>({});
@@ -122,10 +121,6 @@ function InboxSession({ onReview, onNavigate }: Props) {
     if (journalOpen) { journalGeneration.current++; journalAbort.current?.abort(); setJournalLoading(false); setJournalOpen(false); }
     else { setJournalOpen(true); void loadJournal(); }
   }
-  function changedSettings(value: PulseSettingsResponse) {
-    settingsAbort.current?.abort(); setSettings(value); setSettingsError(''); setActionError(''); void reloadPage(filter);
-    if (journalOpen) void loadJournal();
-  }
   return <section aria-label="Agent Inbox" className="min-w-0 max-w-full space-y-4 text-sm t-dark [overflow-wrap:anywhere]">
     <h2 className="font-semibold">Inbox</h2>
     <AgentPulseStatus status={{ settings: settings?.settings ?? null, loading: !settings && !settingsError, error: settingsError,
@@ -161,8 +156,6 @@ function InboxSession({ onReview, onNavigate }: Props) {
     </article>)}</div>
     {page.nextCursor && <button type="button" disabled={loading} className="dark-chip p-2 text-xs disabled:opacity-50" onClick={() => void reloadPage(filter, page.nextCursor, true)}>Load more Inbox items</button>}
     <div className="space-y-3 border-t border-[var(--edge-dark)] pt-3">
-      <button type="button" aria-expanded={settingsOpen} className="dark-chip p-2 text-xs" onClick={() => setSettingsOpen(current => !current)}>Agent settings</button>
-      {settingsOpen && <AgentPulseSettings onChanged={changedSettings} />}
       <div><button type="button" aria-expanded={journalOpen} className="dark-chip max-w-full whitespace-normal p-2 text-left text-xs" onClick={toggleJournal}>Journal — proactive check history</button></div>
       {journalOpen && <section aria-label="Proactive check Journal" className="min-w-0 space-y-2">
         <p className="text-xs t-dark-muted">Journal records proactive checks. Activity is separate manual Agent action history.</p>
