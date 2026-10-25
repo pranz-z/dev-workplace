@@ -8,6 +8,26 @@
  */
 import type { PlanStatus, Priority, ProjectStatus, TaskStatus, WorkflowPhase } from "@/types";
 
+export interface ProjectPreviewVideoRow {
+  id: string;
+  user_id: string;
+  project_id: string;
+  blob_pathname: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicProjectPreviewVideoRow {
+  project_slug: string;
+  blob_pathname: string;
+  mime_type: string;
+  updated_at: string;
+}
+
 export type Visibility = "Private" | "Public" | "Unlisted";
 
 export interface ProfileRow {

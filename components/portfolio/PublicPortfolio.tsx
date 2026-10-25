@@ -15,6 +15,7 @@ import { Logo } from "@/components/brand/Logo";
 import { Card, Chip, UnderlineHeading } from "@/components/ui/notebook";
 import { DoodlePad } from "./NotebookInteractions";
 import { PortfolioHero } from "./PortfolioHero";
+import { ProjectCardMedia } from "./ProjectCardMedia";
 
 type ThemeMode = "light" | "dark" | "system";
 const THEME_STORAGE_KEY = "developer-workspace-theme";
@@ -193,10 +194,7 @@ function ProjectCard({ project, featured = false, coverUrl }: { project: PublicP
   const demoUrl = safeExternalUrl(project.links.live);
   const summary = (project.publicSummary || project.description).trim();
   return <Card tilt animated className={`portfolio-project flex min-w-0 flex-col ${featured ? "p-6" : "p-5"}`}>
-    {coverUrl ? <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={coverUrl} alt={`${project.name} project preview`} loading="lazy" decoding="async" className="mb-4 aspect-video w-full rounded-2xl border border-[var(--public-border)] object-cover" />
-    </> : <div aria-hidden="true" className="mb-4 flex aspect-video items-end rounded-2xl border border-[var(--public-border)] bg-[linear-gradient(135deg,var(--surface-strong),var(--surface))] p-4"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">{project.type}</span></div>}
+    <ProjectCardMedia slug={project.slug} name={project.name} type={project.type} coverUrl={coverUrl} />
     <p className="public-eyebrow">{project.type}{project.role ? ` · ${project.role}` : ""}</p>
     <h3 className="mt-4 text-2xl font-bold text-[var(--ink)]">{project.name}</h3>
     {summary && <p className="mt-3 line-clamp-3 text-sm leading-6 text-[var(--muted)]">{summary}</p>}

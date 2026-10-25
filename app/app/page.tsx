@@ -33,6 +33,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { UserMenu } from "@/components/auth/user-menu";
 import { GithubRepositoryBrowser } from "@/components/github/repository-browser";
 import { ProjectScreenshots } from "@/components/projects/project-screenshots";
+import { ProjectPreviewVideo } from "@/components/projects/project-preview-video";
 import { ProjectKanbanBoard } from "@/components/projects/ProjectKanbanBoard";
 import { WorkspaceCalendar } from "@/components/calendar/WorkspaceCalendar";
 import { SchedulingPreferences } from "@/components/calendar/SchedulingPreferences";
@@ -2295,7 +2296,7 @@ export default function Home() {
 
             {projectTab === "Screenshots" && (
               authStatus === "authenticated" && workspaceStatus === "ready"
-                ? <ProjectScreenshots
+                ? <><ProjectScreenshots
                     key={selectedProject.id}
                     projectId={selectedProject.id}
                     screenshots={projectScreenshots}
@@ -2303,7 +2304,7 @@ export default function Home() {
                     loadError={projectScreenshotsError}
                     onChange={(nextScreenshots) => setProjectScreenshotsState({ projectId: selectedProject.id, screenshots: nextScreenshots, error: "" })}
                     onRefresh={() => refreshProjectScreenshots(selectedProject.id)}
-                  />
+                  /><ProjectPreviewVideo key={`video-${selectedProject.id}`} projectId={selectedProject.id} /></>
                 : <div className="dark-panel p-4 text-sm t-dark-muted"><h3 className="text-lg font-semibold t-dark">Project screenshots</h3><p className="mt-2">Sign in to manage screenshots that persist to your workspace.</p></div>
             )}
 

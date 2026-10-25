@@ -23,7 +23,8 @@
     "test:phase6a1": "node --test lib/security/content-security-policy.test.mjs lib/ai/phase6a1.test.mjs",
     "test:phase6a3": "node --test lib/portfolio-routes.test.mjs lib/auth/redirects.test.mjs lib/site-origin.test.mjs",
     "test:portfolio": "node --test lib/portfolio/resume-content.test.mjs lib/portfolio-routes.test.mjs lib/public-ai/public-ai.test.mjs",
-    "test:portfolio:cms": "node --test lib/portfolio/cms-database.test.mjs lib/portfolio/cms-editor.test.mjs"
+    "test:portfolio:cms": "node --test lib/portfolio/cms-database.test.mjs lib/portfolio/cms-editor.test.mjs",
+    "test:project-videos": "node --test lib/project-video/*.test.mjs lib/security/content-security-policy.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",
@@ -32,6 +33,7 @@
     "@google/genai": "2.24.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
+    "@vercel/blob": "2.8.2",
     "lucide-react": "^1.48.0",
     "next": "16.3.6",
     "react": "19.2.8",
