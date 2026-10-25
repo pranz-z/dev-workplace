@@ -26,11 +26,53 @@ const canonical = (value: string) => value.normalize('NFKC').toLowerCase().repla
 /** Reject technical execution syntax; ordinary advisory verbs alone are allowed. */
 function containsExecutableInstruction(text: string): boolean {
   const value = canonical(text);
-  return /(?:\x60{3}|~{3}|\bhttps?\s*:\s*\/\s*\/|\/\s*api\b)/.test(value) ||
+  if (/(?:\x60{3}|~{3}|\bhttps?\s*:\s*\/\s*\/|\/\s*api\b)/.test(value) ||
     /\b(?:get|post|put|patch|delete|head|options)\s+\//.test(value) ||
     /\b(?:delete\s+from|drop\s+(?:table|database|schema)|truncate\s+(?:table\s+)?\S+|alter\s+table|insert\s+into|update\s+\S+\s+set)\b/.test(value) ||
-    /\b(?:fetch|exec|system)\s*\(/.test(value) ||
-    /(?:^|[;|&$\x60>:(]\s*|\b(?:run|execute|use|invoke|call|try)\s+)(?:curl|wget|powershell|pwsh|cmd(?:\.exe)?|bash|sh|npm|npx|node|python3?|pip3?|git|supabase|vercel|psql|rm|sudo|chmod|invoke-webrequest)\b(?:\s+\S|$)/.test(value);
+    /\b(?:fetch|exec|system)\s*\(/.test(value)) return true;
+  // A tool name or sentence position is not execution syntax. Require flags,
+  // script/path syntax or a recognized subcommand, even after an advisory verb.
+  for (const [, command, args = ''] of value.matchAll(/(?:^|[;|&$\x60>:(]\s*|\b(?:run|execute|use|invoke|call|try)\s+)(curl|wget|powershell|pwsh|cmd(?:\.exe)?|bash|sh|npm|npx|node|python3?|pip3?|git|supabase|vercel|psql|rm|sudo|chmod|invoke-webrequest)\b(?:\s+([^;|&\x60]*))?/g)) {
+    if (/^(?:--?[\w?]|["']?(?:\.{0,2}[\\/]|[a-z]:[\\/]))/.test(args)) return true;
+    switch (command) {
+      case 'git':
+        if (/^(?:add|branch|checkout|clean|clone|commit|config|diff|fetch|init|log|merge|pull|push|rebase|remote|reset|restore|rm|show|status|switch|tag)\b/.test(args)) return true;
+        break;
+      case 'node':
+        if (/^["']?\S+\.(?:[cm]?[jt]s|tsx)\b/.test(args)) return true;
+        break;
+      case 'python': case 'python3':
+        if (/^["']?\S+\.py\b/.test(args)) return true;
+        break;
+      case 'npm':
+        if (/^(?:install|i|ci|run|exec|test|start|publish|uninstall|update|audit|config|cache|init|pack|rebuild|version)\b/.test(args)) return true;
+        break;
+      case 'pip': case 'pip3':
+        if (/^(?:install|uninstall|download|freeze|list|show|check|config|cache|wheel)\b/.test(args)) return true;
+        break;
+      case 'supabase':
+        if (/^(?:db|migration|start|stop|status|init|link|login|logout|functions|secrets|projects|branches|gen|test|inspect)\b/.test(args)) return true;
+        break;
+      case 'vercel':
+        if (/^(?:deploy|dev|build|env|ls|list|inspect|logs|promote|rollback|redeploy|pull|link|login|logout|remove|rm|domains|alias|api|project|projects)\b/.test(args)) return true;
+        break;
+      case 'powershell': case 'pwsh': case 'cmd': case 'cmd.exe': case 'bash': case 'sh':
+        if (/^["']|^\S+\.(?:ps1|sh|bash|bat|cmd)\b/.test(args)) return true;
+        break;
+      case 'curl': case 'wget': case 'invoke-webrequest': case 'psql':
+        if (/^(?:[a-z][\w+.-]*:\/\/|www\.|\S+\.[a-z]{2,}(?:[/:]|$))/.test(args)) return true;
+        break;
+      case 'rm': case 'chmod':
+        if (/^(?:[+\-=][rwxXstugo]+\b|\d{3,4}\b|["']?\S+\.[a-z0-9]+\b)/.test(args)) return true;
+        break;
+      case 'sudo':
+        if (/^(?:rm|chmod|psql|bash|sh|node|python3?|pip3?|npm|npx|git|supabase|vercel)\b/.test(args)) return true;
+        break;
+      case 'npx':
+        if (/^(?:@\S+\/\S+|\S+@\S+|\S+\s+--?\w)/.test(args)) return true;
+    }
+  }
+  return false;
 }
 
 /** Bounded literal checking, not a proof of the meaning or truth of arbitrary prose. */
