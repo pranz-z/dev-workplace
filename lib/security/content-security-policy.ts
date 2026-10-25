@@ -31,7 +31,7 @@ export function buildContentSecurityPolicy({ development, supabaseUrl, blobStore
     ["img-src", ["'self'", "https://avatars.githubusercontent.com", ...(supabase ? [supabase] : [])]],
     ["font-src", ["'self'", "https://fonts.gstatic.com"]],
     // Signed PUT uploads use the SDK's control API; video GETs use only this private store.
-    ["connect-src", ["'self'", ...(supabase ? [supabase] : []), ...(blobMedia ? ["https://vercel.com/api/blob"] : []), ...(development ? ["ws://localhost:*", "ws://127.0.0.1:*"] : [])]],
+    ["connect-src", ["'self'", ...(supabase ? [supabase] : []), ...(blobMedia ? ["https://vercel.com/api/blob/"] : []), ...(development ? ["ws://localhost:*", "ws://127.0.0.1:*"] : [])]],
     ["media-src", ["'self'", ...(blobMedia ? [blobMedia] : [])]],
     ["frame-src", ["'none'"]],
     ["frame-ancestors", ["'none'"]],
