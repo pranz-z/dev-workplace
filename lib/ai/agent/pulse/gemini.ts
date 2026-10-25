@@ -23,6 +23,16 @@ const SCHEMA = {
 const fail = (code: PulseAiFailure['code']): PulseAiFailure => ({ ok: false, code });
 const canonical = (value: string) => value.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 
+/** Reject technical execution syntax; ordinary advisory verbs alone are allowed. */
+function containsExecutableInstruction(text: string): boolean {
+  const value = canonical(text);
+  return /(?:\x60{3}|~{3}|\bhttps?\s*:\s*\/\s*\/|\/\s*api\b)/.test(value) ||
+    /\b(?:get|post|put|patch|delete|head|options)\s+\//.test(value) ||
+    /\b(?:delete\s+from|drop\s+(?:table|database|schema)|truncate\s+(?:table\s+)?\S+|alter\s+table|insert\s+into|update\s+\S+\s+set)\b/.test(value) ||
+    /\b(?:fetch|exec|system)\s*\(/.test(value) ||
+    /(?:^|[;|&$\x60>:(]\s*|\b(?:run|execute|use|invoke|call|try)\s+)(?:curl|wget|powershell|pwsh|cmd(?:\.exe)?|bash|sh|npm|npx|node|python3?|pip3?|git|supabase|vercel|psql|rm|sudo|chmod|invoke-webrequest)\b(?:\s+\S|$)/.test(value);
+}
+
 /** Bounded literal checking, not a proof of the meaning or truth of arbitrary prose. */
 function supportedFacts(text: string, facts: ReadonlySet<string>): boolean {
   const allowed = new Set([...facts].map(canonical));
@@ -76,6 +86,7 @@ function normalizeIdea(value: unknown, context: ProactiveContext): NormalizedPul
     !title.isWellFormed() || !advisoryText.isWellFormed() ||
     [...normalizedTitle].length > 120 || [...normalizedText].length > 400 ||
     /[\x00-\x1f\x7f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/.test(title + advisoryText) ||
+    containsExecutableInstruction(normalizedTitle) || containsExecutableInstruction(normalizedText) ||
     !supportedFacts(normalizedTitle + '\n' + normalizedText, context.allowedFacts)) return null;
   return { sourceAlias, category: category as IdeaCategory, title: normalizedTitle, advisoryText: normalizedText };
 }
