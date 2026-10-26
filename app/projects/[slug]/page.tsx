@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowUpRight, FolderGit2, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PublicAccountabilityCard } from "@/components/accountability/public-accountability-card";
 import { PublicAiConcierge } from "@/components/public-ai/public-ai-concierge";
+import { PublicProjectVideo } from "@/components/portfolio/PublicProjectVideo";
 import { listPublicProjectScreenshots } from "@/data/projectScreenshotService";
 import { getPublicProjectBySlug, toProjectViewFromPublicProject } from "@/data/projectService";
 import { isValidSlug } from "@/lib/slug";
@@ -208,6 +209,8 @@ export default function PublicProjectPage() {
           <h2 className="text-xl font-bold text-[var(--ink)]"><UnderlineHeading>Technologies used</UnderlineHeading></h2>
           <div className="mt-4 flex flex-wrap gap-2">{displayProject.technologies.map((tech) => <Chip key={tech}>{tech}</Chip>)}</div>
         </section>}
+
+        <PublicProjectVideo key={slug} slug={slug} name={displayProject.name} />
 
         {screenshots.length > 0 && <section className="space-y-4" aria-labelledby="project-gallery-title">
           <div><p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Shared project images</p><h2 id="project-gallery-title" className="mt-2 text-3xl font-black text-[var(--ink)]"><UnderlineHeading>Gallery</UnderlineHeading></h2></div>
