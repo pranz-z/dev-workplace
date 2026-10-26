@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PreviewVideoUrl } from "@/lib/project-video/policy";
 
 type VideoState = { status: "loading" | "unavailable" | "error" } | { status: "ready"; video: PreviewVideoUrl };
@@ -8,6 +8,7 @@ type VideoState = { status: "loading" | "unavailable" | "error" } | { status: "r
 export function PublicProjectVideo({ slug, name }: { slug: string; name: string }) {
   const [state, setState] = useState<VideoState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
+  const started = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -32,13 +33,20 @@ export function PublicProjectVideo({ slug, name }: { slug: string; name: string 
     <h2 className="text-3xl font-black text-[var(--ink)]">Project video</h2>
     {state.status === "ready" ? <video
       key={state.video.url}
-      src={`${state.video.url}#t=0.1`}
+      src={`${state.video.url}#t=1.3`}
       aria-label={`${name} video`}
       controls
       playsInline
       preload="metadata"
       className="aspect-video w-full rounded-2xl bg-black object-contain"
-      onError={() => setState({ status: "error" })}
+      onPlay={event => {
+        if (!started.current) {
+          started.current = true;
+          // Show a frame beyond intro fades, but play the full video on first use.
+          if (Math.abs(event.currentTarget.currentTime - 1.3) < 0.1) event.currentTarget.currentTime = 0;
+        }
+      }}
+      onError={() => { started.current = false; setState({ status: "error" }); }}
     /> : <div className="public-card space-y-3 p-4">
       <p role="status" className="text-sm text-[var(--muted)]">The video could not load or its link expired.</p>
       <button type="button" className="public-link" onClick={() => { setState({ status: "loading" }); setAttempt(value => value + 1); }}>Retry video</button>
