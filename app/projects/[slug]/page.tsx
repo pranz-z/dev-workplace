@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { PublicAccountabilityCard } from "@/components/accountability/public-accountability-card";
 import { PublicAiConcierge } from "@/components/public-ai/public-ai-concierge";
 import { PublicProjectVideo } from "@/components/portfolio/PublicProjectVideo";
+import { WorkspaceDialog } from "@/components/workspace/WorkspaceDialog";
 import { listPublicProjectScreenshots } from "@/data/projectScreenshotService";
 import { getPublicProjectBySlug, toProjectViewFromPublicProject } from "@/data/projectService";
 import { isValidSlug } from "@/lib/slug";
@@ -44,6 +45,7 @@ export default function PublicProjectPage() {
   const [accountability, setAccountability] = useState<{ health: PublicAccountabilityHealth; score: number | null } | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [screenshots, setScreenshots] = useState<Array<{ id: string; caption: string; signedUrl: string }>>([]);
+  const [selectedScreenshot, setSelectedScreenshot] = useState<{ slug: string; caption: string; signedUrl: string } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
@@ -214,9 +216,11 @@ export default function PublicProjectPage() {
 
         {screenshots.length > 0 && <section className="space-y-4" aria-labelledby="project-gallery-title">
           <div><p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Shared project images</p><h2 id="project-gallery-title" className="mt-2 text-3xl font-black text-[var(--ink)]"><UnderlineHeading>Gallery</UnderlineHeading></h2></div>
-          <div className="grid gap-4 md:grid-cols-2">{screenshots.map((screenshot) => <figure key={screenshot.id} className="public-card overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={screenshot.signedUrl} alt={screenshot.caption || `${displayProject.name} screenshot`} loading="lazy" decoding="async" className="aspect-video w-full object-cover" />
+          <div className="grid gap-4 md:grid-cols-2">{screenshots.map((screenshot, index) => <figure key={screenshot.id} className="public-card overflow-hidden">
+            <button type="button" className="block w-full cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ink)]" aria-haspopup="dialog" aria-label={`View screenshot: ${screenshot.caption || `${displayProject.name} screenshot ${index + 1}`}`} onClick={() => setSelectedScreenshot({ slug, caption: screenshot.caption, signedUrl: screenshot.signedUrl })}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={screenshot.signedUrl} alt={screenshot.caption || `${displayProject.name} screenshot`} loading="lazy" decoding="async" className="aspect-video w-full object-cover" />
+            </button>
             {screenshot.caption && <figcaption className="p-3 text-sm text-[var(--muted)]">{screenshot.caption}</figcaption>}
           </figure>)}</div>
         </section>}
@@ -226,6 +230,14 @@ export default function PublicProjectPage() {
           <button type="button" onClick={() => void copyLink()} className="public-link" aria-live="polite">{linkCopied ? "Link copied" : "Copy project link"}</button>
         </section>
       </main>
+      {selectedScreenshot?.slug === slug && <WorkspaceDialog label="Screenshot viewer" onClose={() => setSelectedScreenshot(null)} className="h-dvh w-screen">
+        <figure className="public-card w-full max-w-6xl p-3">
+          <button type="button" className="public-link mb-3" onClick={() => setSelectedScreenshot(null)}>Close screenshot</button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={selectedScreenshot.signedUrl} alt={selectedScreenshot.caption || `${displayProject.name} screenshot`} className="max-h-[75dvh] w-full object-contain" />
+          {selectedScreenshot.caption && <figcaption className="pt-3 text-sm text-[var(--muted)]">{selectedScreenshot.caption}</figcaption>}
+        </figure>
+      </WorkspaceDialog>}
       <PublicAiConcierge />
     </div>
   );

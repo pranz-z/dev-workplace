@@ -32,11 +32,11 @@ export function PublicProjectVideo({ slug, name }: { slug: string; name: string 
     <h2 className="text-3xl font-black text-[var(--ink)]">Project video</h2>
     {state.status === "ready" ? <video
       key={state.video.url}
-      src={state.video.url}
+      src={`${state.video.url}#t=0.1`}
       aria-label={`${name} video`}
       controls
       playsInline
-      preload="none"
+      preload="metadata"
       className="aspect-video w-full rounded-2xl bg-black object-contain"
       onError={() => setState({ status: "error" })}
     /> : <div className="public-card space-y-3 p-4">
