@@ -2208,6 +2208,83 @@ html[data-theme] .notebook-workspace .workspace-ai-panel [aria-label="Workspace 
   .notebook-workspace .workspace-ai-panel [aria-label="Workspace AI mode"] { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
 
+/* Phase 6: public editorial presentation. Data and media lifecycles are unchanged. */
+:is(.notebook-portfolio,.notebook-case-study) { font-family: var(--font-geist-sans), sans-serif; overflow-wrap: anywhere; }
+:is(.notebook-portfolio,.notebook-case-study) :is(h1,h2,h3) { font-family: var(--font-hand); text-wrap: balance; }
+:is(.notebook-portfolio,.notebook-case-study) :is(button,input,textarea,select,summary) { font-family: var(--font-geist-sans), sans-serif; }
+:is(.notebook-portfolio,.notebook-case-study) :is(a,button,input,textarea,summary,[tabindex]):focus-visible { outline: 3px solid var(--nb-accent-text); outline-offset: 4px; scroll-margin-block: 140px 24px; }
+:is(.notebook-portfolio,.notebook-case-study) ::selection { background: var(--nb-accent-text); color: var(--nb-button-ink); }
+:is(.notebook-portfolio,.notebook-case-study) :is(main,section,article,figure,nav) { min-width: 0; }
+:is(.notebook-portfolio,.notebook-case-study) :is(p,li) { line-height: 1.8; }
+.notebook-portfolio > main, .notebook-portfolio > footer, .notebook-portfolio-header > div { max-width: 1160px; }
+.notebook-portfolio .notebook-portfolio-header { background: var(--nb-bg); backdrop-filter: none; border-bottom: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); }
+.notebook-portfolio-header nav { scrollbar-width: thin; gap: .75rem; padding: 4px; }
+.notebook-portfolio-header nav a { flex: 0 0 auto; padding-inline: .4rem; font-size: .875rem; }
+.notebook-portfolio > main > section:not(.notebook-hero) { padding: clamp(2rem, 5vw, 4rem) 0 0; }
+.notebook-portfolio h2 { font-size: clamp(2rem, 4vw, 3rem); }
+.notebook-portfolio h3 { font-size: clamp(1.5rem, 3vw, 2rem); }
+.notebook-portfolio #projects > div:first-child { align-items: start; }
+.notebook-portfolio #projects > div:first-child > div:first-child { flex: 1; min-width: min(100%, 15rem); }
+.notebook-portfolio #projects > div:first-child h2 { margin-top: 0; }
+.notebook-portfolio #projects > .grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1.5rem; }
+.notebook-portfolio .portfolio-project { padding: 0 0 1.5rem; background: transparent; border-radius: 0; transform: none; transition: none; border-bottom: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); }
+.notebook-portfolio .portfolio-project h3 { margin-top: .5rem; overflow-wrap: anywhere; }
+.notebook-portfolio .portfolio-project-content > p:not(.public-eyebrow) { max-width: 65ch; font-size: 1rem; }
+.notebook-portfolio .portfolio-project .public-eyebrow { margin-top: .5rem; font-size: .875rem; text-transform: none; letter-spacing: normal; }
+.notebook-portfolio .portfolio-project > div:first-of-type { border-radius: 12px; overflow: hidden; }
+:is(.notebook-portfolio,.notebook-case-study) .public-link { gap: .4rem; text-decoration-style: solid; text-underline-offset: 5px; }
+.notebook-portfolio .notebook-timeline { padding-left: 1.5rem; }
+.notebook-portfolio .notebook-timeline::before { border-left: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); opacity: 1; }
+.notebook-portfolio #education > article, .notebook-portfolio #engineering article { border: 0; box-shadow: none; background: transparent; transform: none; padding: 1rem 0; }
+.notebook-portfolio .notebook-chip { transform: none; }
+.notebook-portfolio #contact { border-top: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); }
+.notebook-portfolio > footer { margin-top: 3rem; border-top: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); padding-top: 1.5rem; }
+html[data-theme] .notebook-case-study :is(.public-card,.public-hero) { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.notebook-case-study .public-card::before { content: none; }
+.notebook-case-study > header > div { border: 0; border-radius: 0; border-bottom: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); background: transparent; backdrop-filter: none; padding-inline: 0; }
+.notebook-case-study > main { max-width: 1040px; }
+.notebook-case-study > main > .public-hero { padding: 2rem 0 1rem; }
+.notebook-case-study h1 { font-size: clamp(2.5rem, 5.5vw, 4.5rem); line-height: 1.08; margin-top: 0; }
+.notebook-case-study > main > .public-card { padding: 1.5rem 0; border-top: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); }
+.notebook-case-study .case-study-facts { border-block: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); padding-block: 1rem; }
+.notebook-case-study .case-study-facts > div { padding: .5rem 0; }
+.notebook-case-study .case-study-facts p:first-child { font-size: .875rem; text-transform: none; letter-spacing: normal; }
+.notebook-case-study .case-study-facts p + p { margin-top: .25rem; }
+.notebook-case-study .case-study-narrative { grid-template-columns: minmax(0,1fr); gap: 2rem; }
+.notebook-case-study .case-study-narrative > article { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: 1.5rem; padding: 1.5rem 0 0; border-top: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); }
+.notebook-case-study .case-study-narrative p { margin-top: 0; max-width: 70ch; font-size: 1rem; }
+.notebook-case-study figure figcaption { overflow-wrap: anywhere; font-size: .875rem; }
+.notebook-case-study > main > section:last-child { border-top: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); }
+:is(.notebook-portfolio,.notebook-case-study) .public-ai-concierge { font-family: var(--font-geist-sans), sans-serif; }
+:is(.notebook-portfolio,.notebook-case-study) #public-ai-title { font-family: var(--font-geist-sans), sans-serif; font-size: 1.25rem; text-wrap: wrap; }
+:is(.notebook-portfolio,.notebook-case-study) #public-ai-disclosure { font-size: .875rem; line-height: 1.65; }
+:is(.notebook-portfolio,.notebook-case-study) .public-ai-concierge > section { border: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); border-radius: 14px; box-shadow: 0 12px 32px rgb(0 0 0 / .2); }
+:is(.notebook-portfolio,.notebook-case-study) .public-ai-concierge > section > header { flex-wrap: wrap; }
+:is(.notebook-portfolio,.notebook-case-study) .public-ai-concierge > section > header > div:first-child { flex: 1 1 12rem; }
+:is(.notebook-portfolio,.notebook-case-study) .public-ai-concierge button { white-space: normal; }
+@media (max-width: 767px) {
+ .notebook-portfolio-header > div { flex-wrap: wrap; gap: 0; padding-block: .25rem; }
+ .notebook-portfolio-header nav { width: 100%; margin-left: 0; }
+ .notebook-portfolio #projects > .grid { grid-template-columns: minmax(0,1fr); }
+ .notebook-case-study .case-study-narrative > article { grid-template-columns: minmax(0,1fr); gap: .5rem; }
+ :is(.notebook-portfolio,.notebook-case-study) .public-ai-concierge > section { position: fixed; inset: auto .75rem .75rem; width: auto; max-width: none; margin-top: 0; height: min(42rem,calc(100dvh - 1.5rem)); }
+ :is(.notebook-portfolio,.notebook-case-study) .public-ai-concierge > button { position: relative; inset: auto; width: auto; margin-top: 2rem; }
+}
+
+html[data-theme] .notebook-case-study > header > div { background: transparent; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--nb-muted) 50%, transparent); }
+.notebook-case-study > header button[aria-label="Toggle public theme"] { background: transparent; border-color: var(--nb-muted); color: var(--nb-ink); }
+
+:is(.notebook-portfolio,.notebook-case-study) summary { min-height: 44px; min-width: 44px; align-content: center; }
+
+@media (min-width: 768px) { .notebook-portfolio:has(footer :focus-visible) .public-ai-concierge > button { bottom: 7rem; } }
+
+.notebook-portfolio .notebook-card::before { content: none; }
+.notebook-portfolio .notebook-card > .notebook-border { display: none; }
+.notebook-portfolio #projects .portfolio-featured-grid { grid-template-columns: minmax(0,1fr); }
+.notebook-portfolio .portfolio-project-featured { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); align-items: center; gap: 2rem; }
+.notebook-portfolio .portfolio-project-featured > div:first-of-type { margin-bottom: 0; }
+.notebook-portfolio .portfolio-project-content { min-width: 0; }
+@media (max-width: 767px) { .notebook-portfolio .portfolio-project-featured { grid-template-columns: minmax(0,1fr); gap: 1rem; } }
 
 /* Keep enlarged date targets separate inside the existing calendar scroller. */
 .notebook-workspace .notebook-calendar [role="grid"] { min-inline-size: 420px; }

@@ -167,7 +167,6 @@ export default function PublicProjectPage() {
         <section className="public-hero p-6 md:p-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Project case study</p>
               <h1 className="mt-4 break-words text-4xl font-black tracking-tight text-[var(--ink)] md:text-5xl"><UnderlineHeading>{displayProject.name}</UnderlineHeading></h1>
               {publicSummary && <p className="mt-4 text-lg leading-8 text-[var(--muted)]">{publicSummary}</p>}
             </div>
@@ -186,7 +185,7 @@ export default function PublicProjectPage() {
           </div>
         </section>
 
-        {featureCards.length > 0 && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {featureCards.length > 0 && <section aria-label="Project facts" className="case-study-facts grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {featureCards.map((item) => (
             <div key={item.label} className="public-card p-4">
               <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{item.label}</p>
@@ -201,7 +200,7 @@ export default function PublicProjectPage() {
           <h2 className="text-2xl font-bold text-[var(--ink)]"><UnderlineHeading>Overview</UnderlineHeading></h2>
           <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.description}</p>
         </section>}
-        {[displayProject.publicProblem, displayProject.publicSolution, displayProject.publicResult].some(Boolean) && <section className="grid gap-4 md:grid-cols-3">
+        {[displayProject.publicProblem, displayProject.publicSolution, displayProject.publicResult].some(Boolean) && <section aria-label="Project narrative" className="case-study-narrative grid gap-4 md:grid-cols-3">
           {displayProject.publicProblem && <article className="public-card p-5"><h2 className="text-xl font-bold text-[var(--ink)]"><UnderlineHeading>Problem / goal</UnderlineHeading></h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.publicProblem}</p></article>}
           {displayProject.publicSolution && <article className="public-card p-5"><h2 className="text-xl font-bold text-[var(--ink)]"><UnderlineHeading>Architecture / approach</UnderlineHeading></h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.publicSolution}</p></article>}
           {displayProject.publicResult && <article className="public-card p-5"><h2 className="text-xl font-bold text-[var(--ink)]"><UnderlineHeading>Outcome / current status</UnderlineHeading></h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{displayProject.publicResult}</p></article>}
@@ -215,7 +214,7 @@ export default function PublicProjectPage() {
         <PublicProjectVideo key={slug} slug={slug} name={displayProject.name} />
 
         {screenshots.length > 0 && <section className="space-y-4" aria-labelledby="project-gallery-title">
-          <div><p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">Shared project images</p><h2 id="project-gallery-title" className="mt-2 text-3xl font-black text-[var(--ink)]"><UnderlineHeading>Gallery</UnderlineHeading></h2></div>
+          <div><h2 id="project-gallery-title" className="mt-2 text-3xl font-black text-[var(--ink)]"><UnderlineHeading>Gallery</UnderlineHeading></h2></div>
           <div className="grid gap-4 md:grid-cols-2">{screenshots.map((screenshot, index) => <figure key={screenshot.id} className="public-card overflow-hidden">
             <button type="button" className="block w-full cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ink)]" aria-haspopup="dialog" aria-label={`View screenshot: ${screenshot.caption || `${displayProject.name} screenshot ${index + 1}`}`} onClick={() => setSelectedScreenshot({ slug, caption: screenshot.caption, signedUrl: screenshot.signedUrl })}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
