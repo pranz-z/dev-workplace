@@ -1866,3 +1866,158 @@ html[data-theme] .notebook-public-accountability { --ink: var(--nb-ink); --muted
   .notebook-typing :is(.notebook-typing-pencil,.notebook-typing-line) { animation: none; transform: none; stroke-dashoffset: 0; }
   .notebook-workspace :is(.notebook-dense,.workspace-dialog,.workspace-ai-panel) *, .public-ai-concierge * { transition: none; scroll-behavior: auto; }
 }
+
+/* Phase 1 foundation: existing consumers share semantic theme pairs. Public
+   notebook tokens/signatures remain scoped to their existing surfaces. */
+.notebook-workspace {
+  --workspace-canvas: light-dark(#f6f0e5, #1c1917);
+  --workspace-surface: light-dark(#fffaf2, #272321);
+  --workspace-inset: light-dark(#eee7dc, #302b28);
+  --workspace-ink: light-dark(#2a2420, #f3ebdd);
+  --workspace-muted: light-dark(#63594f, #c0b5a5);
+  --workspace-edge: light-dark(#8c7d6e, #aa9b88);
+  --workspace-action: light-dark(#9d3614, #f2b84b);
+  --workspace-on-action: light-dark(#ffffff, #1c1917);
+  --workspace-success: light-dark(#17634f, #8bd4bd);
+  --workspace-danger: light-dark(#9f281b, #ffafa3);
+  --workspace-hover: light-dark(#e9dfd1, #38302a);
+  --workspace-pressed: light-dark(#dfd0bc, #463a2f);
+  --workspace-focus: var(--workspace-action);
+  --workspace-space-1: .25rem;
+  --workspace-space-2: .5rem;
+  --workspace-space-3: .75rem;
+  --workspace-space-4: 1rem;
+  --workspace-space-6: 1.5rem;
+  --workspace-space-8: 2rem;
+  --workspace-radius-control: 6px;
+  --workspace-radius-panel: 10px;
+  --workspace-radius-overlay: 14px;
+  --workspace-shadow-overlay: 0 12px 32px rgb(0 0 0 / .2);
+  --nb-bg: var(--workspace-canvas);
+  --nb-card: var(--workspace-surface);
+  --nb-ink: var(--workspace-ink);
+  --nb-muted: var(--workspace-muted);
+  --nb-accent-text: var(--workspace-action);
+  --nb-accent2-text: var(--workspace-success);
+  --nb-button-ink: var(--workspace-on-action);
+  --nb-radius: var(--workspace-radius-control);
+  --nb-card-radius: var(--workspace-radius-panel);
+  --radius-sheet: var(--workspace-radius-panel);
+  --radius-note: var(--workspace-radius-panel);
+  --edge-cream: var(--workspace-edge);
+  --edge-dark: var(--workspace-edge);
+  --edge-cream-soft: var(--workspace-edge);
+  --edge-dark-soft: var(--workspace-edge);
+  --text-desk: var(--workspace-ink);
+  --text-desk-muted: var(--workspace-muted);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--workspace-ink);
+  background: var(--workspace-canvas);
+  overflow-wrap: anywhere;
+  caret-color: var(--workspace-action);
+  accent-color: var(--workspace-action);
+}
+html[data-theme] .notebook-workspace :where(*) { font-family: inherit; }
+html[data-theme] .notebook-workspace :is(pre, code, kbd, samp, .font-mono) { font-family: var(--font-geist-mono), monospace; }
+html[data-theme] .notebook-workspace .workspace-header h1,
+html[data-theme] .notebook-workspace [data-empty-state-heading] { font-family: var(--font-caveat), cursive; }
+/* Dialog/form/status context always wins over a decorative heading hook. */
+html[data-theme] .notebook-workspace :is(form, dialog, [role="dialog"], [role="status"], [role="alert"]),
+html[data-theme] .notebook-workspace :is(form, dialog, [role="dialog"], [role="status"], [role="alert"]) * { font-family: var(--font-geist-sans), sans-serif; }
+
+html[data-theme] .notebook-workspace :is(.dark-panel, .dark-inset, .paper-card, .stat-card, .hero-paper, .dark-paper, .notebook-drag-surface),
+html[data-theme] .notebook-workspace :is(.notebook-dense.dark-panel, .notebook-dense .dark-panel, .workspace-dialog .dark-panel) {
+  border: 1px solid var(--workspace-edge);
+  border-radius: var(--workspace-radius-panel);
+  color: var(--workspace-ink);
+  background: var(--workspace-surface);
+  box-shadow: none;
+}
+html[data-theme] .notebook-workspace :is(.dark-inset, .inset-soft) { background: var(--workspace-inset); }
+html[data-theme] .notebook-workspace :is(.notebook-dense.dark-inset, .notebook-dense .dark-inset, .workspace-dialog .dark-inset):not(.chat-note) {
+  border: 1px solid var(--workspace-edge);
+  border-radius: var(--workspace-radius-panel);
+  background: var(--workspace-inset);
+  box-shadow: none;
+}
+html[data-theme] .notebook-workspace :is(.tilt-left, .tilt-right, .sticky-note, .notebook-drag-surface) { transform: none; }
+html[data-theme] .notebook-workspace :is(.paper-card, .stat-card, .hero-paper, .dark-paper, .notebook-drag-surface)::before,
+html[data-theme] .notebook-workspace .notebook-border { display: none; }
+html[data-theme] .notebook-workspace :is(.workspace-dialog, .notebook-user-menu .dark-panel) {
+  border: 1px solid var(--workspace-edge);
+  border-radius: var(--workspace-radius-overlay);
+  background: var(--workspace-surface);
+  box-shadow: var(--workspace-shadow-overlay);
+}
+html[data-theme] .notebook-workspace :is(button, a:not(p a), input:not(.sr-only):not([type="hidden"]), select, textarea) {
+  min-inline-size: 44px;
+  min-block-size: 44px;
+  max-inline-size: 100%;
+}
+html[data-theme] .notebook-workspace :is(button, a, label, input, select, textarea) { overflow-wrap: anywhere; }
+html[data-theme] .notebook-workspace :is(.flex, .grid) > :is(div, label, fieldset) { min-inline-size: 0; }
+html[data-theme] .notebook-workspace :is(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea) { border-radius: var(--workspace-radius-control); }
+html[data-theme] .notebook-workspace :is(.dark-chip, .soft-pill, .badge, .prio) {
+  color: var(--workspace-ink);
+  background: var(--workspace-inset);
+  border: 1px solid var(--workspace-edge);
+}
+html[data-theme] .notebook-workspace :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.sr-only), select, textarea) {
+  background: var(--workspace-surface);
+  color: var(--workspace-ink);
+  border: 1px solid var(--workspace-edge);
+  padding-inline: var(--workspace-space-3);
+}
+html[data-theme] .notebook-workspace :is(input, textarea)::placeholder { color: var(--workspace-muted); opacity: 1; }
+html[data-theme] .notebook-workspace :is(.ink-button, .notebook-button).primary {
+  color: var(--workspace-on-action);
+  background: var(--workspace-action);
+  border: 1px solid var(--workspace-action);
+}
+html[data-theme] .notebook-workspace :is(button, a):not(:disabled) { transition: background-color 140ms ease-out, border-color 140ms ease-out; }
+html[data-theme] .notebook-workspace :is(button, a):not(:disabled):hover { background-color: var(--workspace-hover); color: var(--workspace-ink); }
+html[data-theme] .notebook-workspace :is(button, a):not(:disabled):active { background-color: var(--workspace-pressed); color: var(--workspace-ink); }
+html[data-theme] .notebook-workspace :is(button, input, select, textarea):disabled { opacity: 1; color: var(--workspace-muted); cursor: not-allowed; border-style: dashed; }
+html[data-theme] .notebook-workspace :is([role="alert"], [data-feedback="error"]) { color: var(--workspace-danger); }
+html[data-theme] .notebook-workspace [data-feedback="success"] { color: var(--workspace-success); }
+html[data-theme] .notebook-workspace :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--workspace-focus);
+  outline-offset: 3px;
+}
+html[data-theme] .notebook-workspace ::selection { color: var(--workspace-on-action); background: var(--workspace-action); }
+/* Native input semantics remain; a centered mark sits inside a real 44px hit box. */
+html[data-theme] .notebook-workspace input:is([type="checkbox"], [type="radio"]) {
+  appearance: none;
+  inline-size: 44px;
+  block-size: 44px;
+  flex: 0 0 44px;
+  padding: 12px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+html[data-theme] .notebook-workspace input:is([type="checkbox"], [type="radio"])::before {
+  content: "";
+  display: block;
+  inline-size: 20px;
+  block-size: 20px;
+  border: 1px solid var(--workspace-edge);
+  border-radius: 4px;
+  background: var(--workspace-surface);
+  text-align: center;
+  line-height: 18px;
+  font-size: 16px;
+}
+html[data-theme] .notebook-workspace input[type="checkbox"]:checked::before { content: "✓"; color: var(--workspace-on-action); background: var(--workspace-action); border-color: var(--workspace-action); }
+html[data-theme] .notebook-workspace input[type="radio"]::before { border-radius: 50%; }
+html[data-theme] .notebook-workspace input[type="radio"]:checked::before { background: var(--workspace-action); box-shadow: inset 0 0 0 4px var(--workspace-surface); }
+html[data-theme] .notebook-workspace input:is([type="checkbox"], [type="radio"]):disabled { cursor: not-allowed; }
+/* Public type/illustration/layout remains authored; only shared hit areas grow. */
+:is(.notebook-portfolio, .notebook-case-study) :is(button, a:not(p a)) { min-inline-size: 44px; min-block-size: 44px; }
+:is(.notebook-portfolio, .notebook-case-study) a:not(p a) { display: inline-flex; align-items: center; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme] .notebook-workspace :is(button, a):not(:disabled) { transition: none; }
+}
