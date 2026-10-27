@@ -15,6 +15,7 @@ import { Logo } from "@/components/brand/Logo";
 import { Card, Chip, UnderlineHeading } from "@/components/ui/notebook";
 import { DoodlePad } from "./NotebookInteractions";
 import { PortfolioHero } from "./PortfolioHero";
+import heroStyles from "./PortfolioHero.module.css";
 import { ProjectCardMedia } from "./ProjectCardMedia";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -112,10 +113,10 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
 
   return (
     <div className="public-shell notebook-portfolio min-h-screen">
-      <header className="notebook-portfolio-header">
+      <header className={`notebook-portfolio-header ${heroStyles.header}`}>
         <div>
-          <button type="button" className="notebook-logo" aria-label="Toggle chalkboard or paper theme" onClick={() => setThemeMode(getResolvedTheme(themeMode) === "dark" ? "light" : "dark")}><Logo variant="full" size={30} /></button>
-          <nav aria-label="Portfolio">{navigation.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}</nav>
+          <button type="button" className={`notebook-logo ${heroStyles.brand}`} aria-label="Toggle chalkboard or paper theme" onClick={() => setThemeMode(getResolvedTheme(themeMode) === "dark" ? "light" : "dark")}><Logo variant="full" size={30} /></button>
+          <nav aria-label="Portfolio">{navigation.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}{status === "authenticated" && <Link href="/app">Open Workspace</Link>}</nav>
         </div>
       </header>
 
@@ -123,7 +124,11 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
         {(loadError || supabaseMissing) && <p role="alert" className="public-card p-4 text-sm text-[var(--muted)]">The public portfolio could not be loaded right now.</p>}
         {(professional?.sections.hero.enabled ?? true) && <PortfolioHero
           name={displayName || ""} headline={introduction.headline} avatar={avatar}
-          projectsEnabled={professional?.sections.projects.enabled ?? true} authenticated={status === "authenticated"}
+          projectsEnabled={professional?.sections.projects.enabled ?? true}
+          proof={professional ? [
+            professional.sections.toolkit.enabled ? ["Flutter", "Laravel", ".NET", "Unity"].filter((name) => professional.toolkit.some((group) => group.enabled && group.items.some((item) => item.enabled && item.name === name))).join(" · ") : "",
+            professional.sections.education.enabled && professional.education.some((item) => item.enabled && item.honors === "Magna Cum Laude") ? "Magna Cum Laude" : "",
+          ].filter(Boolean).join(" · ") : ""}
         >
           {professional?.hero.description && <p>{professional.hero.description}</p>}
           {introduction.bio && <p className="mt-3 whitespace-pre-line">{introduction.bio}</p>}
