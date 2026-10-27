@@ -144,50 +144,41 @@ const FOCUS_SESSION_STORAGE_PREFIX = "developer-workspace-focus-session-v1";
 
 const navGroups = [
   {
-    label: "DEV WORKPLACE",
+    label: "Work",
     items: [
       { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       { key: "today", label: "Today", icon: Clock3 },
-    ],
-  },
-  {
-    label: "WORK",
-    items: [
       { key: "projects", label: "Projects", icon: FolderKanban },
       { key: "tasks", label: "Tasks", icon: ListTodo },
-      { key: "plans", label: "Plans", icon: Target },
-      { key: "files", label: "Files", icon: Files },
-      { key: "accountability", label: "Accountability", icon: Activity },
       { key: "calendar", label: "Calendar", icon: CalendarDays },
     ],
   },
   {
-    label: "KNOWLEDGE",
+    label: "Planning and review",
     items: [
+      { key: "plans", label: "Plans", icon: Target },
       { key: "notes", label: "Notes", icon: NotebookPen },
-      { key: "learning", label: "Learning", icon: Sparkles },
       { key: "tech", label: "Tech Stack", icon: Code2 },
+      { key: "accountability", label: "Accountability", icon: Activity },
     ],
   },
   {
-    label: "CAREER",
+    label: "Publishing and connections",
+    items: [
+      { key: "portfolio", label: "Portfolio", icon: Globe },
+      { key: "github", label: "GitHub", icon: FolderGit2 },
+      { key: "files", label: "Files", icon: Files },
+    ],
+  },
+  {
+    label: "Personal settings",
     items: [
       { key: "applications", label: "Applications", icon: Briefcase },
       { key: "resume", label: "Resume", icon: UserRound },
       { key: "freelance", label: "Freelance", icon: MessageSquareText },
+      { key: "learning", label: "Learning", icon: Sparkles },
+      { key: "settings", label: "Settings", icon: Star },
     ],
-  },
-  {
-    label: "SHOWCASE",
-    items: [{ key: "portfolio", label: "Portfolio", icon: Globe }],
-  },
-  {
-    label: "INTEGRATIONS",
-    items: [{ key: "github", label: "GitHub", icon: FolderGit2 }],
-  },
-  {
-    label: "SYSTEM",
-    items: [{ key: "settings", label: "Settings", icon: Star }],
   },
 ] as const;
 
@@ -2820,7 +2811,7 @@ export default function Home() {
   };
 
   const workspaceAvailable = (authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id) || (authStatus === "unauthenticated" && workspaceStatus === "mock");
-  const navItems = navGroups.flatMap((group) => [...group.items]).filter((item) => !unavailableViews.has(item.key as ViewName));
+  const navItems = navGroups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label }))).filter((item) => !unavailableViews.has(item.key as ViewName));
   const renderContext = () => {
     if (!workspaceAvailable) return <p className="text-sm t-dark-muted">Your workspace is loading.</p>;
     if (activeView === "portfolio") return <div className="space-y-2">{portfolioTabs.map((tab) => <button key={tab} type="button" className="workspace-context-action" aria-current={portfolioTab === tab ? "page" : undefined} onClick={() => setPortfolioTab(tab)}>{tab}</button>)}</div>;
