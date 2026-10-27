@@ -1591,9 +1591,9 @@ export default function Home() {
   };
 
   const renderDashboard = () => (
-    <div className="notebook-dashboard space-y-6">
+    <div className="notebook-dashboard daily-surface space-y-6">
       {/* GREETING SHEET — cream paper, deep warm charcoal ink, in both themes */}
-      <div className="hero-paper tilt-left p-5">
+      <div className="dashboard-greeting dark-panel p-4">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             {authStatus === "authenticated" ? <WorkspaceGreeting userId={user!.id} name={firstName} /> : <div><h3 className="hero-script text-[32px] leading-none">Hello, {firstName} ✦</h3><p className="mt-2 text-[11px] font-bold uppercase tracking-[0.2em] t-paper-muted">Let&apos;s build something cool.</p><h1 className="mt-3 text-3xl font-extrabold tracking-tight t-paper text-shadow-paper">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</h1></div>}
@@ -1615,29 +1615,62 @@ export default function Home() {
         </div>
       </div>
 
+
+          <section className="dashboard-next dark-panel p-4" aria-label="Next tasks">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-semibold t-dark">Next tasks</h2>
+              <button type="button" onClick={() => setActiveView("today")} className="text-sm font-semibold underline decoration-[var(--edge-dark)] underline-offset-4">
+                Open today
+              </button>
+            </div>
+            <div className="space-y-3">
+              {todayTasks.length === 0 && <div><h3 data-empty-state-heading className="text-xl t-dark">No open tasks</h3><p className="mt-1 text-sm t-dark-muted">Choose a next step when you are ready.</p><button type="button" onClick={() => handleCreateTask()} className="ink-button primary mt-3 px-3 py-2 text-sm">Create a task</button></div>}{todayTasks.map((task) => (
+                <div key={task.id} className="dark-inset p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium t-dark">{task.title}</p>
+                      <p className="mt-1 text-xs t-dark-soft">{projects.find((project) => project.id === task.projectId)?.name}</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={task.status === "Completed"}
+                      onChange={() => toggleTaskComplete(task.id)}
+                      aria-label={`Complete ${task.title}`} className="h-4 w-4"
+                    />
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={priorityColors[task.priority]}>{task.priority}</span>
+                    <span className="text-[10px] uppercase tracking-[0.15em] t-dark-soft">{task.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+
       {authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id && <AgentPulseBrief key={user.id} onOpenInbox={() => { setAiOpen(true); setInboxOpenRequest(previous => (previous ?? 0) + 1); }} />}
 
       {/* STAT SHEETS — cream cards, pastel corner accents, deep warm numbers */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="dashboard-totals grid grid-cols-2 gap-3 md:grid-cols-4" role="group" aria-label="Workspace totals">
         {[
           { label: "Active projects", value: `${projects.filter((project) => project.status !== "Completed").length}`, mood: "mood-peach" },
           { label: "Open tasks", value: `${tasks.filter((task) => task.status !== "Completed").length}`, mood: "mood-lavender" },
           { label: "Plans", value: `${plans.length}`, mood: "mood-blue" },
           { label: "Milestones", value: `${milestones.length}`, mood: "mood-green" },
         ].map((stat) => (
-          <div key={stat.label} className={`${stat.mood} stat-card p-4`}>
-            <p className="eyebrow flex items-center gap-2">
+          <div key={stat.label} className="dark-inset p-3">
+            <p className="flex items-center gap-2 text-xs t-dark-muted">
               <span className="dot-badge h-2 w-2 t-mood" aria-hidden="true" />
               {stat.label}
             </p>
-            <p className="stat-value mt-4">{stat.value}</p>
+            <p className="mt-1 text-xl font-semibold t-dark">{stat.value}</p>
           </div>
         ))}
       </div>
 
       {authStatus === "authenticated" && workspaceStatus === "ready" && <section className="dark-panel p-4 md:p-5" aria-label="Project accountability overview">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="eyebrow t-mood">Project health</p><h2 className="mt-2 text-2xl font-semibold t-dark"><UnderlineHeading>Your current project rhythm</UnderlineHeading></h2><p className="mt-1 text-sm t-dark-muted">Workspace progress; open a project&apos;s GitHub tab to include its repository activity.</p></div>
+          <div><h2 className="mt-2 text-2xl font-semibold t-dark"><UnderlineHeading>Your current project rhythm</UnderlineHeading></h2><p className="mt-1 text-sm t-dark-muted">Workspace progress; open a project&apos;s GitHub tab to include its repository activity.</p></div>
           <span className="dark-chip px-2.5 py-1 text-xs">Private workspace</span>
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -1705,38 +1738,6 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
-          {/* TODAY NOTES — dark paper sheet, warm cream type, in both themes */}
-          <div className="dark-panel p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="section-title text-[30px]"><UnderlineHeading>Today</UnderlineHeading></h2>
-              <button type="button" onClick={() => setActiveView("today")} className="text-sm font-semibold underline decoration-[var(--edge-dark)] underline-offset-4">
-                Open today
-              </button>
-            </div>
-            <div className="space-y-3">
-              {todayTasks.map((task) => (
-                <div key={task.id} className="dark-inset p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium t-dark">{task.title}</p>
-                      <p className="mt-1 text-xs t-dark-soft">{projects.find((project) => project.id === task.projectId)?.name}</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={task.status === "Completed"}
-                      onChange={() => toggleTaskComplete(task.id)}
-                      className="h-4 w-4"
-                    />
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className={priorityColors[task.priority]}>{task.priority}</span>
-                    <span className="text-[10px] uppercase tracking-[0.15em] t-dark-soft">{task.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="paper-card p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="section-title text-[30px]"><UnderlineHeading>Upcoming</UnderlineHeading></h2>
@@ -1818,11 +1819,12 @@ export default function Home() {
   const adjustPausedFocus = (delta: number) => setFocusSession((session) => session ? adjustPausedFocusSession(session, delta) : null);
 
   const renderTodayPage = () => (
-    <div className="notebook-today space-y-6">
+    <div className="notebook-today daily-surface space-y-6">
+      <h1 data-page-title className="text-2xl t-dark">Today</h1>
       <section className="dark-panel p-4 md:p-5" aria-label="Focus session">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3 border-b border-[var(--edge-dark)] pb-3">
-            <div><p className="eyebrow t-mood">{currentFocusSession?.status === "running" ? "Focus session" : currentFocusSession?.status === "paused" ? "Paused" : "Focus"}</p><p className="mt-1 text-sm t-dark-muted">{currentFocusSession ? <>{activeFocusTaskTitle}{activeFocusTask?.status === "Completed" && <span className="ml-2 text-xs">· Task completed</span>}</> : selectedFocusTask?.status !== "Completed" && selectedFocusTask ? `${selectedFocusTask.title} · ${projects.find((project) => project.id === selectedFocusTask.projectId)?.name ?? "Project"}` : "No task selected · General focus session"}</p></div>
+            <div><h2 className="text-lg font-semibold t-dark">{currentFocusSession?.status === "running" ? "Focus session" : currentFocusSession?.status === "paused" ? "Paused" : "Focus"}</h2><p className="mt-1 text-sm t-dark-muted">{currentFocusSession ? <>{activeFocusTaskTitle}{activeFocusTask?.status === "Completed" && <span className="ml-2 text-xs">· Task completed</span>}</> : selectedFocusTask?.status !== "Completed" && selectedFocusTask ? `${selectedFocusTask.title} · ${projects.find((project) => project.id === selectedFocusTask.projectId)?.name ?? "Project"}` : "No task selected · General focus session"}</p></div>
             {currentFocusSession?.status === "completed" && <span className="text-sm font-semibold t-mood" role="status" aria-live="polite">Focus session complete</span>}
           </div>
 
@@ -1870,12 +1872,12 @@ export default function Home() {
         <div className="dark-panel p-4">
           <h3 className="t-dark mb-4 text-lg font-semibold">Today&apos;s tasks</h3>
           <div className="space-y-3">
-            {tasks.slice(0, 5).map((task) => (
+            {tasks.length === 0 && <div><h4 data-empty-state-heading className="text-xl">No tasks yet</h4><button type="button" onClick={() => handleCreateTask()} className="ink-button primary mt-3 px-3 py-2 text-sm">Create a task</button></div>}{tasks.slice(0, 5).map((task) => (
               <div key={task.id} className="dark-inset flex items-center justify-between gap-3 p-3">
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
-                    checked={task.status === "Completed"}
+                    aria-label={`Complete ${task.title}`} checked={task.status === "Completed"}
                     onChange={() => toggleTaskComplete(task.id)}
                     className="h-4 w-4"
                   />
@@ -2587,8 +2589,8 @@ export default function Home() {
   );
 
   const renderPlansPage = () => (
-    <div className="notebook-dense space-y-6">
-      <div className="flex justify-end"><button type="button" onClick={handleCreatePlan} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New plan</button></div>
+    <div className="notebook-dense daily-surface space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 data-page-title className="text-2xl t-dark">Plans</h1><button type="button" onClick={handleCreatePlan} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New plan</button></div>
       <div className="grid gap-4 lg:grid-cols-3">
         {plans.map((plan) => {
           const doneCount = plan.tasks.filter((task) => task.done).length;
@@ -2640,7 +2642,7 @@ export default function Home() {
             </div>
           );
         })}
-        {plans.length === 0 && <p className="dark-panel p-4 text-sm t-dark-muted">No plans yet.</p>}
+        {plans.length === 0 && <div className="dark-panel p-4"><h2 data-empty-state-heading className="text-xl t-dark">No plans yet</h2><p className="mt-2 text-sm t-dark-muted">Use New plan to set a goal and its next steps.</p></div>}
       </div>
     </div>
   );
@@ -2691,10 +2693,10 @@ export default function Home() {
     const visibleNotes = noteProjectFilter ? notes.filter((note) => note.projectId === noteProjectFilter) : notes;
     const documentationProject = projects.find((project) => project.id === noteProjectFilter);
     return (
-    <div className="notebook-dense space-y-6">
+    <div className="notebook-dense daily-surface space-y-6">
       <div className={`grid gap-6 ${learningItems.length ? "xl:grid-cols-2" : ""}`}>
         <div className="dark-panel p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-lg font-semibold t-dark">{documentationProject ? `${documentationProject.name} documentation` : "Notes"}</h3>{documentationProject && <p className="mt-1 text-xs t-dark-muted">Project documentation and notes</p>}</div><div className="flex flex-wrap gap-2">{documentationProject && <button type="button" onClick={() => setNoteProjectFilter("")} className="dark-chip px-3 py-2 text-sm">All notes</button>}<button type="button" onClick={() => documentationProject ? setNoteEditor({ title: "Documentation", content: "", projectId: documentationProject.id }) : handleCreateNote()} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> {documentationProject ? "Add documentation" : "New note"}</button></div></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><div><h1 data-page-title className="text-2xl t-dark">{documentationProject ? `${documentationProject.name} documentation` : "Notes"}</h1>{documentationProject && <p className="mt-1 text-xs t-dark-muted">Project documentation and notes</p>}</div><div className="flex flex-wrap gap-2">{documentationProject && <button type="button" onClick={() => setNoteProjectFilter("")} className="dark-chip px-3 py-2 text-sm">All notes</button>}<button type="button" onClick={() => documentationProject ? setNoteEditor({ title: "Documentation", content: "", projectId: documentationProject.id }) : handleCreateNote()} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> {documentationProject ? "Add documentation" : "New note"}</button></div></div>
           <div className="mt-4 space-y-3">
             {visibleNotes.map((note) => (
               <div key={note.id} className="dark-inset p-3">
@@ -2702,7 +2704,7 @@ export default function Home() {
                 <p className="mt-2 text-sm t-dark-muted">{note.content}</p>
               </div>
             ))}
-            {visibleNotes.length === 0 && <div className="rounded-xl dark-inset p-3 text-sm t-dark-muted">{documentationProject ? "No documentation yet." : "No notes yet."} Use the action above to add one.</div>}
+            {visibleNotes.length === 0 && <div className="rounded-xl dark-inset p-3 text-sm t-dark-muted"><h2 data-empty-state-heading className="text-xl t-dark">{documentationProject ? "No documentation yet" : "No notes yet"}</h2><p className="mt-2">Use the action above to add one.</p></div>}
           </div>
         </div>
 
@@ -2727,7 +2729,8 @@ export default function Home() {
   };
 
   const renderTechPage = () => (
-    <div className="notebook-dense space-y-4">
+    <div className="notebook-dense daily-surface space-y-4">
+      <h1 data-page-title className="text-2xl t-dark">Tech Stack</h1>
       <form onSubmit={(event) => void handleTechnologySave(event)} className="dark-panel flex flex-col gap-2 p-4 sm:flex-row">
         <input aria-label="Technology name" value={technologyName} onChange={(event) => setTechnologyName(event.target.value)} required placeholder="Technology name" className="dark-chip min-w-0 flex-1 px-3 py-2 text-sm" />
         <select aria-label="Project for technology" value={technologyProjectId} onChange={(event) => setTechnologyProjectId(event.target.value)} className="dark-chip px-3 py-2 text-sm">
@@ -2750,14 +2753,14 @@ export default function Home() {
           </div>
         </div>
       ))}
-      {technologies.length === 0 && <p className="dark-panel p-4 text-sm t-dark-muted">No technologies yet.</p>}
+      {technologies.length === 0 && <div className="dark-panel p-4"><h2 data-empty-state-heading className="text-xl t-dark">No technologies yet</h2><p className="mt-2 text-sm t-dark-muted">Add a technology above, then link it to your projects.</p></div>}
       </div>
     </div>
   );
 
   const renderSettingsPage = () => (
-    <div className="notebook-dense dark-panel p-6">
-      <h2 className="text-2xl font-semibold t-dark">Workspace settings</h2>
+    <div className="notebook-dense daily-surface settings-surface dark-panel p-4 md:p-6">
+      <h1 data-page-title className="text-2xl t-dark">Workspace settings</h1>
       <p className="mt-2 t-dark-muted">Your account is verified by Supabase Auth. Authenticated workspace data is stored in Supabase; local browser storage is used only by the unauthenticated prototype.</p>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <div className="dark-inset p-4">

@@ -1922,6 +1922,7 @@ html[data-theme] .notebook-public-accountability { --ink: var(--nb-ink); --muted
 html[data-theme] .notebook-workspace :where(*) { font-family: inherit; }
 html[data-theme] .notebook-workspace :is(pre, code, kbd, samp, .font-mono) { font-family: var(--font-geist-mono), monospace; }
 html[data-theme] .notebook-workspace .workspace-header h1,
+html[data-theme] .notebook-workspace [data-page-title],
 html[data-theme] .notebook-workspace [data-empty-state-heading] { font-family: var(--font-caveat), cursive; }
 /* Dialog/form/status context always wins over a decorative heading hook. */
 html[data-theme] .notebook-workspace :is(form, dialog, [role="dialog"], [role="status"], [role="alert"]),
@@ -2123,3 +2124,26 @@ html[data-theme] .notebook-workspace .workspace-content button.soft-pill[aria-pr
   .notebook-workspace .project-detail-switcher label { flex-basis: 100%; }
   .notebook-workspace .project-action-popover { right: 0; left: auto; width: 100%; }
 }
+/* Daily work uses the shared operational surfaces; decoration stays public. */
+.notebook-workspace .daily-surface { min-width: 0; }
+.notebook-workspace .daily-surface :where(h1,h2,h3,h4,p,label) { overflow-wrap: anywhere; }
+.notebook-workspace .daily-surface :where(.flex > div) { min-width: 0; }
+.notebook-workspace .daily-surface select { min-width: 0; max-width: 100%; }
+.notebook-workspace .daily-surface [data-page-title] { margin: 0; }
+.notebook-workspace .dashboard-next .dark-inset { border: 0; border-top: 1px solid var(--edge-dark); border-radius: 0; padding-inline: 0; }
+.notebook-workspace .dashboard-totals { font-variant-numeric: tabular-nums; }
+.notebook-workspace .dashboard-totals .dot-badge { display: none; }
+.notebook-workspace .daily-surface nav [aria-pressed="true"] { background: var(--workspace-action); color: var(--workspace-on-action); font-weight: 700; }
+@media (min-width: 768px) {
+  .notebook-workspace .dashboard-next > .space-y-3 { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 24px; }
+  .notebook-workspace .dashboard-next > .space-y-3 > * { margin-block: 0; }
+}
+html[data-theme] .notebook-workspace .daily-surface :is(.dark-panel,.paper-card,.stat-card,.hero-paper)::before { content: none; }
+html[data-theme] .notebook-workspace .daily-surface :is(.dark-panel,.paper-card,.stat-card,.hero-paper) { transform: none; }
+@media (max-width: 767px) {
+  .notebook-workspace .daily-surface .flex.items-center.justify-between { flex-wrap: wrap; }
+  .notebook-workspace .notebook-today .dark-inset { flex-wrap: wrap; }
+}
+
+/* Keep enlarged date targets separate inside the existing calendar scroller. */
+.notebook-workspace .notebook-calendar [role="grid"] { min-inline-size: 420px; }

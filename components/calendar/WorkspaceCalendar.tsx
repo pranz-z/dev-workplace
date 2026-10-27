@@ -89,7 +89,7 @@ function CalendarEventCard({
       data-overdue={overdue || undefined}
       className={`calendar-event-card flex min-w-0 items-center gap-0.5 rounded border px-0.5 py-0.5 ${event.completed ? "border-[var(--edge-cream)] opacity-60" : overdue ? "border-[var(--accent-peach-solid)]" : "border-[var(--edge-cream)]"} ${compact ? "text-[9px]" : "text-xs"}`}
     >
-      <div className="notebook-calendar-event">
+      <div className="daily-surface notebook-calendar-event">
         {!busy && (
         <button
           type="button"
@@ -278,10 +278,10 @@ export function WorkspaceCalendar({ projects, tasks, milestones, busy, onCreateT
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-      <div className="notebook-calendar space-y-4">
+      <div className="daily-surface notebook-calendar space-y-4">
         <header className="dark-panel space-y-4 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2"><CalendarDays size={19} className="t-mood" /><div><p className="eyebrow t-mood">Private workspace</p><h1 className="text-xl font-semibold t-dark">Calendar</h1></div></div>
+            <div className="flex items-center gap-2"><CalendarDays size={19} className="t-mood" /><div><h1 data-page-title className="text-2xl t-dark">Calendar</h1></div></div>
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => changeMonth(-1)} className="dark-chip p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--ink-green)]" aria-label="Previous month"><ChevronLeft size={16} /></button>
               <button type="button" onClick={() => { const current = localCalendarDate(new Date(), timeZone); setNow(new Date()); setSelectedDate(current); }} className="dark-chip px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--ink-green)]">Today</button>
