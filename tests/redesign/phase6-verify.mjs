@@ -1,0 +1,10 @@
+import {spawnSync} from 'node:child_process';
+import {writeFile,mkdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {defaultEsbuild} from './build-fixture.mjs';
+const output=process.argv[2];await mkdir(output,{recursive:true});
+const files=['lib/portfolio-routes.test.mjs','lib/portfolio/resume-content.test.mjs','lib/portfolio/cms-database.test.mjs','lib/public-ai/public-ai.test.mjs','components/public-ai/public-ai-concierge.test.mjs','lib/project-video/policy.test.mjs','lib/project-video/client.test.mjs','lib/project-video/server.test.mjs','lib/project-video/database.test.mjs','lib/project-video/migration-replay.test.mjs','lib/ai/agent/phase5d-projection.test.mjs','lib/security/content-security-policy.test.mjs','tests/redesign/source-guard.test.mjs','tests/redesign/isolation.test.mjs'];
+const pglite='C:/Users/Franz/AppData/Local/Temp/workspace-agent-phase2-tools/node_modules/@electric-sql/pglite/dist/index.js';
+const run=spawnSync(process.execPath,['--test','--test-reporter=tap','--test-concurrency=2',...files],{env:{...process.env,PORTFOLIO_TEST_ESBUILD_MODULE:defaultEsbuild,PORTFOLIO_TEST_PGLITE_MODULE:pglite,AGENT_TEST_PGLITE_MODULE:pglite},encoding:'utf8',maxBuffer:24e6});
+const log=run.stdout+run.stderr,counts={};for(const key of ['tests','pass','fail','skipped'])counts[key]=Number([...log.matchAll(new RegExp(`^# ${key} (\\d+)`,'gm'))].at(-1)?.[1]??0);
+await writeFile(resolve(output,'public-tests.log'),log);await writeFile(resolve(output,'public-tests.json'),JSON.stringify({files,exitCode:run.status,counts},null,2));console.log(JSON.stringify(counts));process.exitCode=run.status??1;
