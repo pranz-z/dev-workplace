@@ -229,9 +229,9 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
               {/* Signed URLs are temporary and scoped to the authenticated user's private bucket access. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={screenshot.signedUrl} alt={screenshot.caption || "Project screenshot"} className="aspect-video w-full object-cover" />
-              <div className="flex items-start justify-between gap-2 p-3">
+              <div className="project-screenshot-caption p-3">
                 <p className="min-w-0 break-words text-sm t-dark-soft">{screenshot.caption || "No caption"}</p>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   {dragHandle}
                   <button type="button" onClick={() => void handleVisibility(screenshot)} disabled={saving} aria-pressed={screenshot.isPublic} className="dark-chip px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-coral)] disabled:opacity-50">{screenshot.isPublic ? "Public" : "Private"}</button>
                   <button type="button" onClick={() => void handleRemove(screenshot)} disabled={saving} aria-label={`Remove screenshot${screenshot.caption ? `: ${screenshot.caption}` : ""}`} className="dark-chip p-2 transition-colors hover:text-[var(--accent-coral)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-coral)] disabled:opacity-50"><Trash2 size={14} /></button>

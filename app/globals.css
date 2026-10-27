@@ -2092,3 +2092,34 @@ html[data-theme] .notebook-workspace :is(.workspace-context, .workspace-drawer) 
   .notebook-workspace .workspace-center { padding-bottom: 72px; }
   .notebook-workspace .workspace-context-drawer { width: 100vw; }
 }
+
+/* Phase 3: project detail is a primary surface; metadata cannot bury its tabs. */
+html[data-theme] .notebook-workspace summary { min-inline-size: 44px; min-block-size: 44px; }
+html[data-theme] .notebook-workspace summary:focus-visible { outline: 3px solid var(--workspace-focus); outline-offset: 3px; }
+.notebook-workspace .project-detail { position: relative; }
+html[data-theme] .notebook-workspace .workspace-content button.soft-pill[aria-pressed="true"] { background: var(--workspace-action); color: var(--workspace-on-action); border-color: var(--workspace-action); font-weight: 700; }
+.notebook-workspace .project-collection .project-card { border: 1px solid var(--workspace-edge); background: var(--workspace-surface); box-shadow: none; transform: none; }
+.notebook-workspace .project-collection .project-card::before { display: none; }
+.notebook-workspace .project-detail-switcher { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.notebook-workspace .project-detail-switcher label { display: flex; flex: 0 1 420px; align-items: center; }
+.notebook-workspace .project-detail-switcher select { min-width: 44px; width: 100%; flex: 1; }
+.notebook-workspace .project-detail-header { position: relative; }
+.notebook-workspace .project-detail-header h2 { font-size: clamp(20px, 2vw, 26px); line-height: 1.25; }
+.notebook-workspace .project-actions { position: static; }
+.notebook-workspace :is(.project-actions, .project-editor-optional) > summary { display: flex; min-width: 44px; min-height: 44px; align-items: center; padding: 8px 12px; border: 1px solid var(--workspace-edge); border-radius: var(--workspace-radius-control); cursor: pointer; }
+.notebook-workspace :is(.project-actions, .project-editor-optional) > summary::after { content: "▾"; margin-left: auto; padding-left: 12px; }
+.notebook-workspace :is(.project-actions, .project-editor-optional) > summary:focus-visible { outline: 3px solid var(--workspace-focus); outline-offset: 3px; }
+.notebook-workspace .project-action-popover { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: min(440px, 100%); max-height: 65dvh; overflow: auto; padding: 16px; border: 1px solid var(--workspace-edge); border-radius: var(--workspace-radius-overlay); background: var(--workspace-surface); box-shadow: var(--workspace-shadow-overlay); }
+.notebook-workspace [data-project-tab-content] { padding-top: 16px; min-width: 0; }
+.notebook-workspace .project-screenshot-caption { display: grid; min-width: 0; gap: 12px; }
+.notebook-workspace .project-screenshot-caption > p { width: 100%; overflow-wrap: anywhere; }
+.notebook-workspace .project-editor-form fieldset { border: 0; padding: 0; }
+.notebook-workspace .project-editor-form { grid-template-columns: minmax(0, 1fr); }
+.notebook-workspace .project-editor-form > div:last-child { grid-column: 1; }
+.notebook-workspace .project-editor-form fieldset > label { min-width: 0; }
+.notebook-workspace .task-board-navigation { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-block: 8px; }
+@media (max-width: 700px) {
+  .notebook-workspace .project-detail-switcher { align-items: stretch; }
+  .notebook-workspace .project-detail-switcher label { flex-basis: 100%; }
+  .notebook-workspace .project-action-popover { right: 0; left: auto; width: 100%; }
+}

@@ -330,6 +330,11 @@ export default function Home() {
   const [projectScreenshotsState, setProjectScreenshotsState] = useState<{ projectId: string; screenshots: ProjectScreenshot[]; error: string } | null>(null);
   const [projectGithubLinkState, setProjectGithubLinkState] = useState<{ projectId: string; connected: boolean; error: string } | null>(null);
   const [projectView, setProjectView] = useState<"grid" | "list" | "kanban">("grid");
+  const [projectDetailOpen, setProjectDetailOpen] = useState(false);
+  const [projectStatusFilter, setProjectStatusFilter] = useState("all");
+  const [collectionScroll, setCollectionScroll] = useState(0);
+  const collectionHeading = useRef<HTMLHeadingElement>(null);
+  const projectOptionalFields = useRef<HTMLDetailsElement>(null);
   const [taskView, setTaskView] = useState<"list" | "kanban" | "today" | "upcoming">("kanban");
   const [taskBoardProjectId, setTaskBoardProjectId] = useState("");
   const [taskListSort, setTaskListSort] = useState<TaskListSort>("workspace");
@@ -737,6 +742,7 @@ export default function Home() {
     }
     setActiveView("projects");
     if (action === "screenshots") setProjectTab("Screenshots");
+    setProjectDetailOpen(true);
     if (action === "github") setProjectTab("GitHub");
     if (action === "testing") {
       setProjectTaskFilter("testing");
@@ -841,9 +847,13 @@ export default function Home() {
       draggable={authStatus === "authenticated" && workspaceStatus === "ready"}
       onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "project", id: project.id })); event.dataTransfer.effectAllowed = "copy"; }}
       onClick={() => {
+        if (activeView === "projects" && !projectDetailOpen) setCollectionScroll(window.scrollY);
+        setProjectDetailOpen(true);
         setSelectedProjectId(project.id);
         setActiveView("projects");
+        requestAnimationFrame(() => window.scrollTo(0, 0));
       }}
+      data-project-id={project.id}
       className={`project-card group w-full p-4 text-left ${projectMood(project.id)} ${
         selectedProject?.id === project.id ? "is-selected" : ""
       }`}
@@ -996,12 +1006,14 @@ export default function Home() {
       const result = projectEditor.id ? await updateProject(projectEditor.id, draft) : await createProject(draft);
       if (!result.ok) {
         setWorkspaceError(result.error);
+        if (projectOptionalFields.current) projectOptionalFields.current.open = true;
         return;
       }
       setProjects((current) => projectEditor.id
         ? current.map((project) => project.id === result.data.id ? result.data : project)
         : [result.data, ...current]);
       setSelectedProjectId(result.data.id);
+      setProjectDetailOpen(true);
       setProjectEditor(null);
       setWorkspaceError("");
       setActiveView("projects");
@@ -1442,6 +1454,7 @@ export default function Home() {
 
     setProjects((current) => [newProject, ...current]);
     setSelectedProjectId(newProject.id);
+    setProjectDetailOpen(true);
     setGithubImportOpen(false);
     setActiveView("projects");
   };
@@ -1648,7 +1661,7 @@ export default function Home() {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="section-title text-[30px]"><UnderlineHeading>Active Projects</UnderlineHeading></h2>
-              <button type="button" onClick={() => setActiveView("projects")} className="text-sm font-semibold underline decoration-[var(--edge-cream)] underline-offset-4">
+              <button type="button" onClick={() => { setProjectDetailOpen(false); setActiveView("projects"); }} className="text-sm font-semibold underline decoration-[var(--edge-cream)] underline-offset-4">
                 View all
               </button>
             </div>
@@ -1659,7 +1672,7 @@ export default function Home() {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="section-title text-[30px]"><UnderlineHeading>Current Workflow</UnderlineHeading></h2>
-              <button type="button" onClick={() => setActiveView("projects")} className="text-sm font-semibold underline decoration-[var(--edge-cream)] underline-offset-4">
+              <button type="button" onClick={() => { setProjectDetailOpen(false); setActiveView("projects"); }} className="text-sm font-semibold underline decoration-[var(--edge-cream)] underline-offset-4">
                 Open workflow
               </button>
             </div>
@@ -1908,10 +1921,13 @@ export default function Home() {
   );
 
   const openProjectDetail = (project: Project) => {
+    if (activeView === "projects" && !projectDetailOpen) setCollectionScroll(window.scrollY);
+    setProjectDetailOpen(true);
     setOpenProjectIds((current) => [...current.filter((id) => id !== project.id), project.id].slice(-8));
     setSelectedProjectId(project.id);
     setProjectTab("Overview");
     setActiveView("projects");
+    requestAnimationFrame(() => window.scrollTo(0, 0));
   };
 
   const openCalendarEvent = (event: WorkspaceCalendarEvent) => {
@@ -1924,6 +1940,7 @@ export default function Home() {
       const milestone = milestones.find((item) => item.id === event.entityId);
       if (!milestone) return;
       setSelectedProjectId(milestone.projectId);
+      setProjectDetailOpen(true);
       setProjectTab("Milestones");
       setActiveView("projects");
       handleEditMilestone(milestone);
@@ -2015,15 +2032,21 @@ export default function Home() {
     const visibleProjectTasks = projectTaskFilter === "testing" ? testingTasks : projectTasks;
 
     return (
-      <div className="dark-panel p-4">
-        <div className="flex flex-col gap-4 border-b border-[var(--edge-dark)] pb-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+      <div className="project-detail dark-panel p-4">
+        <div className="project-detail-switcher">
+          <button type="button" onClick={() => { setProjectDetailOpen(false); requestAnimationFrame(() => { const card = document.querySelector<HTMLElement>(`.project-collection [data-project-id="${selectedProject.id}"]`); if (card) { card.focus({ preventScroll: true }); window.scrollTo(0, collectionScroll); } else collectionHeading.current?.focus(); }); }} className="dark-chip px-3 py-2 text-sm" aria-label="Back to projects">← Projects</button>
+          <label className="min-w-0 text-sm t-dark-muted">Switch project<select aria-label="Switch project" value={selectedProject.id} onChange={event => { const project = projects.find(item => item.id === event.target.value); if (project) openProjectDetail(project); }} className="dark-chip ml-2 max-w-full px-3 py-2">{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+        </div>
+        <div className="project-detail-header flex flex-col gap-3 border-b border-[var(--edge-dark)] pb-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
             <p className="eyebrow t-mood">{selectedProject.type}</p>
-            <h2 className="mt-2 text-3xl font-semibold t-dark">{selectedProject.name}</h2>
-            <p className="mt-2 max-w-2xl text-sm t-dark-muted">{selectedProject.description}</p>
+            <h2 className="mt-1 text-2xl font-semibold t-dark">{selectedProject.name}</h2>
+            <span className={`${statusColors[selectedProject.status] ?? "badge"} mt-2 inline-flex`}>{selectedProject.status}</span>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => handleEditProject(selectedProject)} className="dark-chip px-3 py-2 text-sm">Edit</button>
+            <details className="project-actions" onBlur={event => { if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false; }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
+            <summary>Project actions</summary><div className="project-action-popover"><div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => void handleDeleteProject(selectedProject)} className="dark-chip px-3 py-2 text-sm hover:text-[var(--accent-coral)]">Delete</button>
             <a href="/api/github/connect" className="dark-chip px-3 py-2 text-sm">Connect GitHub</a>
             {(selectedProject.visibility ?? "Private") !== "Private" && <button type="button" onClick={() => sharePublicProject(selectedProject)} className="rounded-xl ink-button px-3 py-2 text-sm">Open Public View</button>}
@@ -2032,7 +2055,6 @@ export default function Home() {
               {showcaseMode === "workspace" ? "Preview Public Project" : "Return to workspace"}
             </button>
           </div>
-        </div>
 
         <div className="mt-3 flex flex-col gap-3 dark-inset p-3 sm:flex-row sm:items-center sm:justify-between">
           <label className="flex items-center gap-3 text-sm t-dark-muted">
@@ -2059,13 +2081,15 @@ export default function Home() {
           <PublicAccountabilitySettings key={selectedProject.id} projectId={selectedProject.id} />
         )}
         {shareNotice?.projectId === selectedProject.id && <p role="status" className="mt-2 text-sm t-dark-muted">{shareNotice.message}</p>}
+        </div></details></div></div>
 
-        <div className="mt-4 flex flex-wrap gap-2 border-b border-[var(--edge-dark)] pb-4">
+        <nav aria-label="Project tabs" className="project-detail-tabs mt-3 flex flex-wrap gap-2 border-b border-[var(--edge-dark)] pb-3">
           {["Overview", "Workflow", "Tasks", "Milestones", "Screenshots", "GitHub"].map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => { setProjectTab(tab); if (tab === "Tasks") setProjectTaskFilter("all"); }}
+              aria-pressed={projectTab === tab}
               className={`soft-pill px-3 py-1.5 text-xs ${
                 projectTab === tab ? "is-selected" : "t-dark-muted"
               }`}
@@ -2073,9 +2097,9 @@ export default function Home() {
               {tab}
             </button>
           ))}
-        </div>
+        </nav>
 
-        {showcaseMode === "showcase" ? (
+        <div data-project-tab-content aria-label={`${projectTab} content`}>{showcaseMode === "showcase" ? (
           <div className="mt-6 space-y-5">
             <div className="dark-inset mood-peach p-5">
               <p className="eyebrow t-mood">Portfolio preview</p>
@@ -2100,6 +2124,7 @@ export default function Home() {
           <div className="mt-6 space-y-6">
             {projectTab === "Overview" && (
               <div className="space-y-4">
+                <section className="project-description dark-inset p-4"><h3 className="font-semibold t-dark">About this project</h3><p className="mt-2 text-sm t-dark-muted">{selectedProject.description}</p></section>
                 {authStatus === "authenticated" && workspaceStatus === "ready" && <div className="dark-panel p-4"><p className="mb-3 text-sm font-medium t-dark">AI actions</p><AiAssistant
                   key={`project-ai-${selectedProject.id}`}
                   mode="project"
@@ -2301,18 +2326,19 @@ export default function Home() {
 
             {projectTab === "GitHub" && <GithubRepositoryBrowser projects={projects} projectId={selectedProject.id} tasks={tasks} milestones={milestones} plans={plans} showAccountability={authStatus === "authenticated" && workspaceStatus === "ready"} onLinked={() => window.location.reload()} />}
           </div>
-        )}
+        )}</div>
       </div>
     );
   };
 
-  const renderProjectsPage = () => (
-    <div className="space-y-6">
+  const collectionProjects = projects.filter(project => project.name.toLowerCase().includes(contextQuery.toLowerCase()) && (projectStatusFilter === "all" || project.status === projectStatusFilter));
+  const renderProjectsPage = () => projectDetailOpen && selectedProject ? renderProjectDetail() : (
+    <div className="project-collection space-y-6">
       <div className="dark-panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="eyebrow t-mood">Portfolio workspace</p>
-            <h2 className="mt-2 text-2xl font-semibold t-dark">Projects</h2>
+            <h2 ref={collectionHeading} tabIndex={-1} className="mt-2 text-2xl font-semibold t-dark">Projects</h2>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={handleCreateProject} className="ink-button primary px-3 py-2 text-sm"><Plus size={14} className="mr-1 inline" /> New project</button>
@@ -2321,6 +2347,7 @@ export default function Home() {
                 key={view}
                 type="button"
                 onClick={() => setProjectView(view)}
+                aria-pressed={projectView === view}
                 className={`soft-pill px-3 py-1.5 text-xs ${projectView === view ? "is-selected" : "t-dark-muted"}`}
               >
                 {view}
@@ -2330,21 +2357,23 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+      <div className="project-collection-filters dark-panel flex flex-wrap gap-3 p-4"><label className="min-w-0 flex-1 text-sm">Find a project<input aria-label="Filter project collection" value={contextQuery} onChange={event => setContextQuery(event.target.value)} className="dark-chip mt-1 w-full px-3 py-2" /></label><label className="text-sm">Status<select aria-label="Project status filter" value={projectStatusFilter} onChange={event => setProjectStatusFilter(event.target.value)} className="dark-chip mt-1 block max-w-full px-3 py-2"><option value="all">All statuses</option>{[...new Set(projects.map(project => project.status))].map(status => <option key={status}>{status}</option>)}</select></label></div>
+      <div>
         <div className="space-y-4">
           {projectView === "grid" && (
-            <div className="grid gap-4 md:grid-cols-2">{projects.map(renderProjectCard)}{projects.length === 0 && <div className="dark-panel p-5 text-sm t-dark-muted">No projects yet. Create a project to start your workspace.</div>}</div>
+            <div className="grid gap-4 md:grid-cols-2">{collectionProjects.map(renderProjectCard)}</div>
           )}
 
           {projectView === "list" && (
             <div className="space-y-3 dark-panel p-3">
-              {projects.map((project) => (
+              {collectionProjects.map((project) => (
                 <button
                   key={project.id}
                   type="button"
                   draggable={authStatus === "authenticated" && workspaceStatus === "ready"}
                   onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "project", id: project.id })); event.dataTransfer.effectAllowed = "copy"; }}
                   onClick={() => openProjectDetail(project)}
+                  data-project-id={project.id}
                   className="flex w-full flex-col gap-2 dark-inset p-3 text-left md:flex-row md:items-center md:justify-between"
                 >
                   <div>
@@ -2362,9 +2391,9 @@ export default function Home() {
 
           {projectView === "kanban" && (
             <ProjectKanbanBoard
-              projects={projects}
+              projects={collectionProjects}
               selectedProjectId={selectedProject?.id ?? ""}
-              busy={authStatus !== "authenticated" || workspaceStatus !== "ready" || isPersistingOrder}
+              busy={authStatus !== "authenticated" || workspaceStatus !== "ready" || isPersistingOrder || contextQuery !== "" || projectStatusFilter !== "all"}
               onSelect={(projectId) => {
                 const project = projects.find((item) => item.id === projectId);
                 if (project) openProjectDetail(project);
@@ -2374,7 +2403,8 @@ export default function Home() {
           )}
         </div>
 
-        <div>{renderProjectDetail()}</div>
+        {collectionProjects.length === 0 && <div className="dark-panel p-5 text-sm t-dark-muted"><h3 data-empty-state-heading className="text-xl">{projects.length ? "No matching projects" : "No projects yet"}</h3><p>Create a project or adjust your filters.</p>{(contextQuery || projectStatusFilter !== "all") && <button type="button" onClick={() => { setContextQuery(""); setProjectStatusFilter("all"); }} className="dark-chip mt-3 px-3 py-2">Clear project collection filters</button>}</div>}
+        {(contextQuery || projectStatusFilter !== "all") && projectView === "kanban" && <p className="text-sm t-dark-muted">Clear collection filters to reorder projects.</p>}
       </div>
     </div>
   );
@@ -2474,6 +2504,7 @@ export default function Home() {
                 key={view}
                 type="button"
                 onClick={() => setTaskView(view)}
+                aria-pressed={taskView === view}
                 className={`soft-pill px-3 py-1.5 text-xs ${taskView === view ? "is-selected" : "t-dark-muted"}`}
               >
                 {view}
@@ -2502,6 +2533,7 @@ export default function Home() {
               </label>
             </div>
           </header>
+          {!taskBoardProjectId && tasks.length > 0 && <p className="mb-3 text-sm t-dark-muted">Task order is saved per project. Choose a project to reorder its tasks; the mixed-project board is read-only for ordering.</p>}
           {tasks.length === 0
             ? <p className="text-sm t-dark-muted">No tasks yet. Add a project before creating a task.</p>
             : <TaskKanbanBoard
@@ -2814,13 +2846,14 @@ export default function Home() {
   const navItems = navGroups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label }))).filter((item) => !unavailableViews.has(item.key as ViewName));
   const renderContext = () => {
     if (!workspaceAvailable) return <p className="text-sm t-dark-muted">Your workspace is loading.</p>;
+    if (activeView === "projects") return <div className="space-y-3"><button type="button" className="workspace-context-action" onClick={() => setProjectDetailOpen(false)}>Project collection</button><button type="button" className="workspace-context-action" onClick={handleCreateProject}>+ New project</button><p className="text-sm t-dark-muted">{projectDetailOpen ? "Use Switch project above the detail to move between projects." : "Compare projects, filter the collection, or choose a view."}</p></div>;
     if (activeView === "portfolio") return <div className="space-y-2">{portfolioTabs.map((tab) => <button key={tab} type="button" className="workspace-context-action" aria-current={portfolioTab === tab ? "page" : undefined} onClick={() => setPortfolioTab(tab)}>{tab}</button>)}</div>;
     const action = (label: string, click: () => void) => <button key={label} type="button" onClick={click} className="workspace-context-action">{label}</button>;
-    if (activeView === "projects" || activeView === "github") return <div className="space-y-3">
-      {action(activeView === "projects" ? "+ New project" : "Browse repositories", activeView === "projects" ? handleCreateProject : () => setGithubImportOpen(true))}
-      {activeView === "github" && <p className="text-xs t-dark-muted">GitHub sign-in verifies your identity. The GitHub App separately grants repository access.</p>}
+    if (activeView === "github") return <div className="space-y-3">
+      {action("Browse repositories", () => setGithubImportOpen(true))}
+      <p className="text-xs t-dark-muted">GitHub sign-in verifies your identity. The GitHub App separately grants repository access.</p>
       <input aria-label="Find a project" placeholder="Find a project" value={contextQuery} onChange={(event) => setContextQuery(event.target.value)} className="dark-chip w-full min-w-0 px-3 py-2 text-sm" />
-      {projects.filter((project) => project.name.toLowerCase().includes(contextQuery.toLowerCase())).map((project) => <button key={project.id} type="button" aria-current={selectedProject?.id === project.id ? "true" : undefined} onClick={() => { openProjectDetail(project); if (activeView === "github") setProjectTab("GitHub"); }} className="workspace-context-action"><span className="block truncate">{project.name}</span><span className="text-xs t-dark-muted">{project.currentPhase.toLowerCase().replaceAll("_", " ")}</span></button>)}
+      {projects.filter((project) => project.name.toLowerCase().includes(contextQuery.toLowerCase())).map((project) => <button key={project.id} type="button" aria-current={selectedProject?.id === project.id ? "true" : undefined} onClick={() => { openProjectDetail(project); setProjectTab("GitHub"); }} className="workspace-context-action"><span className="block truncate">{project.name}</span><span className="text-xs t-dark-muted">{project.currentPhase.toLowerCase().replaceAll("_", " ")}</span></button>)}
       {projects.length === 0 && <p className="text-sm t-dark-muted">Create a project to organize your work.</p>}
     </div>;
     if (activeView === "tasks") return <div className="space-y-3">{action("+ New task", () => handleCreateTask("", taskBoardProjectId || undefined))}<label className="block text-xs">Project<select aria-label="Filter tasks by project" value={taskBoardProjectId} onChange={(event) => setTaskBoardProjectId(event.target.value)} className="dark-chip mt-2 w-full min-w-0 p-2"><option value="">All projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>{(["list", "kanban", "today", "upcoming"] as const).map((view) => <button key={view} type="button" aria-pressed={taskView === view} onClick={() => setTaskView(view)} className="workspace-context-action capitalize">{view}</button>)}<p className="text-xs t-dark-muted">Today and Upcoming use your profile timezone. Edit dates in the task editor or Calendar.</p></div>;
@@ -2836,7 +2869,7 @@ export default function Home() {
 
   return (
     <div className="app-shell notebook-workspace min-h-screen text-[var(--ink)]">
-      <WorkspaceShell onToggleTheme={() => setThemeMode(document.documentElement.dataset.theme === "dark" ? "light" : "dark")} items={navItems} active={activeView} onNavigate={(key) => { if (key === "portfolio") setPortfolioOpened(true); if (key === "files") setFilesOpened(true); setActiveView(key as ViewName); }} context={renderContext()}
+      <WorkspaceShell onToggleTheme={() => setThemeMode(document.documentElement.dataset.theme === "dark" ? "light" : "dark")} items={navItems} active={activeView} onNavigate={(key) => { if (key === "portfolio") setPortfolioOpened(true); if (key === "files") setFilesOpened(true); if (key === "projects") setProjectDetailOpen(false); setActiveView(key as ViewName); }} context={renderContext()}
         actions={<>
           <button type="button" onClick={() => setSearchOpen(true)} aria-label="Search workspace" title="Search workspace (Ctrl/Cmd+K)" className="dark-chip inline-flex items-center gap-2 p-2"><Search size={16} /><span className="hidden xl:inline text-xs">Search workspace</span></button>
           <button type="button" onClick={() => setThemeMode((current) => current === "light" ? "dark" : current === "dark" ? "system" : "light")} className="dark-chip p-2" aria-label={`Change theme, currently ${themeMode}`} title={`Theme: ${themeMode}`}>{themeMode === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
@@ -2852,7 +2885,7 @@ export default function Home() {
           if(target.type==='plan'){const plan=plans.find(p=>p.id===target.id);setActiveView('plans');if(plan)handleEditPlan(plan);return;}
           if(target.type==='task'){const task=tasks.find(t=>t.id===target.id);if(task)handleEditTask(task);return;}
           if(target.type==='project'){const project=projects.find(p=>p.id===target.id);if(project)openProjectDetail(project);return;}
-          if(target.type==='milestone'){const milestone=milestones.find(m=>m.id===target.id);if(milestone){setSelectedProjectId(milestone.projectId);setProjectTab('Milestones');setActiveView('projects');handleEditMilestone(milestone);}}
+          if(target.type==='milestone'){const milestone=milestones.find(m=>m.id===target.id);if(milestone){setSelectedProjectId(milestone.projectId);setProjectDetailOpen(true);setProjectTab('Milestones');setActiveView('projects');handleEditMilestone(milestone);}}
         }} projects={projects} tasks={tasks} plans={plans} milestones={milestones} timeZone={workspaceTimeZone} open={aiOpen} onOpenChange={setAiOpen} inboxOpenRequest={inboxOpenRequest} onAgentApplied={async () => { const remote = await loadWorkspaceData(); if (!remote) throw new Error("Workspace refresh failed"); setTasks(remote.tasks); setProjects(remote.projects); setMilestones(remote.milestones); setPlans(remote.plans); }} /> : null}>
             {workspaceStatus === "checking" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Loading your workspace...</div>}
             {workspaceStatus === "error" && <div className="mb-4 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}</div>}
@@ -2941,20 +2974,24 @@ export default function Home() {
           <div className="dark-panel max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5 shadow-[var(--shadow-dark-lift)]">
             <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold t-dark">{projectEditor ? `${projectEditor.id ? "Edit" : "New"} project` : taskEditor ? `${taskEditor.id ? "Edit" : "New"} task` : planEditor ? `${planEditor.id ? "Edit" : "New"} plan` : milestoneEditor ? `${milestoneEditor.id ? "Edit" : "New"} milestone` : `${noteEditor?.id ? "Edit" : "New"} note`}</h2><button type="button" onClick={closeWorkspaceEditor} className="dark-chip p-2" aria-label="Close editor" disabled={isSavingEditor}><X size={15} /></button></div>
             {workspaceError && <p role="alert" className="mb-3 text-sm text-[var(--accent-peach)]">{workspaceError}</p>}
-            {projectEditor && <form onSubmit={(event) => void saveProject(event)} className="grid gap-3 sm:grid-cols-2">
-              <label className="text-sm t-dark-muted">Title<input autoFocus required value={projectEditor.name} onChange={(event) => setProjectEditor({ ...projectEditor, name: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
-              <label className="text-sm t-dark-muted">Type<input value={projectEditor.type} onChange={(event) => setProjectEditor({ ...projectEditor, type: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
-              <label className="text-sm t-dark-muted sm:col-span-2">Description<textarea value={projectEditor.description} onChange={(event) => setProjectEditor({ ...projectEditor, description: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" rows={2} /></label>
-              <label className="text-sm t-dark-muted">Status<select value={projectEditor.status} onChange={(event) => setProjectEditor({ ...projectEditor, status: event.target.value as Project["status"] })} className="mt-1 w-full dark-chip px-3 py-2">{(["Planning", "In Development", "Research", "Testing", "Deployment", "Completed", "Blocked", "On Hold", "Cancelled"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>
-              <label className="text-sm t-dark-muted">Workflow stage<select value={projectEditor.currentPhase} onChange={(event) => setProjectEditor({ ...projectEditor, currentPhase: event.target.value as Project["currentPhase"] })} className="mt-1 w-full dark-chip px-3 py-2">{(["IDEA", "PLANNING", "RESEARCH", "DEVELOPMENT", "TESTING", "DEPLOYMENT", "MAINTENANCE", "COMPLETED", "BLOCKED", "ON_HOLD", "CANCELLED"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>
-              <label className="text-sm t-dark-muted">Priority<select value={projectEditor.priority} onChange={(event) => setProjectEditor({ ...projectEditor, priority: event.target.value as ProjectEditorState["priority"] })} className="mt-1 w-full dark-chip px-3 py-2">{(["Low", "Medium", "High", "Critical"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>
-              <label className="text-sm t-dark-muted">Role<input value={projectEditor.role} onChange={(event) => setProjectEditor({ ...projectEditor, role: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
-              <label className="text-sm t-dark-muted">Team size<input type="number" min="1" value={projectEditor.teamSize} onChange={(event) => setProjectEditor({ ...projectEditor, teamSize: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
-              <label className="text-sm t-dark-muted">Start date<input type="date" value={projectEditor.startDate} onChange={(event) => setProjectEditor({ ...projectEditor, startDate: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
-              <label className="text-sm t-dark-muted">Target date<input type="date" value={projectEditor.targetDate} onChange={(event) => setProjectEditor({ ...projectEditor, targetDate: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
-              <label className="text-sm t-dark-muted sm:col-span-2">Objective<textarea value={projectEditor.objective} onChange={(event) => setProjectEditor({ ...projectEditor, objective: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" rows={2} /></label>
-              <label className="text-sm t-dark-muted sm:col-span-2">Next action<input value={projectEditor.nextAction} onChange={(event) => setProjectEditor({ ...projectEditor, nextAction: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
-              <div className="flex justify-end gap-2 sm:col-span-2"><button type="button" onClick={closeWorkspaceEditor} disabled={isSavingEditor} className="dark-chip px-3 py-2 text-sm">Cancel</button><button type="submit" disabled={isSavingEditor} className="ink-button primary px-3 py-2 text-sm">{isSavingEditor ? "Saving..." : "Save project"}</button></div>
+            {projectEditor && <form onSubmit={(event) => void saveProject(event)} onInvalidCapture={event => { const field = event.target as HTMLInputElement; if (projectOptionalFields.current?.contains(field)) { event.preventDefault(); projectOptionalFields.current.open = true; setWorkspaceError(field.validationMessage); requestAnimationFrame(() => field.focus()); } }} className="project-editor-form grid gap-3">
+<fieldset className="grid min-w-0 gap-3 sm:grid-cols-2"><legend className="mb-3 font-semibold t-dark">Essentials</legend>
+<label className="text-sm t-dark-muted">Title<input autoFocus required value={projectEditor.name} onChange={(event) => setProjectEditor({ ...projectEditor, name: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
+<label className="text-sm t-dark-muted">Status<select value={projectEditor.status} onChange={(event) => setProjectEditor({ ...projectEditor, status: event.target.value as Project["status"] })} className="mt-1 w-full dark-chip px-3 py-2">{(["Planning", "In Development", "Research", "Testing", "Deployment", "Completed", "Blocked", "On Hold", "Cancelled"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>
+<label className="text-sm t-dark-muted sm:col-span-2">Next action<input value={projectEditor.nextAction} onChange={(event) => setProjectEditor({ ...projectEditor, nextAction: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
+</fieldset>
+<details ref={projectOptionalFields} className="project-editor-optional"><summary>Optional details · 9 fields</summary><fieldset className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2"><legend className="sr-only">Optional project details</legend>
+<label className="text-sm t-dark-muted">Type<input value={projectEditor.type} onChange={(event) => setProjectEditor({ ...projectEditor, type: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
+<label className="text-sm t-dark-muted sm:col-span-2">Description<textarea value={projectEditor.description} onChange={(event) => setProjectEditor({ ...projectEditor, description: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" rows={2} /></label>
+<label className="text-sm t-dark-muted">Workflow stage<select value={projectEditor.currentPhase} onChange={(event) => setProjectEditor({ ...projectEditor, currentPhase: event.target.value as Project["currentPhase"] })} className="mt-1 w-full dark-chip px-3 py-2">{(["IDEA", "PLANNING", "RESEARCH", "DEVELOPMENT", "TESTING", "DEPLOYMENT", "MAINTENANCE", "COMPLETED", "BLOCKED", "ON_HOLD", "CANCELLED"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>
+<label className="text-sm t-dark-muted">Priority<select value={projectEditor.priority} onChange={(event) => setProjectEditor({ ...projectEditor, priority: event.target.value as ProjectEditorState["priority"] })} className="mt-1 w-full dark-chip px-3 py-2">{(["Low", "Medium", "High", "Critical"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>
+<label className="text-sm t-dark-muted">Role<input value={projectEditor.role} onChange={(event) => setProjectEditor({ ...projectEditor, role: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
+<label className="text-sm t-dark-muted">Team size<input type="number" min="1" value={projectEditor.teamSize} onChange={(event) => setProjectEditor({ ...projectEditor, teamSize: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
+<label className="text-sm t-dark-muted">Start date<input type="date" value={projectEditor.startDate} onChange={(event) => setProjectEditor({ ...projectEditor, startDate: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
+<label className="text-sm t-dark-muted">Target date<input type="date" value={projectEditor.targetDate} onChange={(event) => setProjectEditor({ ...projectEditor, targetDate: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
+<label className="text-sm t-dark-muted sm:col-span-2">Objective<textarea value={projectEditor.objective} onChange={(event) => setProjectEditor({ ...projectEditor, objective: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" rows={2} /></label>
+</fieldset></details>
+<div className="flex justify-end gap-2 sm:col-span-2"><button type="button" onClick={closeWorkspaceEditor} disabled={isSavingEditor} className="dark-chip px-3 py-2 text-sm">Cancel</button><button type="submit" disabled={isSavingEditor} className="ink-button primary px-3 py-2 text-sm">{isSavingEditor ? "Saving..." : "Save project"}</button></div>
             </form>}
             {taskEditor && <form onSubmit={(event) => void saveTask(event)} className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm t-dark-muted sm:col-span-2">Title<input autoFocus required value={taskEditor.title} onChange={(event) => setTaskEditor({ ...taskEditor, title: event.target.value })} className="mt-1 w-full dark-chip px-3 py-2" /></label>
