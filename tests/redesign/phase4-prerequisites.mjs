@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';
+import {mkdir,readFile,writeFile,cp} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {createHarness} from './browser-harness.mjs';
+import {ready,navigate} from './matrix-utils.mjs';
+import {checkSources} from './source-guard.mjs';
+const output=process.argv[2];await mkdir(output,{recursive:true});
+const run=(mode,target)=>{const child=spawnSync(process.execPath,['tests/redesign/run.mjs',mode,target],{encoding:'utf8',env:process.env,maxBuffer:2*1024*1024});assert.equal(child.status,0,child.stdout+child.stderr);};
+if(!process.argv.includes('--resume'))run('offline-next-build',output);const build=JSON.parse(await readFile(resolve(output,'next-build-result.json'),'utf8'));assert.equal(build.exitCode,0);assert.equal(build.sourceUnchanged,true);assert.equal((await readFile(resolve(output,'build-network-log.jsonl'),'utf8')).trim(),'');
+const payloads=[];
+for(const [phase,mode] of [['before','phase4-baseline-actions-build'],['after','phase3-actions-build']]){
+ const assets=resolve(output,`${phase}-assets`);await mkdir(assets,{recursive:true});await cp(resolve(output,'../phase-3/assets/fonts'),resolve(assets,'fonts'),{recursive:true});await cp(resolve(output,'../phase-3/assets/font-manifest.json'),resolve(assets,'font-manifest.json'));run(mode,assets);const h=await createHarness(assets);
+ try{const {page,context}=await h.session('unseen',{width:1024,height:768},'light',{surface:'projects',variant:'phase3-save'});try{await ready(page);await navigate(page,'projects','Projects');await page.locator('#workspace-content').getByRole('button',{name:'New project',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Workspace editor'});await dialog.getByLabel('Title',{exact:true}).fill('Synthetic default visibility assertion');await dialog.getByRole('button',{name:'Save project',exact:true}).click();await page.waitForFunction(()=>window.matrixFixture.calls.some(c=>c.name==='createProject'));const calls=await page.evaluate(()=>window.matrixFixture.calls.filter(c=>c.name==='createProject'));assert.equal(calls.length,1);assert.equal(calls[0].args[0].visibility,'Private');payloads.push({phase,payload:calls[0].args[0]});}finally{await context.close();}}finally{await writeFile(resolve(output,`${phase}-request-log.json`),JSON.stringify(h.requestLog,null,2));await h.close();}
+}
+assert.deepEqual(payloads[0].payload,payloads[1].payload);
+const h=await createHarness(resolve(output,'after-assets'));let ordering;
+try{const {page,context}=await h.session('unseen',{width:390,height:844},'dark',{surface:'tasks'});try{await ready(page);await navigate(page,'tasks','Tasks');const explanation=page.getByText('Task order is saved per project. Choose a project to reorder its tasks; the mixed-project board is read-only for ordering.',{exact:true});await explanation.waitFor();const buttons=page.getByRole('button',{name:/^Move or reorder /});assert.equal(await buttons.count(),7);for(const button of await buttons.all())assert.equal(await button.isDisabled(),true);ordering={explanation:await explanation.textContent(),disabledMoveControls:await buttons.count(),selectedProject:await page.getByRole('combobox',{name:'Choose a project for Task Kanban ordering'}).inputValue()};await explanation.scrollIntoViewIfNeeded();await page.screenshot({path:resolve(output,'mixed-project-explanation.png')});}finally{await context.close();}}finally{await h.close();}
+await writeFile(resolve(output,'prerequisites.json'),JSON.stringify({pass:true,build,defaultVisibility:'Private',payloads,payloadsIdentical:true,mixedProjectOrdering:ordering,protectedHashes:await checkSources()},null,2));console.log('All Phase4 prerequisites pass: exact build0; identical Private create payload; explicit mixed-project explanation.');
