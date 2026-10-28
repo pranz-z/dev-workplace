@@ -1,7 +1,7 @@
 import type { FollowPose } from "./ascii-pose-follow";
 
 type PoseRecord = { body: number[]; head: number[]; anchor: number[]; yaw: number; pitch: number };
-export type PoseData = { dictionary: (null | [number, string, string])[]; rowPool: string[]; poses: Record<string, PoseRecord> };
+export type PoseData = { columns?: number; rows?: number; dictionary: (null | [number, string, string])[]; rowPool: string[]; poses: Record<string, PoseRecord> };
 export type HeadFrame = { key: string; rows: readonly (readonly [number, string, string])[][]; anchor: readonly number[]; bodyKey: string };
 const id = (yaw: number, pitch: number) => `yaw-${yaw < 0 ? "-" : "+"}${String(Math.abs(yaw)).padStart(2, "0")}-pitch-${pitch < 0 ? "-" : "+"}${String(Math.abs(pitch)).padStart(2, "0")}`;
 
@@ -21,7 +21,7 @@ export class PoseBank {
   private body(grid: Uint32Array, pose: PoseRecord) {
     for (let y = 0; y < pose.body.length; y++) {
       const row = this.row(pose.body[y]);
-      for (let x = 0; x < row.length; x++) if (row[x]) grid[y * 180 + x] = row[x];
+      for (let x = 0; x < row.length; x++) if (row[x]) grid[y * (this.data.columns ?? 180) + x] = row[x];
     }
   }
   apply(grid: Uint32Array, state: FollowPose): HeadFrame | undefined {

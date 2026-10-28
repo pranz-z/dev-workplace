@@ -23,25 +23,49 @@ export function startScene(host: HTMLDivElement, pre: HTMLPreElement, lightPre: 
   Object.assign(canvas.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "none" });
   host.querySelector("[aria-hidden]")?.append(canvas);
   const context = canvas.getContext("2d")!;
-  const layers = [pre, lightPre].map(element => Array.from(element.children).map(row => ({ element: row, nodes: Array.from(row.children) as HTMLSpanElement[], signature: "" })));
-  const latestRows: (readonly Run[])[] = splitRows(poster.runs);
+  const bodyCanvas = document.createElement("canvas");
+  bodyCanvas.setAttribute("aria-hidden", "true");
+  Object.assign(bodyCanvas.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "none", display: "none" });
+  canvas.before(bodyCanvas);
+  const bodyContext = bodyCanvas.getContext("2d")!;
+  const rowSprites = new Map<string, HTMLCanvasElement>();
+  let colors: string[] = [];
+  let latestRows: (readonly Run[])[] = splitRows(poster.runs);
   const paint = (rows: readonly (readonly Run[] | null)[]) => {
+    if (rows.length !== latestRows.length) latestRows = Array.from({ length: rows.length }, () => []);
     for (let y = 0; y < rows.length; y++) if (rows[y]) latestRows[y] = rows[y]!;
-    for (const [layer, rowNodes] of layers.entries()) for (let y = 0; y < rows.length; y++) {
-      if ((layer === 0) !== dark) continue; // The hidden theme is painted only when it becomes visible.
-      const row = rows[y]; if (!row) continue;
-      const target = rowNodes[y], signature = row.map(run => `${run[0]}:${run[layer + 1]}`).join("|");
-      if (target.signature === signature) continue;
-      target.signature = signature;
-      while (target.nodes.length < row.length) { const span = document.createElement("span"); target.element.append(span); target.nodes.push(span); }
-      for (let i = 0; i < target.nodes.length; i++) {
-        const run = row[i], tone = run?.[0] ?? "0", text = run?.[layer + 1] ?? "";
-        if (target.nodes[i].textContent !== text) target.nodes[i].textContent = text;
-        if (target.nodes[i].dataset.tone !== tone) {
-          target.nodes[i].dataset.tone = tone;
-          target.nodes[i].style.color = tone === "37" ? "color-mix(in srgb, var(--accent-coral) 65%, var(--nb-accent-text))" : poster.palette[Number(tone)]?.[layer] ?? "var(--nb-ink)";
+    const animated = rows.length !== poster.rows;
+    pre.style.visibility = lightPre.style.visibility = animated ? "hidden" : "";
+    bodyCanvas.style.display = animated ? "block" : "none";
+    if (!animated) return;
+    const dpr = Math.min(2, devicePixelRatio || 1), padding = 2;
+    const cellWidth = width / 216, cellHeight = rect.height / latestRows.length;
+    bodyContext.clearRect(0, 0, width, rect.height);
+    for (let y = 0; y < latestRows.length; y++) {
+      const row = latestRows[y];
+      const key = `${dark}/${width}/${dpr}/` + row.map(run => `${run[0]}:${run[dark ? 1 : 2]}`).join("|");
+      let sprite = rowSprites.get(key);
+      if (!sprite) {
+        sprite = document.createElement("canvas");
+        sprite.width = Math.ceil((width + padding * 2) * dpr);
+        sprite.height = Math.ceil((cellHeight * 2 + padding * 2) * dpr);
+        const ink = sprite.getContext("2d")!;
+        ink.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ink.font = `${dark ? 400 : 700} ${cellWidth / .6}px ${family}`;
+        ink.textBaseline = "top";
+        ink.shadowColor = dark ? "transparent" : "rgba(48,35,22,.9)";
+        ink.shadowBlur = dark ? 0 : .65;
+        let x = 0;
+        for (const run of row) {
+          const text = run[dark ? 1 : 2];
+          if (text.trim()) { ink.fillStyle = colors[Number(run[0])] ?? "transparent"; ink.fillText(text, padding + x * cellWidth, padding); }
+          x += text.length;
         }
-      }
+        const limit = Math.max(1, Math.floor(16 * 1024 * 1024 / (sprite.width * sprite.height * 4)));
+        if (rowSprites.size >= limit) rowSprites.delete(rowSprites.keys().next().value!);
+      } else rowSprites.delete(key);
+      rowSprites.set(key, sprite); // LRU: static furniture rows remain hot during pose changes.
+      bodyContext.drawImage(sprite, -padding, y * cellHeight - padding, sprite.width / dpr, sprite.height / dpr);
     }
   };
   let disposed = false, visible = false, raf = 0, last = 0, elapsed = 0, frame = 0, clock = 0, pending: Promise<void> | undefined;
@@ -55,7 +79,13 @@ export function startScene(host: HTMLDivElement, pre: HTMLPreElement, lightPre: 
     dark = getComputedStyle(pre).display !== "none";
     family = getComputedStyle(dark ? pre : lightPre).fontFamily;
     const dpr = Math.min(2, devicePixelRatio || 1);
-    canvas.width = Math.round(width * dpr); canvas.height = Math.round(rect.height * dpr); context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = bodyCanvas.width = Math.round(width * dpr); canvas.height = bodyCanvas.height = Math.round(rect.height * dpr); context.setTransform(dpr, 0, 0, dpr, 0, 0); bodyContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+    rowSprites.clear();
+    const probe = document.createElement("span");
+    host.append(probe);
+    colors = poster.palette.map(pair => { probe.style.color = pair[dark ? 0 : 1]; return getComputedStyle(probe).color; });
+    probe.style.color = "color-mix(in srgb, var(--accent-coral) 65%, var(--nb-accent-text))";
+    colors[37] = getComputedStyle(probe).color; probe.remove();
     headSignature = "";
     paint(latestRows);
     if (currentHead) drawHead(currentHead);
@@ -162,7 +192,7 @@ export function startScene(host: HTMLDivElement, pre: HTMLPreElement, lightPre: 
   reduced.addEventListener("change", sync); compact.addEventListener("change", sync); fine.addEventListener("change", sync);
   document.addEventListener("visibilitychange", sync); host.addEventListener("scene-playback", sync); sync();
   return () => {
-    disposed = true; stop(); resize.disconnect(); observer.disconnect(); theme.disconnect(); canvas.remove();
+    disposed = true; stop(); resize.disconnect(); observer.disconnect(); theme.disconnect(); canvas.remove(); bodyCanvas.remove(); rowSprites.clear();
     window.removeEventListener("resize", geometry); window.removeEventListener("pointermove", pointer); window.removeEventListener("pointerout", pointerOut); window.removeEventListener("scroll", scroll, true);
     reduced.removeEventListener("change", sync); compact.removeEventListener("change", sync); fine.removeEventListener("change", sync); scheme.removeEventListener("change", geometry);
     document.removeEventListener("visibilitychange", sync); host.removeEventListener("scene-playback", sync);
