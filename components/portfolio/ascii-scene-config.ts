@@ -23,14 +23,21 @@ export const SCENE_CONFIG = {
   clickCooldownMs: 5000,
   nightYawnMultiplier: 3,
   nightHours: [22, 5] as const,
-  pointer: { maxPixels: 6, maxDegrees: 4, torsoFollow: .3, damping: 9 },
+  pointer: { maxPixels: 12, maxDegrees: 14, torsoFollow: 0, damping: 12, idleMs: 650 },
   particles: { steam: 9, confetti: 10, dust: 3, mobileScale: .5 },
   lightPulse: .08, // Dark-only overlay opacity modulation; source colors never change.
   sleepyRate: .5, // Brief sleepy recovery on re-entry; no hidden frame work.
   sleepyRecoveryMs: 1800,
   deformation: { maxColumns: 2.4, maxRows: 1.5, topFadeRows: 6 }, // Continuous, bounded sampling; never cut/clone body parts.
+  gazeDeformation: { maxColumns: 7, maxRows: 4.5 }, // Larger head-only turn; the neck still feathers into the stationary torso.
   frames: { rest: 0, typingEnd: 15, reach: 18, sip: 24, return: 38 },
 };
+
+/** Original lower lens interiors, registered to the supplied eye crop and rest frame's cream eye highlights. */
+export const EYES = [
+  { x: 81.5, y: 22, radiusX: 2.5, radiusY: 1.9 },
+  { x: 88.7, y: 22, radiusX: 2.5, radiusY: 1.9 },
+] as const;
 
 export type ScenePart = "torso" | "farArm" | "nearArm" | "head";
 /** Soft influence regions in the original grid. They blend; they are NOT cutout masks. */

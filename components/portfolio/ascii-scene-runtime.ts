@@ -1,4 +1,4 @@
-import { ACTIONS, PARTS, SCENE_CONFIG as C, actionPose, envelope, ease, type SceneAction, type ScenePart, type Pose } from "./ascii-scene-config";
+import { ACTIONS, EYES, PARTS, SCENE_CONFIG as C, actionPose, envelope, ease, type SceneAction, type ScenePart, type Pose } from "./ascii-scene-config";
 
 export type Run = readonly string[];
 export type SceneClip = { fps: number; runs: string[][]; frames: number[][] };
@@ -7,14 +7,15 @@ type Grid = Uint32Array;
 const COLS = 180, ROWS = 105, SPACE = 32 | (32 << 8) | (32 << 16);
 const pack = (tone: number, dark: string, light = dark) => tone | (dark.charCodeAt(0) << 8) | (light.charCodeAt(0) << 16);
 /** One continuous inverse map across head, neck and shoulders: no erased pixels or cloned fills. */
-export function sampleCharacterSource(x: number, y: number, pose: Pose) {
+export function sampleCharacterSource(x: number, y: number, pose: Pose, tracking = false) {
   const influence = (part: ScenePart) => {
     const { bounds: [left, top, right, bottom], feather } = PARTS[part];
     return ease((x - left) / feather) * ease((right - x) / feather) * ease((bottom - y) / feather) * (part === "head" ? 1 : ease((y - top) / feather));
   };
   const offset = (part: ScenePart) => {
     const p = pose[part], [px, py] = PARTS[part].pivot;
-    const angle = Math.max(-4, Math.min(4, p.degrees)) * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle);
+    const maxAngle = tracking && part === "head" ? C.pointer.maxDegrees : 4;
+    const angle = Math.max(-maxAngle, Math.min(maxAngle, p.degrees)) * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle);
     const dx = (x - px) * .6, dy = y - py;
     return { x: (dx * cos - dy * sin) / .6 - (x - px) + p.x, y: dx * sin + dy * cos - (y - py) + p.y };
   };
@@ -25,12 +26,39 @@ export function sampleCharacterSource(x: number, y: number, pose: Pose) {
   }
   dx = head.x * headWeight + dx / Math.max(1, weight) * (1 - headWeight);
   dy = head.y * headWeight + dy / Math.max(1, weight) * (1 - headWeight);
-  const limit = C.deformation;
+  const limit = tracking ? C.gazeDeformation : C.deformation;
   dx = Math.tanh(dx / limit.maxColumns) * limit.maxColumns;
-  dy = Math.tanh(dy / limit.maxRows) * limit.maxRows * ease(y / limit.topFadeRows);
+  dy = Math.tanh(dy / limit.maxRows) * limit.maxRows * ease(y / C.deformation.topFadeRows);
   return { x: Math.max(0, Math.min(COLS - 1, x - dx)), y: Math.max(0, Math.min(ROWS - 1, y - dy)) };
 }
+
+/** Move the ORIGINAL eye texture within the lenses; never paint additional eyes over the brows. */
+export function sampleGazeEye(x: number, y: number, gazeX: number, gazeY: number): { x: number; y: number } | undefined {
+  for (const eye of EYES) {
+    const dx = (x - eye.x) / eye.radiusX, dy = (y - eye.y) / eye.radiusY;
+    const radius = Math.hypot(dx, dy);
+    if (radius >= 1) continue;
+    const weight = ease((1 - radius) / .7);
+    return {
+      x: x - Math.max(-1, Math.min(1, gazeX)) * 1.1 * weight,
+      y: y - Math.max(-1, Math.min(1, gazeY)) * .8 * weight,
+    };
+  }
+}
 export const isNight = (hour: number | undefined) => Number.isFinite(hour) && hour! >= 0 && hour! < 24 && (hour! >= C.nightHours[0] || hour! < C.nightHours[1]);
+
+/** Pointer activity uses wall time; the routine's active-time clock stays frozen while watching. */
+export class SceneAttention {
+  private movedAt = -Infinity;
+  private position: { x: number; y: number } | undefined;
+  move(x: number, y: number, now: number) {
+    if (this.position?.x === x && this.position.y === y) return false;
+    this.position = { x, y }; this.movedAt = now;
+    return true;
+  }
+  release() { this.movedAt = -Infinity; }
+  tracking(now: number) { return now - this.movedAt < C.pointer.idleMs; }
+}
 
 /** Pure active-time director: injectable RNG/hour make the two-minute routine reproducible in tests. */
 export class SceneDirector {
@@ -117,7 +145,7 @@ export class SceneCompositor {
     }
     this.decoded.set(frame, grid); return grid;
   }
-  render(state: SceneState, dt: number, width: number, mobile: boolean): { rows: (Run[] | null)[]; glow: number } {
+  render(state: SceneState, dt: number, width: number, mobile: boolean, tracking = false): { rows: (Run[] | null)[]; glow: number } {
     const source = this.decode(state.sourceFrame);
     const grid = source.slice(), pose = actionPose(state.action, state.progress);
     // Replace only the baked steam effect with the independent, cup-following steam layer.
@@ -130,14 +158,17 @@ export class SceneCompositor {
     pose.head.degrees += this.pointer.x * C.pointer.maxDegrees;
     pose.torso.x += this.pointer.x * C.pointer.maxPixels / cellPixels * C.pointer.torsoFollow;
     pose.torso.y += this.pointer.y * C.pointer.maxPixels / cellPixels * .6 * C.pointer.torsoFollow;
-    if (state.sleepy) { pose.head.y += .5; pose.head.degrees += 2; }
+    if (state.sleepy && !tracking) { pose.head.y += .5; pose.head.degrees += 2; }
     // Sample every destination from the untouched source through the same smooth map.
     // Keep table, chair, laptop and the resting mug stationary; never invent occluded pixels.
     for (let y = 0; y < 54; y++) for (let x = 42; x < 126; x++) {
       const index = y * COLS + x, tone = source[index] & 255;
       if ((y >= 44 && tone >= 8 && tone <= 13) || (x >= 105 && y >= 36) || (x < 52 && y >= 25) || (x >= 61 && x < 77 && y >= 47)) continue;
-      const point = sampleCharacterSource(x, y, pose);
-      const cell = source[Math.round(point.y) * COLS + Math.round(point.x)];
+      const point = sampleCharacterSource(x, y, pose, tracking && !mobile);
+      // Draw through the same inverse head map so the eyes turn WITH the face, not over it.
+      const eye = tracking && !mobile ? sampleGazeEye(point.x, point.y, this.pointer.x, this.pointer.y) : undefined;
+      const sample = eye ?? point;
+      const cell = source[Math.round(sample.y) * COLS + Math.round(sample.x)];
       grid[index] = (cell & 255) === 35 ? SPACE : cell;
     }
     const put = (x: number, y: number, glyph: string, tone: number) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && x < COLS && y >= 0 && y < ROWS) grid[y * COLS + x] = pack(tone, glyph); };

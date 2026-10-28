@@ -6,8 +6,8 @@ import ts from 'typescript';
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
 const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText).toString('base64')}`;
 const configUrl = moduleUrl(await read('../../components/portfolio/ascii-scene-config.ts'));
-const { ACTIONS, SCENE_CONFIG, actionPose } = await import(configUrl);
-const { SceneDirector, SceneCompositor, isNight, sampleCharacterSource } = await import(moduleUrl((await read('../../components/portfolio/ascii-scene-runtime.ts')).replace('"./ascii-scene-config"', JSON.stringify(configUrl))));
+const { ACTIONS, EYES, SCENE_CONFIG, actionPose } = await import(configUrl);
+const { SceneDirector, SceneCompositor, SceneAttention, isNight, sampleCharacterSource, sampleGazeEye } = await import(moduleUrl((await read('../../components/portfolio/ascii-scene-runtime.ts')).replace('"./ascii-scene-config"', JSON.stringify(configUrl))));
 const clip = JSON.parse(await read('../../components/portfolio/ascii-data/animation.json'));
 const seeded = seed => () => { seed = Math.imul(seed, 1664525) + 1013904223 | 0; return (seed >>> 0) / 4294967296; };
 
@@ -118,4 +118,91 @@ test('dirty-row compositor keeps the grid and furniture intact, and skips unchan
   const night = compositor.render({ ...state, night: true }, 0, 469, false);
   assert.ok(night.rows[49].map(run => run[1]).join('').includes('still working'));
   assert.equal(compositor.render({ ...state, action: 'think', progress: .7 }, 50, 469, false).glow, 0);
+});
+
+test('cursor activity freezes routine time; idle, scroll/leave release it without catch-up', () => {
+  const attention = new SceneAttention(), director = new SceneDirector(seeded(9));
+  director.advance(8000);
+  const before = director.time;
+  assert.equal(attention.tracking(0), false);
+  for (let now = 100; now <= 2000; now += 100) {
+    assert.equal(attention.move(now, 200, now), true);
+    director.advance(attention.tracking(now) ? 0 : 100);
+    assert.equal(director.time, before, 'gestures, source clips and environmental clocks freeze');
+  }
+  assert.equal(attention.move(2000, 200, 2200), false, 'identical coordinates do not extend attention');
+  assert.equal(attention.tracking(2000 + SCENE_CONFIG.pointer.idleMs - 1), true);
+  assert.equal(attention.tracking(2000 + SCENE_CONFIG.pointer.idleMs), false);
+  assert.equal(director.advance(50).time, before + 50, 'resume without consuming cursor wall time');
+  attention.move(30, 50, 3000);
+  attention.release();
+  assert.equal(attention.tracking(3001), false, 'scroll or leaving the window resumes immediately');
+  assert.equal(attention.move(31, 50, 3002), true, 'next real movement re-enters tracking');
+});
+
+test('tracking changes the connected head/eyes while body, props and effects stay frozen', () => {
+  const state = { action: 'idle', progress: 0, time: 8000, night: false, sleepy: false, sourceFrame: 0 };
+  const snapshot = (x, y) => {
+    const compositor = new SceneCompositor(clip, seeded(7));
+    compositor.point(x, y);
+    return compositor.render(state, 1000, 469, false, true).rows.map(row => row.map(run => run[1]).join(''));
+  };
+  const left = snapshot(-1, -.5), right = snapshot(1, .5);
+  assert.notDeepEqual(left.slice(15, 29), right.slice(15, 29), 'head and eye region follows direction');
+  assert.deepEqual(left.slice(36), right.slice(36), 'no torso, typing, mug or furniture movement');
+  const compositor = new SceneCompositor(clip, seeded(7));
+  compositor.point(1, .5);
+  const first = compositor.render(state, 10000, 469, false, true);
+  const second = compositor.render(state, 10000, 469, false, true);
+  assert.ok(second.rows.every(row => row === null), 'environment and body remain unchanged at a settled gaze');
+  assert.equal(first.glow, second.glow, 'lighting clock also stays frozen');
+  const mobile = new SceneCompositor(clip, seeded(7));
+  mobile.point(1, 1);
+  assert.deepEqual(mobile.render(state, 1000, 469, true, true), new SceneCompositor(clip, seeded(7)).render(state, 1000, 469, true, true), 'coarse/mobile ignores gaze');
+});
+
+test('gaze moves the original eye pixels identified in the supplied crop, never paints eyes on the brow', () => {
+  const source=clip.frames[0].flatMap(i=>{
+    const [tone,text]=clip.runs[i];return [...text].filter(c=>c!=='\n').map(glyph=>({tone:Number(tone),glyph}));
+  });
+  const at=(x,y)=>source[Math.round(y)*180+Math.round(x)];
+  assert.equal(at(82,22).tone,0,'original left eye cream highlight');
+  assert.equal(at(89,22).tone,1,'original right eye cream highlight');
+  const neutral=new SceneCompositor(clip,seeded(7)).render({action:'idle',progress:0,time:0,night:false,sleepy:false,sourceFrame:0},0,469,false,true);
+  for(let y=15;y<=25;y++){
+    const row=neutral.rows[y].flatMap(([tone,text])=>[...text].map(glyph=>({tone:Number(tone),glyph})));
+    for(let x=76;x<=94;x++)assert.deepEqual(row[x],at(x,y),'neutral face exactly preserves original eyes, brows, glasses and mouth');
+  }
+  // These literal source coordinates catch the previous mistaken y=17/18 brow overlay.
+  for(let y=15;y<=19;y++)for(let x=76;x<=94;x++)assert.equal(sampleGazeEye(x,y,1,1),undefined);
+  for(let y=24;y<28;y++)for(let x=76;x<=94;x++)assert.equal(sampleGazeEye(x,y,1,1),undefined);
+  const highlightCenter=(eye,gazeX,gazeY)=>{
+    const cells=[];
+    for(let y=20;y<=23;y++)for(let x=Math.ceil(eye.x-eye.radiusX);x<=Math.floor(eye.x+eye.radiusX);x++){
+      const sample=sampleGazeEye(x,y,gazeX,gazeY)??{x,y};
+      const cell=at(sample.x,sample.y);
+      if(cell.tone<=2 && cell.glyph!==' ')cells.push({x,y});
+      const neutral=sampleGazeEye(x,y,0,0)??{x,y};
+      assert.deepEqual(at(neutral.x,neutral.y),at(x,y),'neutral keeps original glyph AND color, not a replacement drawing');
+    }
+    assert.ok(cells.length,'original eye highlights remain visible');
+    return {x:cells.reduce((s,c)=>s+c.x,0)/cells.length,y:cells.reduce((s,c)=>s+c.y,0)/cells.length};
+  };
+  for(const eye of EYES){
+    const left=highlightCenter(eye,-1,0),right=highlightCenter(eye,1,0),up=highlightCenter(eye,0,-1),down=highlightCenter(eye,0,1);
+    assert.ok(right.x-left.x>=1,`original eye texture moves horizontally: ${JSON.stringify({eye,left,right})}`);
+    assert.ok(down.y-up.y>=1,`original eye texture moves vertically: ${JSON.stringify({eye,up,down})}`);
+  }
+});
+
+test('cursor head turn is visibly larger than the old four-degree capped map and stays connected', () => {
+  const pose=actionPose('idle',0);pose.head.degrees=14;pose.head.x=3;
+  const small=sampleCharacterSource(76,8,pose),turn=sampleCharacterSource(76,8,pose,true);
+  assert.ok(Math.abs(turn.x-76)>Math.abs(small.x-76)+2,'turn exceeds the former subpixel-looking displacement');
+  for(let y=0;y<36;y++)for(let x=60;x<103;x++){
+    const a=sampleCharacterSource(x,y,pose,true),b=sampleCharacterSource(x,y+1,pose,true);
+    assert.ok(Math.abs(a.x-b.x)<2,'continuous neck, no horizontal tear');
+    assert.ok(Math.abs(a.y-b.y)<2,'continuous rows, no detached head');
+    assert.ok(a.x>=0&&a.y>=0&&a.x<180&&a.y<105);
+  }
 });

@@ -39,8 +39,8 @@ export function AsciiCharacterScene() {
     const compact = matchMedia("(max-width: 767px), (pointer: coarse)");
     const fine = matchMedia("(hover: hover) and (pointer: fine)");
     const hero = host.closest("section") ?? host;
-    let disposed = false, visible = false, away = false, heroEntered = false;
-    let runtime: { director: import("./ascii-scene-runtime").SceneDirector; compositor: import("./ascii-scene-runtime").SceneCompositor; fps: number } | undefined;
+    let disposed = false, visible = false, away = false;
+    let runtime: { director: import("./ascii-scene-runtime").SceneDirector; compositor: import("./ascii-scene-runtime").SceneCompositor; attention: import("./ascii-scene-runtime").SceneAttention; restFrame: number; fps: number } | undefined;
     let pending: Promise<void> | undefined;
     let raf = 0, last = 0, elapsed = 0, frame = 0;
     let width = host.getBoundingClientRect().width;
@@ -84,13 +84,19 @@ export function AsciiCharacterScene() {
       if (elapsed >= 1000 / runtime.fps) {
         const dt = elapsed; elapsed = 0;
         const sleepy = host.dataset.sleepy === "true";
-        const state = runtime.director.advance(dt * (sleepy ? .5 : 1));
+        const tracking = fine.matches && !compact.matches && runtime.attention.tracking(now);
+        if (!tracking) runtime.compositor.point(0, 0);
+        const routine = runtime.director.advance(tracking ? 0 : dt * (sleepy ? .5 : 1));
+        // Watching uses a resting pose: no typing/sip, body gesture, steam or screen clock advances.
+        const state = tracking ? { ...routine, action: "idle" as const, progress: 0, sourceFrame: runtime.restFrame } : routine;
         host.dataset.sleepy = String(state.sleepy);
-        const output = runtime.compositor.render(state, dt, width, compact.matches);
+        const output = runtime.compositor.render(state, dt, width, compact.matches, tracking);
         paint(output.rows);
         if (glow) glow.style.opacity = String(output.glow);
         if (cool) cool.style.opacity = String(state.action === "think" ? 0 : .08 - output.glow);
         host.dataset.action = state.action;
+        host.dataset.attention = tracking ? "cursor" : "routine";
+        host.dataset.routineTime = String(routine.time);
         host.dataset.progress = state.progress.toFixed(3);
         host.dataset.frame = String(++frame);
       }
@@ -98,10 +104,11 @@ export function AsciiCharacterScene() {
     };
     const sync = () => {
       stop();
+      runtime?.attention.release(); runtime?.compositor.point(0, 0);
       setAvailable(!reduced.matches && !!runtime);
       if (reduced.matches) {
         runtime?.compositor.reset(); paint(splitRows(poster.runs));
-        host.dataset.frame = "0"; host.dataset.action = "idle"; host.dataset.sleepy = "false";
+        host.dataset.frame = "0"; host.dataset.action = "idle"; host.dataset.sleepy = "false"; host.dataset.attention = "routine";
         host.dataset.playback = "static"; if (glow) glow.style.opacity = "0";
         if (cool) cool.style.opacity = "0";
         return;
@@ -114,9 +121,8 @@ export function AsciiCharacterScene() {
           const data = module.default;
           if (data.frames.length && data.fps > 0) runtime = {
             director: new engine.SceneDirector(Math.random, () => { try { return new Date().getHours(); } catch { return undefined; } }),
-            compositor: new engine.SceneCompositor(data), fps: config.SCENE_CONFIG.fps,
+            compositor: new engine.SceneCompositor(data), attention: new engine.SceneAttention(), restFrame: config.SCENE_CONFIG.frames.rest, fps: config.SCENE_CONFIG.fps,
           };
-          if (heroEntered) runtime?.director.request("hero-enter");
           sync();
         }).catch(() => { if (!disposed) host.dataset.playback = "poster"; });
         return;
@@ -128,26 +134,24 @@ export function AsciiCharacterScene() {
     const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); sync(); });
     observer.observe(hero);
     const resize = new ResizeObserver(entries => { width = entries[0]?.contentRect.width ?? width; }); resize.observe(host);
-    const enterHero = () => { if (allowed() && !paused.current && fine.matches) { heroEntered = true; runtime?.director.request("hero-enter"); } };
-    const enterScene = () => { if (allowed() && !paused.current && fine.matches) runtime?.director.request("scene-enter"); };
     const pointer = (event: PointerEvent) => {
-      if (!allowed() || paused.current || !fine.matches || compact.matches) return;
-      const rect = hero.getBoundingClientRect();
-      runtime?.compositor.point((event.clientX - rect.left) / rect.width * 2 - 1, (event.clientY - rect.top) / rect.height * 2 - 1);
+      if (!runtime || !allowed() || paused.current || !fine.matches || compact.matches || event.pointerType !== "mouse") return;
+      if (!runtime.attention.move(event.clientX, event.clientY, performance.now())) return;
+      const rect = host.getBoundingClientRect();
+      // Aim relative to the character's eyes rather than the center of the whole hero.
+      runtime.compositor.point((event.clientX - rect.left - rect.width * 85 / 180) / (rect.width * .6), (event.clientY - rect.top - rect.height * 22 / 105) / (rect.height * .6));
     };
-    const leave = () => runtime?.compositor.point(0, 0);
-    const click = (event: MouseEvent) => {
-      if (allowed() && !paused.current && !(event.target instanceof Element && event.target.closest("button"))) runtime?.director.request("click");
-    };
-    hero.addEventListener("pointerenter", enterHero); hero.addEventListener("pointermove", pointer); hero.addEventListener("pointerleave", leave);
-    host.addEventListener("pointerenter", enterScene); host.addEventListener("click", click);
+    const leave = () => { runtime?.attention.release(); runtime?.compositor.point(0, 0); };
+    window.addEventListener("pointermove", pointer); window.addEventListener("pointerout", pointerOut);
+    function pointerOut(event: PointerEvent) { if (!event.relatedTarget) leave(); }
+    window.addEventListener("scroll", leave, { passive: true, capture: true });
     reduced.addEventListener("change", sync); compact.addEventListener("change", sync); fine.addEventListener("change", leave);
     document.addEventListener("visibilitychange", sync); host.addEventListener("scene-playback", sync);
     sync();
     return () => {
       disposed = true; stop(); observer.disconnect(); resize.disconnect();
-      hero.removeEventListener("pointerenter", enterHero); hero.removeEventListener("pointermove", pointer); hero.removeEventListener("pointerleave", leave);
-      host.removeEventListener("pointerenter", enterScene); host.removeEventListener("click", click);
+      window.removeEventListener("pointermove", pointer); window.removeEventListener("pointerout", pointerOut);
+      window.removeEventListener("scroll", leave, true);
       reduced.removeEventListener("change", sync); compact.removeEventListener("change", sync); fine.removeEventListener("change", leave);
       document.removeEventListener("visibilitychange", sync); host.removeEventListener("scene-playback", sync);
     };
