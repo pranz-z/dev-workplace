@@ -7,8 +7,10 @@ const read = path => readFile(new URL(path, import.meta.url), 'utf8');
 const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText).toString('base64')}`;
 const configUrl = moduleUrl(await read('../../components/portfolio/ascii-scene-config.ts'));
 const { ACTIONS, EYES, SCENE_CONFIG, actionPose } = await import(configUrl);
-const { SceneDirector, SceneCompositor, SceneAttention, isNight, sampleCharacterSource, sampleGazeEye } = await import(moduleUrl((await read('../../components/portfolio/ascii-scene-runtime.ts')).replace('"./ascii-scene-config"', JSON.stringify(configUrl))));
+const { SceneDirector, SceneCompositor, SceneAttention, isNight, sampleCharacterSource, prepareCharacterSampler, sampleGazeEye } = await import(moduleUrl((await read('../../components/portfolio/ascii-scene-runtime.ts')).replace('"./ascii-scene-config"', JSON.stringify(configUrl))));
 const clip = JSON.parse(await read('../../components/portfolio/ascii-data/animation.json'));
+const cols=clip.columns??180,rows=clip.rows??105,sx=cols/180,sy=rows/105;
+const awaitCrop=await read('./hero-eye-source.json');
 const seeded = seed => () => { seed = Math.imul(seed, 1664525) + 1013904223 | 0; return (seed >>> 0) / 4294967296; };
 
 function simulate(seed, hour = 12) {
@@ -104,19 +106,20 @@ test('dirty-row compositor keeps the grid and furniture intact, and skips unchan
   const compositor = new SceneCompositor(clip, seeded(7));
   const state = { action: 'idle', progress: 0, time: 0, night: false, sleepy: false, sourceFrame: 0 };
   const first = compositor.render(state, 0, 469, false);
-  assert.equal(first.rows.length, 105);
-  first.rows.forEach(row => assert.equal(row.map(run => run[1]).join('').length, 180));
+  assert.equal(first.rows.length, rows);
+  first.rows.forEach(row => assert.equal(row.map(run => run[1]).join('').length, cols));
   const sourceRows = clip.frames[0].map(i => clip.runs[i][1]).join('').split('\n');
-  for (let y = 60; y < 105; y++) assert.equal(first.rows[y].map(run => run[1]).join(''), sourceRows[y], 'chair, legs, floor and boots unchanged');
+  for (let y = Math.ceil(60*sy); y < rows; y++) assert.equal(first.rows[y].map(run => run[1]).join(''), sourceRows[y], 'chair, legs, floor and boots unchanged');
   assert.ok(compositor.render(state, 0, 469, false).rows.every(row => row === null));
   for (const action of Object.keys(ACTIONS)) {
     const result = compositor.render({ ...state, action, progress: .5, time: 2000 }, 50, 300, true);
-    result.rows.filter(Boolean).forEach(row => assert.equal(row.map(run => run[1]).join('').length, 180));
+    result.rows.filter(Boolean).forEach(row => assert.equal(row.map(run => run[1]).join('').length, cols));
     assert.ok(result.glow >= 0 && result.glow <= .08);
   }
   compositor.reset();
   const night = compositor.render({ ...state, night: true }, 0, 469, false);
-  assert.ok(night.rows[49].map(run => run[1]).join('').includes('still working'));
+  const nightRow=night.rows[Math.round(49*sy)].map(run=>run[1]).join('');
+  assert.equal([..."still working"].map((_,i)=>nightRow[Math.round((111+i)*sx)]).join(''),'still working');
   assert.equal(compositor.render({ ...state, action: 'think', progress: .7 }, 50, 469, false).glow, 0);
 });
 
@@ -148,8 +151,8 @@ test('tracking changes the connected head/eyes while body, props and effects sta
     return compositor.render(state, 1000, 469, false, true).rows.map(row => row.map(run => run[1]).join(''));
   };
   const left = snapshot(-1, -.5), right = snapshot(1, .5);
-  assert.notDeepEqual(left.slice(15, 29), right.slice(15, 29), 'head and eye region follows direction');
-  assert.deepEqual(left.slice(36), right.slice(36), 'no torso, typing, mug or furniture movement');
+  assert.notDeepEqual(left.slice(Math.floor(15*sy), Math.ceil(29*sy)), right.slice(Math.floor(15*sy), Math.ceil(29*sy)), 'head and eye region follows direction');
+  assert.deepEqual(left.slice(Math.ceil(36*sy)), right.slice(Math.ceil(36*sy)), 'no torso, typing, mug or furniture movement');
   const compositor = new SceneCompositor(clip, seeded(7));
   compositor.point(1, .5);
   const first = compositor.render(state, 10000, 469, false, true);
@@ -165,13 +168,14 @@ test('gaze moves the original eye pixels identified in the supplied crop, never 
   const source=clip.frames[0].flatMap(i=>{
     const [tone,text]=clip.runs[i];return [...text].filter(c=>c!=='\n').map(glyph=>({tone:Number(tone),glyph}));
   });
-  const at=(x,y)=>source[Math.round(y)*180+Math.round(x)];
+  const crop=JSON.parse(awaitCrop);
+  const at=(x,y)=>{const c=crop.cells[Math.round(y)-17][Math.round(x)-74];return{tone:c&255,glyph:String.fromCharCode(c>>8)}};
   assert.equal(at(82,22).tone,0,'original left eye cream highlight');
   assert.equal(at(89,22).tone,1,'original right eye cream highlight');
   const neutral=new SceneCompositor(clip,seeded(7)).render({action:'idle',progress:0,time:0,night:false,sleepy:false,sourceFrame:0},0,469,false,true);
-  for(let y=15;y<=25;y++){
+  for(let y=Math.ceil(15*sy);y<=Math.floor(25*sy);y++){
     const row=neutral.rows[y].flatMap(([tone,text])=>[...text].map(glyph=>({tone:Number(tone),glyph})));
-    for(let x=76;x<=94;x++)assert.deepEqual(row[x],at(x,y),'neutral face exactly preserves original eyes, brows, glasses and mouth');
+    for(let x=Math.ceil(76*sx);x<=Math.floor(94*sx);x++)assert.deepEqual(row[x],source[y*cols+x],'neutral face exactly preserves original eyes, brows, glasses and mouth');
   }
   // These literal source coordinates catch the previous mistaken y=17/18 brow overlay.
   for(let y=15;y<=19;y++)for(let x=76;x<=94;x++)assert.equal(sampleGazeEye(x,y,1,1),undefined);
@@ -205,4 +209,16 @@ test('cursor head turn is visibly larger than the old four-degree capped map and
     assert.ok(Math.abs(a.y-b.y)<2,'continuous rows, no detached head');
     assert.ok(a.x>=0&&a.y>=0&&a.x<180&&a.y<105);
   }
+});
+
+// Keep the original map as an independent equivalence oracle for the hot path.
+test('prepared fine-grid sampler matches the original continuous deformation exactly',()=>{
+ for(const action of Object.keys(ACTIONS))for(const tracking of [false,true]){
+  const pose=actionPose(action,.45);pose.head.x+=2;pose.head.degrees+=5;
+  const prepared=prepareCharacterSampler(pose,tracking);
+  for(let y=0;y<54;y+=.625)for(let x=42;x<126;x+=2.5){
+   const a=sampleCharacterSource(x,y,pose,tracking),b=prepared(x,y);
+   assert.ok(Math.abs(a.x-b.x)<1e-10&&Math.abs(a.y-b.y)<1e-10);
+  }
+ }
 });

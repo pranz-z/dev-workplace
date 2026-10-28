@@ -1,10 +1,10 @@
 import { ACTIONS, EYES, PARTS, SCENE_CONFIG as C, actionPose, envelope, ease, type SceneAction, type ScenePart, type Pose } from "./ascii-scene-config";
 
 export type Run = readonly string[];
-export type SceneClip = { fps: number; runs: string[][]; frames: number[][] };
+export type SceneClip = { fps: number; columns?: number; rows?: number; runs: string[][]; frames: number[][] };
 export type SceneState = { action: SceneAction | "idle"; progress: number; time: number; night: boolean; sleepy: boolean; sourceFrame: number };
 type Grid = Uint32Array;
-const COLS = 180, ROWS = 105, SPACE = 32 | (32 << 8) | (32 << 16);
+const SPACE = 32 | (32 << 8) | (32 << 16);
 const pack = (tone: number, dark: string, light = dark) => tone | (dark.charCodeAt(0) << 8) | (light.charCodeAt(0) << 16);
 /** One continuous inverse map across head, neck and shoulders: no erased pixels or cloned fills. */
 export function sampleCharacterSource(x: number, y: number, pose: Pose, tracking = false) {
@@ -29,7 +29,34 @@ export function sampleCharacterSource(x: number, y: number, pose: Pose, tracking
   const limit = tracking ? C.gazeDeformation : C.deformation;
   dx = Math.tanh(dx / limit.maxColumns) * limit.maxColumns;
   dy = Math.tanh(dy / limit.maxRows) * limit.maxRows * ease(y / C.deformation.topFadeRows);
-  return { x: Math.max(0, Math.min(COLS - 1, x - dx)), y: Math.max(0, Math.min(ROWS - 1, y - dy)) };
+  return { x: Math.max(0, Math.min(179, x - dx)), y: Math.max(0, Math.min(104, y - dy)) };
+}
+
+/** Prepare frame-invariant transforms once; never repeat trigonometry per cell. */
+export function prepareCharacterSampler(pose: Pose, tracking = false) {
+  const parts = (["head", "torso", "nearArm", "farArm"] as const).map(part => {
+    const p = pose[part], [px, py] = PARTS[part].pivot;
+    const angle = Math.max(-(tracking && part === "head" ? C.pointer.maxDegrees : 4), Math.min(tracking && part === "head" ? C.pointer.maxDegrees : 4, p.degrees)) * Math.PI / 180;
+    return { part, px, py, cos: Math.cos(angle), sin: Math.sin(angle), x: p.x, y: p.y };
+  });
+  const limit = tracking ? C.gazeDeformation : C.deformation;
+  return (x: number, y: number) => {
+    let dx = 0, dy = 0, weight = 0, headX = 0, headY = 0, headWeight = 0;
+    for (const p of parts) {
+      const { bounds: [left, top, right, bottom], feather } = PARTS[p.part];
+      const w = ease((x - left) / feather) * ease((right - x) / feather) * ease((bottom - y) / feather) * (p.part === "head" ? 1 : ease((y - top) / feather));
+      const rx = (x - p.px) * .6, ry = y - p.py;
+      const ox = (rx * p.cos - ry * p.sin) / .6 - (x - p.px) + p.x;
+      const oy = rx * p.sin + ry * p.cos - (y - p.py) + p.y;
+      if (p.part === "head") { headX = ox; headY = oy; headWeight = w; }
+      else { dx += ox * w; dy += oy * w; weight += w; }
+    }
+    dx = headX * headWeight + dx / Math.max(1, weight) * (1 - headWeight);
+    dy = headY * headWeight + dy / Math.max(1, weight) * (1 - headWeight);
+    dx = Math.tanh(dx / limit.maxColumns) * limit.maxColumns;
+    dy = Math.tanh(dy / limit.maxRows) * limit.maxRows * ease(y / C.deformation.topFadeRows);
+    return { x: Math.max(0, Math.min(179, x - dx)), y: Math.max(0, Math.min(104, y - dy)) };
+  };
 }
 
 /** Move the ORIGINAL eye texture within the lenses; never paint additional eyes over the brows. */
@@ -137,6 +164,7 @@ export class SceneCompositor {
   constructor(private clip: SceneClip, private random = Math.random) { this.noise = Array.from({ length: 50 }, () => this.random()); }
   point(x: number, y: number) { const radius = Math.max(1, Math.hypot(x, y)); this.pointer.targetX = x / radius; this.pointer.targetY = y / radius; }
   private decode(frame: number) {
+    const COLS = this.clip.columns ?? 180, ROWS = this.clip.rows ?? 105;
     const cached = this.decoded.get(frame); if (cached) return cached;
     const grid = new Uint32Array(COLS * ROWS).fill(SPACE); let at = 0;
     for (const index of this.clip.frames[frame]) {
@@ -146,13 +174,14 @@ export class SceneCompositor {
     this.decoded.set(frame, grid); return grid;
   }
   render(state: SceneState, dt: number, width: number, mobile: boolean, tracking = false, overlay?: (grid: Uint32Array) => void): { rows: (Run[] | null)[]; glow: number } {
+    const COLS = this.clip.columns ?? 180, ROWS = this.clip.rows ?? 105, sx = COLS / 180, sy = ROWS / 105;
     const source = this.decode(state.sourceFrame);
     const grid = source.slice(), pose = actionPose(state.action, state.progress);
     // Replace only the baked steam effect with the independent, cup-following steam layer.
     for (let i = 0; i < grid.length; i++) if ((grid[i] & 255) === 35) grid[i] = SPACE;
     const smoothing = 1 - Math.exp(-C.pointer.damping * dt / 1000);
     for (const axis of ["x", "y"] as const) this.pointer[axis] += ((mobile ? 0 : this.pointer[axis === "x" ? "targetX" : "targetY"]) - this.pointer[axis]) * smoothing;
-    const cellPixels = Math.max(1, width) / COLS;
+    const cellPixels = Math.max(1, width) / 180;
     pose.head.x += this.pointer.x * C.pointer.maxPixels / cellPixels;
     pose.head.y += this.pointer.y * C.pointer.maxPixels / cellPixels * .6;
     pose.head.degrees += this.pointer.x * C.pointer.maxDegrees;
@@ -161,18 +190,20 @@ export class SceneCompositor {
     if (state.sleepy && !tracking) { pose.head.y += .5; pose.head.degrees += 2; }
     // Sample every destination from the untouched source through the same smooth map.
     // Keep table, chair, laptop and the resting mug stationary; never invent occluded pixels.
-    for (let y = 0; y < 54; y++) for (let x = 42; x < 126; x++) {
+    const sampleCharacter = prepareCharacterSampler(pose, tracking && !mobile);
+    for (let y = 0; y < Math.ceil(54 * sy); y++) for (let x = Math.floor(42 * sx); x < Math.ceil(126 * sx); x++) {
+      const rx = x / sx, ry = y / sy;
       const index = y * COLS + x, tone = source[index] & 255;
-      if ((y >= 44 && tone >= 8 && tone <= 13) || (x >= 105 && y >= 36) || (x < 52 && y >= 25) || (x >= 61 && x < 77 && y >= 47)) continue;
-      const point = sampleCharacterSource(x, y, pose, tracking && !mobile);
+      if ((ry >= 44 && tone >= 8 && tone <= 13) || (rx >= 105 && ry >= 36) || (rx < 52 && ry >= 25) || (rx >= 61 && rx < 77 && ry >= 47)) continue;
+      const point = sampleCharacter(rx, ry);
       // Draw through the same inverse head map so the eyes turn WITH the face, not over it.
       const eye = tracking && !mobile ? sampleGazeEye(point.x, point.y, this.pointer.x, this.pointer.y) : undefined;
       const sample = eye ?? point;
-      const cell = source[Math.round(sample.y) * COLS + Math.round(sample.x)];
+      const cell = source[Math.min(ROWS - 1, Math.round(sample.y * sy)) * COLS + Math.min(COLS - 1, Math.round(sample.x * sx))];
       grid[index] = (cell & 255) === 35 ? SPACE : cell;
     }
     overlay?.(grid);
-    const put = (x: number, y: number, glyph: string, tone: number) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && x < COLS && y >= 0 && y < ROWS) grid[y * COLS + x] = pack(tone, glyph); };
+    const put = (x: number, y: number, glyph: string, tone: number) => { x = Math.round(x * sx); y = Math.round(y * sy); if (x >= 0 && x < COLS && y >= 0 && y < ROWS) grid[y * COLS + x] = pack(tone, glyph); };
     const e = envelope(state.progress), time = state.time / 1000, scale = mobile ? C.particles.mobileScale : 1;
     // Laptop layer: scrolling decorative code, cursor, synthetic result; never application data.
     if (state.action !== "think") for (let line = 0; line < 6; line++) {
