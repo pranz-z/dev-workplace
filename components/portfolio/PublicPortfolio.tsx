@@ -125,10 +125,10 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
         {(professional?.sections.hero.enabled ?? true) && <PortfolioHero
           name={displayName || ""} headline={introduction.headline} avatar={avatar}
           projectsEnabled={professional?.sections.projects.enabled ?? true}
-          proof={professional ? [
-            professional.sections.toolkit.enabled ? ["Flutter", "Laravel", ".NET", "Unity"].filter((name) => professional.toolkit.some((group) => group.enabled && group.items.some((item) => item.enabled && item.name === name))).join(" · ") : "",
-            professional.sections.education.enabled && professional.education.some((item) => item.enabled && item.honors === "Magna Cum Laude") ? "Magna Cum Laude" : "",
-          ].filter(Boolean).join(" · ") : ""}
+          proof={[
+            (professional?.sections.projects.enabled ?? true) && publicProjects.length > 0 ? `${publicProjects.length} public ${publicProjects.length === 1 ? "project" : "projects"}` : "",
+            ...professional?.sections.education.enabled ? professional.education.filter((item) => item.enabled).map((item) => item.honors.trim()) : [],
+          ].filter((fact, index, facts) => Boolean(fact) && facts.indexOf(fact) === index)}
         >
           {professional?.hero.description && <p>{professional.hero.description}</p>}
           {introduction.bio && <p className="mt-3 whitespace-pre-line">{introduction.bio}</p>}
