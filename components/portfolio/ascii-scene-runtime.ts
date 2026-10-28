@@ -145,7 +145,7 @@ export class SceneCompositor {
     }
     this.decoded.set(frame, grid); return grid;
   }
-  render(state: SceneState, dt: number, width: number, mobile: boolean, tracking = false): { rows: (Run[] | null)[]; glow: number } {
+  render(state: SceneState, dt: number, width: number, mobile: boolean, tracking = false, overlay?: (grid: Uint32Array) => void): { rows: (Run[] | null)[]; glow: number } {
     const source = this.decode(state.sourceFrame);
     const grid = source.slice(), pose = actionPose(state.action, state.progress);
     // Replace only the baked steam effect with the independent, cup-following steam layer.
@@ -171,6 +171,7 @@ export class SceneCompositor {
       const cell = source[Math.round(sample.y) * COLS + Math.round(sample.x)];
       grid[index] = (cell & 255) === 35 ? SPACE : cell;
     }
+    overlay?.(grid);
     const put = (x: number, y: number, glyph: string, tone: number) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && x < COLS && y >= 0 && y < ROWS) grid[y * COLS + x] = pack(tone, glyph); };
     const e = envelope(state.progress), time = state.time / 1000, scale = mobile ? C.particles.mobileScale : 1;
     // Laptop layer: scrolling decorative code, cursor, synthetic result; never application data.
