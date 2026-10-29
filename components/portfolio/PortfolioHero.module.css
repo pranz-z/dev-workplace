@@ -51,3 +51,43 @@
  .hero *, .hero *::before, .hero *::after { animation: none !important; transition: none !important; }
  .hero :global(.notebook-button):hover { transform: none; }
 }
+
+/* Phone hero/header: remove this block to restore the original phone layout. */
+@media (max-width: 767px) {
+ .header.header { border-bottom: 1px solid color-mix(in srgb, var(--nb-ink) 20%, transparent); background: color-mix(in srgb, var(--nb-bg) 88%, transparent); backdrop-filter: blur(6px); transition: transform 180ms ease; }
+ .header[data-scroll-hidden="true"] { transform: translateY(-100%); }
+ .header.header > div { min-height: 55px; height: 55px; padding-inline: 1rem; justify-content: space-between; }
+ .brand { min-height: 44px; }
+ .brand :global([role="img"] > span > span:last-child) { display: none; }
+ .menuToggle { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 5px; background: transparent; color: var(--nb-ink); }
+ .menuToggle:focus-visible, .header nav a:focus-visible { outline: 3px solid var(--nb-accent-text); outline-offset: -3px; }
+ .header.header nav { position: absolute; inset: 100% 0 auto; margin: 0; padding: .5rem 1rem max(.75rem, env(safe-area-inset-bottom)); display: flex; flex-direction: column; flex-wrap: nowrap; gap: 0; max-height: calc(100svh - 55px - env(safe-area-inset-top)); max-height: calc(100dvh - 55px - env(safe-area-inset-top)); overflow-y: auto; background: var(--nb-bg); border-bottom: 1px solid var(--nb-muted); opacity: 0; visibility: hidden; transform: translateY(-8px); transition: opacity 160ms, transform 160ms, visibility 160ms; }
+ .header[data-menu-open="true"] nav { opacity: 1; visibility: visible; transform: none; }
+ .header.header nav a { min-height: 48px; padding-inline: .75rem; font: 500 1rem/1.55 var(--font-geist-sans), sans-serif; }
+ .hero.hero.hero { padding-block: .875rem 1rem; }
+ .hero.hero.hero::before { opacity: .04; }
+ .hero.hero.hero::after { display: none; }
+ .grid { display: flex; flex-direction: column; gap: 0; padding-block: 0 1rem; }
+ .identity { display: contents; }
+ .availability { order: 0; margin-bottom: .4rem; }
+ .proof { order: 1; flex-wrap: nowrap; width: 100%; overflow-x: auto; scrollbar-width: none; margin: 0 0 .75rem; font-size: .8125rem; }
+ .proof::-webkit-scrollbar { display: none; }
+ .proof li { flex: 0 0 auto; white-space: nowrap; max-width: none; }
+ .hero .title { order: 2; font-size: clamp(2.6rem, 10.5vw, 3.5rem); max-width: 17ch; line-height: .89; }
+ .eyebrow { order: 3; margin-top: .75rem; font-size: 1rem; line-height: 1.55; }
+ .description { order: 4; margin-top: .5rem; font-size: 1rem; line-height: 1.55; }
+ .actions { order: 5; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: .5rem; margin-top: .875rem; }
+ .actions a { display: flex; justify-content: center; min-height: 48px; padding: .5rem; font-size: 1rem; }
+ .desk { order: 6; width: 100%; max-width: none; margin: .75rem auto 0; }
+ .desk::before { inset: 8% 5% 16%; }
+ .personal { order: 7; margin-top: .5rem; gap: .5rem; }
+ .avatar, .hero .avatar img { width: 44px; height: 44px; }
+ .hero .avatar:focus-visible img { transform: none; }
+ .fullName, .detail { font-size: 1rem; line-height: 1.55; }
+ .footer { flex-direction: column; gap: .5rem; }
+ .background { width: 100%; font-size: 1rem; line-height: 1.55; }
+ @media (max-width: 380px) { .actions { grid-template-columns: 1fr; } }
+ @media (prefers-reduced-motion: reduce) { .header.header, .header.header nav { transition: none; } }
+}
+/* Additional phone controls never participate in the existing desktop layout. */
+@media (min-width: 768px) { .menuToggle, .header nav .phoneWorkspace { display: none; } }

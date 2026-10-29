@@ -16,5 +16,7 @@
 .playback { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--nb-muted); cursor: pointer; font: 500 .75rem / 1.5 var(--font-geist-sans), sans-serif; }
 .playback:hover { background: var(--nb-card); }
 .playback:focus-visible { outline: 3px solid var(--nb-accent-text); outline-offset: -3px; }
-@media (max-width: 767px) { .scene { max-width: 300px; } }
+.playLabel { position: absolute; right: 44px; white-space: nowrap; color: var(--nb-ink); }
+/* Phone: use the reserved full-width scene without changing its art or ratio. */
+@media (max-width: 767px) { .scene { max-width: none; } }
 @media (prefers-reduced-motion: reduce) { .ambientLight { display: none; } }

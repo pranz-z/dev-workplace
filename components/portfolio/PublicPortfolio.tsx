@@ -11,11 +11,12 @@ import type { PublicProfile } from "@/types";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { PublicProfessionalContent } from "@/lib/portfolio/resume-content";
 import { ProfessionalEducation, ProfessionalExperience, ProfessionalFocus, ProfessionalSkills } from "@/components/portfolio/ProfessionalSections";
+import { PortfolioHeader } from "./PortfolioHeader";
 import { Logo } from "@/components/brand/Logo";
 import { Card, Chip, UnderlineHeading } from "@/components/ui/notebook";
 import { DoodlePad } from "./NotebookInteractions";
 import { PortfolioHero } from "./PortfolioHero";
-import heroStyles from "./PortfolioHero.module.css";
+
 import { ProjectCardMedia } from "./ProjectCardMedia";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -113,12 +114,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
 
   return (
     <div className="public-shell notebook-portfolio min-h-screen">
-      <header className={`notebook-portfolio-header ${heroStyles.header}`}>
-        <div>
-          <button type="button" className={`notebook-logo ${heroStyles.brand}`} aria-label="Toggle chalkboard or paper theme" onClick={() => setThemeMode(getResolvedTheme(themeMode) === "dark" ? "light" : "dark")}><Logo variant="full" size={30} /></button>
-          <nav aria-label="Portfolio">{navigation.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}{status === "authenticated" && <Link href="/app">Open Workspace</Link>}</nav>
-        </div>
-      </header>
+      <PortfolioHeader navigation={navigation} authenticated={status === "authenticated"} toggleTheme={() => setThemeMode(getResolvedTheme(themeMode) === "dark" ? "light" : "dark")} />
 
       <main className="mx-auto max-w-6xl space-y-10 px-4 pb-16">
         {(loadError || supabaseMissing) && <p role="alert" className="public-card p-4 text-sm text-[var(--muted)]">The public portfolio could not be loaded right now.</p>}

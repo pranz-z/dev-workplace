@@ -29,13 +29,16 @@ export function AsciiCharacterScene() {
   const paused = useRef(false);
   const [playing, setPlaying] = useState(true);
   const [available, setAvailable] = useState(false);
+  const [still, setStill] = useState(false);
 
   useEffect(() => {
     const host = container.current, pre = artwork.current, lightPre = lightArtwork.current;
     if (!host || !pre || !lightPre) return;
     let disposed = false, stop: (() => void) | undefined;
     void import("./ascii-scene-player").then(({ startScene }) => {
-      if (!disposed) stop = startScene(host, pre, lightPre, paused, setAvailable);
+      if (!disposed) stop = startScene(host, pre, lightPre, paused, (value, reducedStill) => {
+        setAvailable(value); setStill(!!reducedStill); setPlaying(!paused.current && !reducedStill);
+      });
     }).catch(() => { /* The original poster remains available if the optional player fails. */ });
     return () => { disposed = true; stop?.(); };
   }, []);
@@ -48,11 +51,12 @@ export function AsciiCharacterScene() {
     <pre ref={lightArtwork} className={`${styles.artwork} ${styles.lightArtwork}`} aria-hidden="true">{posterRows.map((row, y) => <span key={y} className={styles.row}>{row.map(([tone, text, lightText], i) => <span key={i} data-tone={tone} style={{ color: poster.palette[Number(tone)]?.[1] }}>{lightText ?? text}</span>)}</span>)}</pre>
     </div>
     {available && <button type="button" className={styles.playback} aria-label={playing ? "Pause decorative animation" : "Play decorative animation"} aria-pressed={!playing} onClick={() => {
-      paused.current = !paused.current;
+      if (still && container.current) { container.current.dataset.motionOverride = "true"; paused.current = false; }
+      else paused.current = !paused.current;
       setPlaying(!paused.current);
       container.current?.dispatchEvent(new Event("scene-playback"));
     }}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
       {playing ? <><rect x="4" y="3" width="3" height="10" rx=".75" /><rect x="9" y="3" width="3" height="10" rx=".75" /></> : <path d="M5 2.5v11L13 8z" />}
-    </svg></button>}
+    </svg>{still && <span className={styles.playLabel}>Play animation</span>}</button>}
   </div>;
 }
