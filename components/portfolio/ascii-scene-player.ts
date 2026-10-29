@@ -15,9 +15,9 @@ function splitRows(runs: readonly Run[]) {
 }
 
 /** Deferred browser driver; the initial bundle contains only the untouched poster. */
-export function startScene(host: HTMLDivElement, pre: HTMLPreElement, lightPre: HTMLPreElement, paused: { current: boolean }, available: (value: boolean) => void) {
+export function startScene(host: HTMLDivElement, pre: HTMLPreElement, lightPre: HTMLPreElement, paused: { current: boolean }, available: (value: boolean, reducedStill?: boolean) => void) {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)"), compact = matchMedia("(max-width: 767px), (pointer: coarse)"), fine = matchMedia("(hover: hover) and (pointer: fine)");
-  const hero = host.closest("section") ?? host, glow = host.querySelector<HTMLElement>("[data-scene-light]"), cool = host.querySelector<HTMLElement>("[data-scene-cool]");
+  const glow = host.querySelector<HTMLElement>("[data-scene-light]"), cool = host.querySelector<HTMLElement>("[data-scene-cool]");
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   Object.assign(canvas.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "none" });
@@ -125,7 +125,10 @@ export function startScene(host: HTMLDivElement, pre: HTMLPreElement, lightPre: 
     host.dataset.poseHead = head.key; host.dataset.poseBody = head.bodyKey;
   };
   const stop = () => { cancelAnimationFrame(raf); raf = 0; last = elapsed = 0; };
-  const eligible = () => !disposed && !reduced.matches && !compact.matches && fine.matches;
+  // Phone playback shares the native loop; only cursor-follow needs a fine pointer.
+  const phone = matchMedia("(max-width: 767px)");
+  let mobileFps = 22, slowFrames = 0, nextLookAt = 10000, warned = false;
+  const eligible = () => !disposed && (!reduced.matches || (phone.matches && host.dataset.motionOverride === "true")) && (phone.matches || (!compact.matches && fine.matches));
   const allowed = () => eligible() && visible && !document.hidden;
   const staticFrame = () => {
     runtime?.follower.release(); runtime?.compositor.reset();
@@ -139,28 +142,44 @@ export function startScene(host: HTMLDivElement, pre: HTMLPreElement, lightPre: 
     if (!allowed()) { sync(); return; }
     if (!runtime || paused.current) return;
     if (last) elapsed += Math.min(100, now - last); last = now;
-    if (elapsed >= 1000 / 22) {
+    if (elapsed >= 1000 / (phone.matches ? mobileFps : 22)) {
       const started = performance.now(), dt = elapsed; elapsed = 0; clock += dt;
       const sip = ["mug", "think", "sigh"].includes(runtime.routine.action);
       const follow = runtime.follower.advance(dt, now, { fine: fine.matches, mobile: compact.matches, reduced: reduced.matches, paused: false, visible, hidden: document.hidden, sip });
+      if (phone.matches && clock >= nextLookAt && runtime.director.action === "idle") {
+        runtime.director.request("scene-enter"); runtime.director.nextAt = runtime.director.time; nextLookAt = clock + 10000;
+      }
       runtime.routine = runtime.director.advance(follow.active ? 0 : dt);
       const state = follow.active
         ? { ...runtime.routine, action: "idle" as const, progress: 0, time: clock, sourceFrame: Math.floor(clock / 100) % 16 }
         : { ...runtime.routine, time: clock };
       let head: HeadFrame | undefined;
-      const output = runtime.compositor.render(state, dt, width, false, false, follow.active ? grid => { head = runtime!.bank.apply(grid, follow); } : undefined);
+      const output = runtime.compositor.render(state, dt, width, phone.matches, false, follow.active ? grid => { head = runtime!.bank.apply(grid, follow); } : undefined);
       paint(output.rows); drawHead(head);
       if (!follow.active) { host.dataset.poseHead = "native"; host.dataset.poseBody = "native"; }
       if (glow) glow.style.opacity = String(output.glow); if (cool) cool.style.opacity = String(state.action === "think" ? 0 : .08 - output.glow);
       host.dataset.action = state.action; host.dataset.attention = follow.active ? "cursor" : "routine";
       host.dataset.routineTime = String(runtime.routine.time); host.dataset.progress = state.progress.toFixed(3); host.dataset.frame = String(++frame);
       host.dataset.headYaw = follow.headYaw.toFixed(2); host.dataset.torsoYaw = follow.torsoYaw.toFixed(2); host.dataset.bodyStep = String(follow.bodyStep);
-      host.dataset.geometryReads = String(geometryReads); host.dataset.frameCost = (performance.now() - started).toFixed(3);
+      const cost = performance.now() - started;
+      // Sustained expensive phone frames reduce cadence, never disable playback.
+      if (phone.matches) {
+        slowFrames = cost > 35 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
+        if (slowFrames >= 8) mobileFps = 14;
+      }
+      host.dataset.fps = String(phone.matches ? mobileFps : 22);
+      host.dataset.geometryReads = String(geometryReads); host.dataset.frameCost = cost.toFixed(3);
     }
     raf = requestAnimationFrame(tick);
   };
   function sync() {
-    stop(); available(eligible() && !!runtime);
+    stop();
+    const reducedStill = phone.matches && reduced.matches && host.dataset.motionOverride !== "true";
+    available(reducedStill || (eligible() && !!runtime), reducedStill);
+    if (process.env.NODE_ENV === "development" && !warned && (reducedStill || !visible || document.hidden || paused.current)) {
+      warned = true;
+      console.warn("[Hero animation] paused:", reducedStill ? "reduced motion" : !visible ? "offscreen" : document.hidden ? "hidden tab" : "user paused");
+    }
     if (!eligible()) { staticFrame(); return; }
     if (!allowed()) { host.dataset.playback = "suspended"; return; }
     if (!runtime) {
@@ -177,24 +196,42 @@ export function startScene(host: HTMLDivElement, pre: HTMLPreElement, lightPre: 
     if (!paused.current) raf = requestAnimationFrame(tick);
   }
   const pointer = (event: PointerEvent) => {
-    if (!runtime || !allowed() || paused.current || event.pointerType !== "mouse") return;
+    if (!runtime || !allowed() || phone.matches || !fine.matches || paused.current || event.pointerType !== "mouse") return;
     runtime.follower.point((event.clientX - rect.left - width * 85 / 180) / (width * .6), (event.clientY - rect.top - rect.height * 22 / 105) / (rect.height * .6), performance.now());
   };
+  const tap = (event: PointerEvent) => {
+    if (!phone.matches || !runtime || !allowed() || paused.current || (event.target as Element).closest("button") || event.pointerType === "mouse") return;
+    if (Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y) > 10) return;
+    if (runtime.director.request("click")) {
+      runtime.director.action = "idle"; runtime.director.nextAt = runtime.director.time;
+      runtime.routine = runtime.director.advance(0);
+    }
+  };
+  const touchStart = { x: 0, y: 0 };
+  const touchDown = (event: PointerEvent) => { touchStart.x = event.clientX; touchStart.y = event.clientY; };
   const leave = () => runtime?.follower.release();
   const pointerOut = (event: PointerEvent) => { if (!event.relatedTarget) leave(); };
   const scroll = () => { geometry(); leave(); };
   const resize = new ResizeObserver(geometry); resize.observe(host);
-  const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); sync(); }); observer.observe(hero);
+  const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .1); sync(); }, { threshold: [.1] }); observer.observe(host);
   const theme = new MutationObserver(geometry); theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
   const scheme = matchMedia("(prefers-color-scheme: light)"); scheme.addEventListener("change", geometry);
-  geometry(); void document.fonts.ready.then(() => { if (!disposed) { headSprites.clear(); geometry(); } });
+  geometry();
+  const intersection = () => {
+    const r = host.getBoundingClientRect();
+    const area = Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) * Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0));
+    return r.width > 0 && r.height > 0 && area / (r.width * r.height) >= .1;
+  };
+  visible = intersection();
+  void document.fonts.ready.then(() => { if (!disposed) { headSprites.clear(); geometry(); visible = intersection(); sync(); } });
+  host.addEventListener("pointerdown", touchDown); host.addEventListener("pointerup", tap);
   window.addEventListener("resize", geometry); window.addEventListener("pointermove", pointer); window.addEventListener("pointerout", pointerOut); window.addEventListener("scroll", scroll, { passive: true, capture: true });
-  reduced.addEventListener("change", sync); compact.addEventListener("change", sync); fine.addEventListener("change", sync);
+  phone.addEventListener("change", sync); reduced.addEventListener("change", sync); compact.addEventListener("change", sync); fine.addEventListener("change", sync);
   document.addEventListener("visibilitychange", sync); host.addEventListener("scene-playback", sync); sync();
   return () => {
     disposed = true; stop(); resize.disconnect(); observer.disconnect(); theme.disconnect(); canvas.remove(); bodyCanvas.remove(); rowSprites.clear();
     window.removeEventListener("resize", geometry); window.removeEventListener("pointermove", pointer); window.removeEventListener("pointerout", pointerOut); window.removeEventListener("scroll", scroll, true);
-    reduced.removeEventListener("change", sync); compact.removeEventListener("change", sync); fine.removeEventListener("change", sync); scheme.removeEventListener("change", geometry);
+    host.removeEventListener("pointerdown", touchDown); host.removeEventListener("pointerup", tap); phone.removeEventListener("change", sync); reduced.removeEventListener("change", sync); compact.removeEventListener("change", sync); fine.removeEventListener("change", sync); scheme.removeEventListener("change", geometry);
     document.removeEventListener("visibilitychange", sync); host.removeEventListener("scene-playback", sync);
   };
 }
