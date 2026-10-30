@@ -136,12 +136,14 @@ function normalizeIdea(value: unknown, context: ProactiveContext): NormalizedPul
 /** Dedicated advisory-only adapter. No persistence, reservation, mutation or retry orchestration. */
 export async function generatePulseIdea(context: ProactiveContext, options: {
   signal: AbortSignal; deadlineAt: number; fetch: typeof fetch;
+  expectedProvider?: {provider:'gemini';model:string};
 }): Promise<NormalizedPulseIdea | PulseAiFailure> {
   if (options.signal.aborted) return fail('ABORTED');
   if (!Number.isFinite(options.deadlineAt) || options.deadlineAt - Date.now() <= 15_000) return fail('AUTHORITY_LOST');
   if (!proactiveInputBudget(context.contents, INSTRUCTION, SCHEMA).allowed) return fail('INPUT_TOO_LARGE');
   const configuration = getGeminiConfiguration();
   if (!configuration.configured || !configuration.apiKey || !configuration.model) return fail('AI_UNAVAILABLE');
+  if(options.expectedProvider&&(options.expectedProvider.provider!=='gemini'||options.expectedProvider.model!==configuration.model))return fail('AUTHORITY_LOST');
 
   const controller = new AbortController();
   let failureCode: PulseAiFailure['code'] | undefined;
@@ -158,6 +160,7 @@ export async function generatePulseIdea(context: ProactiveContext, options: {
     if (controller.signal.aborted || options.signal.aborted) stop(failureCode ?? 'ABORTED');
     if (options.deadlineAt - Date.now() <= 15_000) stop('AUTHORITY_LOST');
     if (sent) stop('AI_UNAVAILABLE');
+    if(options.expectedProvider&&getGeminiConfiguration().model!==options.expectedProvider.model)stop('AUTHORITY_LOST');
     if (typeof init?.body !== 'string' || Buffer.byteLength(init.body, 'utf8') > 12_288) stop('INPUT_TOO_LARGE');
     sent = true;
     const response = await options.fetch(url, { ...init, redirect: 'error' });

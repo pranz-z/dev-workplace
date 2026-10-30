@@ -2,10 +2,12 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { scanPulse } from './scanner';
 import { PULSE_POLICY } from './policy';
-import { buildProactiveContext, isProactiveSelection, type ProactiveContext } from './privacy';
+import { buildProactiveContext, buildOneShotContext, oneShotParents, isProactiveSelection, type ProactiveContext } from './privacy';
 import { generatePulseIdea } from './gemini';
 import type { PulseAiOutcome, PulseRecovery, PulseRepository } from './db';
 import type { PulseAuthority, PulseError, PulseStatus } from './types';
+import type {OneShotProvider,OneShotReason} from './one-shot';
+import {getGeminiConfiguration} from '@/lib/ai/config';
 
 export interface PulseOutcome {
   status: PulseStatus | 'skipped'; aiOutcome: PulseAiOutcome; code: PulseError | null;
@@ -15,6 +17,7 @@ export interface PulseEngineDeps {
   repository: PulseRepository; signal: AbortSignal; fetch: typeof fetch;
   clock?: { now(): number; monotonic(): number };
   scan?: typeof scanPulse; buildContext?: typeof buildProactiveContext; provider?: typeof generatePulseIdea;
+  providerMetadata?: ()=>OneShotProvider;
   log?: (fields: PulseOutcome & { durationMs: number }) => void;
 }
 /** processingEnabled is trusted server configuration, never part of the signed HTTP body. */
@@ -56,7 +59,7 @@ function outcome(state: PulseRecovery | null, code: PulseError | null): PulseOut
 export async function runClaimedPulse(authority: PulseAuthority, deps: PulseEngineDeps): Promise<PulseOutcome> {
   return runOwner(authority, deps, Infinity);
 }
-async function runOwner(authority: PulseAuthority, deps: PulseEngineDeps, dispatchEnd: number): Promise<PulseOutcome> {
+async function runOwner(authority: PulseAuthority, deps: PulseEngineDeps, dispatchEnd: number, freshDispatch=false): Promise<PulseOutcome> {
   const clock = clockFor(deps), started = clock.monotonic();
   const work = execution(deps, Math.min(started + 20_000, dispatchEnd));
   const repository = deps.repository;
@@ -105,6 +108,9 @@ async function runOwner(authority: PulseAuthority, deps: PulseEngineDeps, dispat
       code = 'AUTHORITY_LOST'; return await finish();
     }
     stored = await recover();
+    // Recovery may observe the original worker in flight. It has no fresh credential
+    // and must neither spend its permission nor prematurely finish its Pulse.
+    if(authority.oneShotAttemptId&&!freshDispatch)return outcome(stored,code);
     if (!stored || stored.status!=='running') return outcome(stored, code);
     await work.call(() => repository.retain(authority.userId, 20));
     if (!stored.commitId) {
@@ -122,6 +128,10 @@ async function runOwner(authority: PulseAuthority, deps: PulseEngineDeps, dispat
     // A previous worker may have transmitted. A recovered reservation never permits another send.
     if (!stored) return empty('AUTHORITY_LOST');
     if (stored.reserved) { aiOutcome = stored.aiOutcome==='reserved' ? 'unknown' : stored.aiOutcome; return await finish(); }
+    if(authority.oneShotAttemptId){
+      if(freshDispatch&&authority.oneShotAdmission)aiOutcome=await work.call(()=>runOneShot(authority,deps,remaining,work.signal));
+      return await finish();
+    }
     if (settings.mode!=='workspace_ai') return await finish();
     if (remaining()<=15_000) { aiOutcome = 'skipped_time_budget'; return await finish(); }
     const context = await contextNow();
@@ -189,7 +199,7 @@ export async function runPulseDispatch(input: PulseDispatchInput, deps: PulseEng
     if (!input.processingEnabled) return result;
     for (const authority of batch.claims) {
       if (work.signal.aborted || work.remaining()<=5000) break;
-      const owner = await runOwner(authority, { ...deps, signal: work.signal }, end);
+      const owner = await runOwner(authority, { ...deps, signal: work.signal }, end,!batch.replay);
       result.processed++;
       if (owner.status==='succeeded') result.succeeded++;
       else if (owner.status==='partial') result.partial++;
@@ -199,4 +209,58 @@ export async function runPulseDispatch(input: PulseDispatchInput, deps: PulseEng
   } catch { /* Established or uncertain claims remain canonical; never claim another batch here. */ }
   finally { work.dispose(); }
   return result;
+}
+
+/** Only called by the fresh-dispatch branch. Every failure owns this Pulse's AI path. */
+async function runOneShot(authority:PulseAuthority,deps:PulseEngineDeps,remaining:()=>number,signal:AbortSignal):Promise<Exclude<PulseAiOutcome,'reserved'>> {
+ const admission=authority.oneShotAdmission;
+ if(!admission||admission.authorizationId!==authority.oneShotAttemptId)return 'none';
+ const repo=deps.repository;
+ const metadata=()=>{if(deps.providerMetadata)return deps.providerMetadata();const c=getGeminiConfiguration();return {configured:c.configured,provider:'gemini',model:c.model??''};};
+ const record=async(event:string,reason:OneShotReason|null=null)=>repo.recordOneShot(authority,admission.authorizationId,event,reason);
+ let consumed=false;
+ async function current(){
+  const data=await repo.oneShotContext(authority,admission!.authorizationId);
+  if(!data?.source||!['pending','consumed'].includes(data.authorization.status))return {ok:false as const,reason:'AUTHORITY_LOST' as const};
+  if(consumed&&data.authorization.status!=='consumed')return {ok:false as const,reason:'AUTHORITY_LOST' as const};
+  const binding=data.authorization.binding;
+  return buildOneShotContext(data.source,oneShotParents(data.source,binding),binding,metadata(),consumed?'consumed':'execution');
+ }
+ try{
+  const first=await current();if(!first.ok){await record('blocked',first.reason);return 'skipped_scope';}
+  if(signal.aborted||remaining()<=15_000){await record('blocked','AUTHORITY_LOST');return 'skipped_time_budget';}
+  const data=await repo.oneShotContext(authority,admission.authorizationId);if(!data)return 'unknown';
+  const binding=data.authorization.binding;
+  let reservation;
+  try{reservation=await repo.reserveOneShot(authority,admission,binding.provider,binding.model,binding.contextFingerprint);}
+  catch{return 'unknown';} // Lost consume response can have spent allowance. No physical send is allowed.
+  if(!reservation.sendAllowed)return reservation.reserved?'unknown':'skipped_scope';
+  consumed=true;
+  if(signal.aborted||remaining()<=15_000){await record('failed','AUTHORITY_LOST');return 'skipped_time_budget';}
+  const before=await current();if(!before.ok||before.context.contents!==first.context.contents){await record('failed',before.ok?'SOURCE_CHANGED':before.reason);return 'unknown';}
+  const clockNow=()=>deps.clock?.now()??Date.now();
+  const idea=await (deps.provider??generatePulseIdea)(before.context,{
+   signal,deadlineAt:clockNow()+Math.min(remaining(),Date.parse(binding.expiresAt)-clockNow()),
+   expectedProvider:{provider:binding.provider,model:binding.model},
+   fetch:async(input,init)=>{
+    const rechecked=await current();
+    if(!rechecked.ok||rechecked.context.contents!==before.context.contents||signal.aborted||remaining()<=15_000)throw new Error('AUTHORITY_LOST');
+    const receipt=await record('send_attempted');
+    if(!receipt||typeof receipt!=='object'||!('status'in receipt)||receipt.status!=='consumed'||!('accounting'in receipt))throw new Error('AUTHORITY_LOST');
+    const accounting=receipt.accounting as {sendAttempted?:unknown;allowanceConsumed?:unknown};
+    if(!accounting||accounting.sendAttempted!==true||accounting.allowanceConsumed!==true||signal.aborted||init?.signal?.aborted||remaining()<=15_000||Date.parse(binding.expiresAt)-clockNow()<=15_000)throw new Error('AUTHORITY_LOST');
+    const actualProvider=metadata();if(!actualProvider.configured||actualProvider.provider!==binding.provider||actualProvider.model!==binding.model)throw new Error('MODEL_CHANGED');
+    try{const response=await deps.fetch(input,init);await record('response_received');return response;}
+    catch{await record('transport_unknown');throw new Error('PROVIDER_FAILED');}
+   },
+  });
+  if('ok' in idea){const rejected=idea.code==='AI_MALFORMED';await record(rejected?'output_rejected':'failed',rejected?'OUTPUT_REJECTED':'PROVIDER_FAILED');
+   return rejected?'malformed':idea.code==='AI_TIMEOUT'?'timeout':idea.code==='AI_UNAVAILABLE'?'unavailable':'unknown';}
+  if(!isProactiveSelection(before.context,idea.sourceAlias,idea.category)){await record('output_rejected','OUTPUT_REJECTED');return 'malformed';}
+  await record('output_accepted');
+  const final=await current();if(!final.ok||final.context.contents!==before.context.contents){await record('failed',final.ok?'SOURCE_CHANGED':final.reason);return 'unknown';}
+  const result=await repo.publishAi(authority,{category:idea.category,title:idea.title,summary:idea.advisoryText});
+  if(!result.accepted){await record('failed','PUBLICATION_FAILED');return 'unknown';}
+  return 'accepted';
+ }catch{try{await record('failed',consumed?'TRANSPORT_UNKNOWN':'AUTHORITY_LOST');}catch{/* Bounded maintenance finalizes canonical uncertainty. */}return 'unknown';}
 }
