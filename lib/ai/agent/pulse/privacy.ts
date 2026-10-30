@@ -1,6 +1,8 @@
+import {createHash} from 'node:crypto';
+import type {OneShotBinding,OneShotParent,OneShotProvider} from './one-shot';
 import { boundText, PULSE_POLICY, SIGNAL_FAMILIES, validateReasonCodes } from './policy';
 import { rankDecisions } from './scanner';
-import { evaluateImportantTasks, evaluateQuietProjects, evaluateTomorrow } from './signals';
+import { evaluateDeadlines, evaluateImportantTasks, evaluateQuietProjects, evaluateTomorrow } from './signals';
 import { isValidCalendarDate, taskCalendarDate } from '@/data/workspaceCalendar';
 import type { ConditionDecision, IdeaCategory, PulseMode, PulseReason, PulseSourceSnapshot, PulseTarget } from './types';
 
@@ -89,11 +91,16 @@ function scopedTomorrow(source: PulseSourceSnapshot, scope: ReadonlySet<string>)
 export function buildProactiveContext(source: PulseSourceSnapshot, candidates: readonly ProactiveCandidate[], settings: ProactiveSettings): ProactiveContextResult {
   if (settings.mode!=='workspace_ai' || settings.checksConsented!==true || settings.aiConsented!==true || settings.aiEligible!==true ||
     (settings.aiConsentVersion!==undefined && settings.aiConsentVersion!=='ai-v1') || settings.policyVersion!==PULSE_POLICY.version) return {ok:false,reason:'CONSENT_REQUIRED'};
+  return serializeProactiveSignals(source,candidates,settings.aiProjectIds,settings.settingsRevision);
+}
+
+/** Shared minimization only. Callers must establish their own server-side admission authority. */
+export function serializeProactiveSignals(source: PulseSourceSnapshot, candidates: readonly ProactiveCandidate[], projectIds: readonly string[], settingsRevision: number, exact = false): ProactiveContextResult {
   const now=stamp(source.evaluatedAt);
-  if (!UUID.test(source.userId) || now===null || source.policyVersion!==settings.policyVersion || source.settingsRevision!==settings.settingsRevision) return {ok:false,reason:'INVALID_SOURCE'};
-  if (!Array.isArray(settings.aiProjectIds) || settings.aiProjectIds.length>20 || new Set(settings.aiProjectIds).size!==settings.aiProjectIds.length || settings.aiProjectIds.some(id=>!UUID.test(id))) return {ok:false,reason:'INVALID_SCOPE'};
-  if (settings.aiProjectIds.length===0) return {ok:false,reason:'SCOPE_EMPTY'};
-  const scope=new Set(settings.aiProjectIds.filter(id=>source.projects.filter(p=>p.id===id).length===1 && source.projects.some(p=>p.id===id && p.userId===source.userId)));
+  if (!UUID.test(source.userId) || now===null || source.policyVersion!==PULSE_POLICY.version || source.settingsRevision!==settingsRevision) return {ok:false,reason:'INVALID_SOURCE'};
+  if (!Array.isArray(projectIds) || projectIds.length>20 || new Set(projectIds).size!==projectIds.length || projectIds.some(id=>!UUID.test(id))) return {ok:false,reason:'INVALID_SCOPE'};
+  if (projectIds.length===0) return {ok:false,reason:'SCOPE_EMPTY'};
+  const scope=new Set(projectIds.filter(id=>source.projects.filter(p=>p.id===id).length===1 && source.projects.some(p=>p.id===id && p.userId===source.userId)));
   if (scope.size===0) return {ok:false,reason:'SCOPE_EMPTY'};
   const aliases: Record<string,PulseTarget>={}, assigned=new Map<string,string>(), counters={task:0,project:0,milestone:0,workspace_day:0};
   const alias=(target: PulseTarget) => {
@@ -102,7 +109,8 @@ export function buildProactiveContext(source: PulseSourceSnapshot, candidates: r
     assigned.set(key,value);aliases[value]={type:target.type,id:target.id};return value;
   };
   const chosen: Array<{signal:Signal;candidate:ProactiveCandidate;allowed:IdeaCategory[]}>=[],targets=new Set<string>();
-  for (const d of rankDecisions(candidates) as ProactiveCandidate[]) {
+  if (exact && candidates.length!==1) return {ok:false,reason:'INVALID_SOURCE'};
+  for (const d of (exact ? candidates : rankDecisions(candidates)) as ProactiveCandidate[]) {
     if (chosen.length===3) break;
     const checked=stamp(d.lastCheckedAt),until=stamp(d.evidenceValidUntil);
     if (!SIGNAL_FAMILIES.includes(d.family) || d.truth!=='true' || d.complete!==true || d.state!=='active' || d.seen!==false ||
@@ -168,4 +176,52 @@ export function buildProactiveContext(source: PulseSourceSnapshot, candidates: r
   const evidenceValidUntil=chosen.map(item=>item.candidate.evidenceValidUntil!).reduce((a,b)=>micros(a)<=micros(b)?a:b);
   return {ok:true,context:{contents,aliases,primaryAlias:primary.signal.alias,allowedCategories:primary.allowed,allowedFacts,
     parentId:primary.candidate.parentId,parentEpisode:primary.candidate.parentEpisode,sourceToken:primary.candidate.sourceToken!,evidenceValidUntil}};
+}
+
+export const ONE_SHOT_VERSION='one-shot-v1' as const;
+export type OneShotStatus='pending'|'consumed'|'completed'|'blocked'|'expired'|'cancelled'|'failed';
+export const ONE_SHOT_REASONS=['PARENT_CHANGED','PARENT_SEEN','PARENT_RESOLVED','SOURCE_CHANGED','EVIDENCE_EXPIRED','MODEL_CHANGED',
+ 'BUDGET','ATTEMPT_LIMIT','SLOT_INVALID','SLOT_EXPIRED','AUTHORITY_LOST','CANCELLED','SOURCE_CLEARED','NO_NATURAL_DISPATCH',
+ 'PROVIDER_FAILED','OUTPUT_REJECTED','PUBLICATION_FAILED','TRANSPORT_UNKNOWN','CAPACITY','POLICY_CHANGED'] as const;
+export type OneShotReason=typeof ONE_SHOT_REASONS[number];
+
+export function oneShotFingerprint(contents:string):string {return createHash('sha256').update(contents,'utf8').digest('hex');}
+
+/** Evaluate the bound family only; ranking and alternative parent selection are not involved. */
+export function oneShotParents(source:PulseSourceSnapshot,binding:OneShotBinding):OneShotParent[] {
+ const stored=source.existing.filter(p=>p.id===binding.parentId);if(stored.length!==1)return [];
+ const p=stored[0];
+ const decisions=binding.family==='deadline'?evaluateDeadlines(source):binding.family==='important_work'?evaluateImportantTasks(source):binding.family==='quiet_project'?evaluateQuietProjects(source):[];
+ return decisions.filter(d=>d.key===p.key&&d.target.id===p.target.id&&d.family===p.family).map(d=>({...d,
+  parentId:p.id,parentEpisode:p.episode,state:p.state,seen:p.seen,lastCheckedAt:p.lastCheckedAt,
+  sourceToken:p.sourceToken,evidenceValidUntil:p.evidenceValidUntil,contentRevision:p.contentRevision??0,
+  attemptCount:p.attemptCount??2,attemptTerminal:p.attemptTerminal??true}));
+}
+
+/** Pure exact-parent serializer, not a reservation or permission to send. SQL remains consumption authority. */
+export function buildOneShotContext(source:PulseSourceSnapshot, parents:readonly OneShotParent[], grant:OneShotBinding,
+ provider:OneShotProvider, phase:'preview'|'execution'|'consumed'='execution'):{ok:true;context:ProactiveContext}|{ok:false;reason:OneShotReason} {
+ const fail=(reason:OneShotReason)=>({ok:false as const,reason});
+ if(!provider.configured||provider.provider!==grant.provider||provider.model!==grant.model)return fail('MODEL_CHANGED');
+ if(grant.authorizationVersion!==ONE_SHOT_VERSION||grant.contextPolicyVersion!==ONE_SHOT_VERSION)return fail('POLICY_CHANGED');
+ if(phase!=='preview'&&!/^[0-9a-f]{64}$/.test(grant.contextFingerprint))return fail('SOURCE_CHANGED');
+ const now=Date.parse(source.evaluatedAt),slot=Date.parse(grant.slot),expiry=Date.parse(grant.expiresAt);
+ if(!Number.isFinite(now)||!Number.isFinite(slot)||!Number.isFinite(expiry)||slot%14_400_000!==0||expiry<=slot||expiry>slot+600_000)return fail('SLOT_INVALID');
+ if(phase!=='preview'&&(now<slot||Math.floor(now/14_400_000)!==Math.floor(slot/14_400_000)))return fail('SLOT_INVALID');
+ if(now>=expiry)return fail('EVIDENCE_EXPIRED');
+ if(source.userId!==grant.ownerId||source.settingsRevision!==grant.settingsRevision)return fail('AUTHORITY_LOST');
+ const matches=parents.filter(p=>p.parentId===grant.parentId);if(matches.length!==1)return fail('PARENT_CHANGED');
+ const p=matches[0];
+ if(p.contentRevision!==grant.contentRevision||p.parentEpisode!==grant.episode||p.family!==grant.family||p.sourceToken!==grant.sourceToken)return fail('PARENT_CHANGED');
+ if(p.state!=='active')return fail('PARENT_RESOLVED');if(p.seen)return fail('PARENT_SEEN');
+ if(p.attemptTerminal||p.attemptCount>=(phase==='consumed'?3:2))return fail('ATTEMPT_LIMIT');
+ if(!p.complete||p.truth!=='true')return fail('SOURCE_CHANGED');
+ if(typeof p.evidenceValidUntil!=='string'||!Number.isFinite(Date.parse(p.evidenceValidUntil))||Date.parse(p.evidenceValidUntil)<=now||expiry>Date.parse(p.evidenceValidUntil))return fail('EVIDENCE_EXPIRED');
+ if(!['deadline','important_work','quiet_project'].includes(p.family)||p.target.type==='workspace_day')return fail('SOURCE_CHANGED');
+ const entity=(p.target.type==='project'?source.projects:p.target.type==='task'?source.tasks:source.milestones).find(x=>x.id===p.target.id);
+ if(!entity||entity.userId!==grant.ownerId||('projectId' in entity?entity.projectId:entity.id)!==grant.projectId)return fail('SOURCE_CHANGED');
+ const result=serializeProactiveSignals(source,[p],[grant.projectId],grant.settingsRevision,true);
+ if(!result.ok)return fail('SOURCE_CHANGED');
+ if(grant.contextFingerprint&&oneShotFingerprint(result.context.contents)!==grant.contextFingerprint)return fail('SOURCE_CHANGED');
+ return {ok:true,context:{...result.context,evidenceValidUntil:grant.expiresAt}};
 }

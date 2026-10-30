@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { WorkspaceDialog } from '@/components/workspace/WorkspaceDialog';
+import {AgentOneShotAuthorization} from './AgentOneShotAuthorization';
 import { agentInboxService, inboxErrorMessage } from '@/data/agentInboxService';
 import type { PulseSettingsInput, PulseSettingsResponse } from '@/data/agentInbox';
 
@@ -93,6 +94,7 @@ function SettingsSession({ onChanged }: Props) {
       <button type="button" disabled={busy || loading || invalidConsent} className="dark-chip p-2 disabled:opacity-50" onClick={() => void save()}>Save Agent settings</button>
       <div className="border-t border-[var(--edge-dark)] pt-3"><button type="button" disabled={busy || loading} className="dark-chip max-w-full whitespace-normal p-2 disabled:opacity-50" onClick={() => setConfirmation(true)}>Clear proactive Agent memory</button></div>
     </>}
+    {data&&<AgentOneShotAuthorization key={data.settings.settingsRevision} revision={data.settings.settingsRevision}/>}
     {busy && <p role="status">Saving Agent settings…</p>}
     {confirmation && <WorkspaceDialog label="Clear proactive Agent memory" onClose={() => { if (!busy) setConfirmation(false); }}>
       <section className="max-w-lg space-y-3 p-4 text-sm">
