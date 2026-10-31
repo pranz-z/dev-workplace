@@ -169,6 +169,23 @@ export async function setProjectScreenshotPublic(projectId: string, screenshotId
   return serviceOk(mapScreenshot(row, signed.signedUrl));
 }
 
+export async function makeProjectScreenshotsPublic(projectId: string, screenshotIds: string[]): Promise<ServiceResult<string[]>> {
+  if (!isUuid(projectId) || screenshotIds.some((id) => !isUuid(id))) {
+    return serviceFail("Those screenshots are no longer available. Refresh and try again.");
+  }
+  if (!screenshotIds.length) return serviceOk([]);
+  const context = await getWorkspaceContext();
+  if (!context) return serviceFail("Sign in to update project screenshots.");
+  const { data, error } = await context.supabase.from("project_screenshots")
+    .update({ is_public: true })
+    .eq("project_id", projectId)
+    .eq("user_id", context.userId)
+    .in("id", [...new Set(screenshotIds)])
+    .select("id");
+  if (error) return serviceFail(describeDatabaseError(error, "Couldn't update screenshot visibility."));
+  return serviceOk((data ?? []).map((row) => row.id));
+}
+
 export async function reorderProjectScreenshots(projectId: string, screenshotIds: string[]): Promise<ServiceResult<ProjectScreenshot[]>> {
   if (!isUuid(projectId) || screenshotIds.some((id) => !isUuid(id)) || new Set(screenshotIds).size !== screenshotIds.length) {
     return serviceFail("That screenshot order is no longer available. Refresh and try again.");

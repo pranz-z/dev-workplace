@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { SortableList } from "@/components/dnd/SortableList";
-import { addProjectScreenshot, deleteProjectScreenshot, reorderProjectScreenshots, setProjectScreenshotPublic, validateProjectScreenshotFile, type ProjectScreenshot } from "@/data/projectScreenshotService";
+import { addProjectScreenshot, deleteProjectScreenshot, makeProjectScreenshotsPublic, reorderProjectScreenshots, setProjectScreenshotPublic, validateProjectScreenshotFile, type ProjectScreenshot } from "@/data/projectScreenshotService";
 
 interface ProjectScreenshotsProps {
   projectId: string;
@@ -28,10 +28,14 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
   const [notice, setNotice] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const uploadLock = useRef(false);
   const mounted = useRef(true);
   const previewUrls = useRef(new Set<string>());
   const uploadableCount = files.filter((item) => !validateProjectScreenshotFile(item.file)).length;
+  const selectedScreenshots = screenshots.filter((item) => selectedIds.includes(item.id));
+  const allSelected = screenshots.length > 0 && selectedScreenshots.length === screenshots.length;
+  const privateScreenshots = screenshots.filter((item) => !item.isPublic);
 
   useEffect(() => {
     mounted.current = true;
@@ -167,6 +171,34 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
     }
   };
 
+  const handleBulkPublic = async (items: ProjectScreenshot[]) => {
+    if (saving || loading || uploadLock.current) return;
+    const ids = items.filter((item) => !item.isPublic).map((item) => item.id);
+    if (!ids.length) return;
+    uploadLock.current = true;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await makeProjectScreenshotsPublic(projectId, ids);
+      if (!mounted.current) return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      const updatedIds = new Set(result.data);
+      onChange(screenshots.map((item) => updatedIds.has(item.id) ? { ...item, isPublic: true } : item));
+      setSelectedIds((current) => current.filter((id) => !updatedIds.has(id)));
+      setNotice(`Made ${updatedIds.size} screenshot${updatedIds.size === 1 ? "" : "s"} public.`);
+      if (ids.some((id) => !updatedIds.has(id))) setError("Some screenshots couldn't be updated. Refresh screenshots and try again.");
+    } catch {
+      if (mounted.current) setError("Couldn't update screenshot visibility. Refresh screenshots before trying again.");
+    } finally {
+      uploadLock.current = false;
+      if (mounted.current) setSaving(false);
+    }
+  };
+
   const handleReorder = async (ordered: ProjectScreenshot[]) => {
     if (saving) return;
     setSaving(true);
@@ -192,7 +224,7 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
     <section className="space-y-4 dark-panel p-4" aria-labelledby="project-screenshots-title">
       <div>
         <h3 id="project-screenshots-title" className="text-lg font-semibold t-dark">Project screenshots</h3>
-        <p className="mt-1 text-sm t-dark-muted">Images are private by default. Share individual screenshots on public project pages when they are ready.</p>
+        <p className="mt-1 text-sm t-dark-muted">Images are private by default. Share individual screenshots, a selection, or all screenshots on public project pages when they are ready.</p>
       </div>
       <form onSubmit={(event) => void handleUpload(event)} className="grid gap-3 rounded-xl dark-inset p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
         <label className="min-w-0 text-sm t-dark-muted">Images
@@ -217,6 +249,16 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
       {(progress || notice) && <p role="status" className="text-sm t-dark-muted">{progress ? `Uploading screenshot ${progress.current} of ${progress.total}…` : notice}</p>}
       {(error || loadError) && <p role="alert" className="text-sm text-amber-300">{error || loadError}</p>}
       {loading ? <p role="status" className="text-sm t-dark-muted">Loading screenshots…</p> : screenshots.length ? (
+        <>
+        <div className="flex flex-wrap items-center gap-3 rounded-xl dark-inset p-3">
+          <label className="flex items-center gap-2 text-sm t-dark">
+            <input type="checkbox" checked={allSelected} ref={(input) => { if (input) input.indeterminate = selectedScreenshots.length > 0 && !allSelected; }} disabled={saving} onChange={(event) => setSelectedIds(event.target.checked ? screenshots.map((item) => item.id) : [])} className="h-4 w-4 accent-[var(--accent-coral)]" />
+            Select all
+          </label>
+          <span className="text-sm t-dark-muted">{selectedScreenshots.length} selected</span>
+          <button type="button" disabled={saving || !selectedScreenshots.some((item) => !item.isPublic)} onClick={() => void handleBulkPublic(selectedScreenshots)} className="dark-chip px-3 py-2 text-sm disabled:opacity-50">Make selected public</button>
+          <button type="button" disabled={saving || !privateScreenshots.length} onClick={() => void handleBulkPublic(screenshots)} className="ink-button primary px-3 py-2 text-sm disabled:opacity-50">Make all public</button>
+        </div>
         <SortableList
           items={screenshots}
           getId={(item) => item.id}
@@ -226,6 +268,10 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
           onReorder={(items) => void handleReorder(items)}
           renderItem={(screenshot, dragHandle) => (
             <article className="min-w-0 overflow-hidden rounded-xl dark-inset">
+              <label className="flex items-center gap-2 px-3 py-2 text-xs t-dark-muted">
+                <input type="checkbox" checked={selectedIds.includes(screenshot.id)} disabled={saving} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, screenshot.id] : current.filter((id) => id !== screenshot.id))} aria-label={`Select screenshot: ${screenshot.caption || screenshot.id}`} className="h-4 w-4 accent-[var(--accent-coral)]" />
+                Select
+              </label>
               {/* Signed URLs are temporary and scoped to the authenticated user's private bucket access. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={screenshot.signedUrl} alt={screenshot.caption || "Project screenshot"} className="aspect-video w-full object-cover" />
@@ -240,6 +286,7 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
             </article>
           )}
         />
+        </>
       ) : (
         <div className="rounded-xl dark-inset p-4 text-sm t-dark-muted">
           <p>No screenshots yet.</p>
