@@ -30,7 +30,7 @@ Then open http://localhost:3000
 - `data/githubAppService.ts` creates short-lived installation tokens on the server and returns allowlisted repository metadata. Tokens and App credentials never reach the browser or Supabase.
 - `data/githubWriteService.ts` sends writes through `/api/github/write`; the MVP keeps this boundary disabled until a trusted GitHub App/OAuth secret is configured.
 - `data/projectService.ts` provides the authenticated Supabase-backed project provider; prototype data is isolated to unauthenticated demo mode.
-- `data/workspaceService.ts` hydrates the authenticated workspace and provides the guarded localStorage migration.
+- `data/workspaceService.ts` hydrates the authenticated workspace.
 - `proxy.ts` (the Next.js 16 replacement for middleware) refreshes Supabase auth cookies on every request and protects `/app` and any future `/app/*` route server-side.
 - `supabase/tests/rls.sql` checks RLS enablement and required ownership/public policies in the Supabase test workflow.
 - `app/api/public-ai/route.ts` serves the opt-in public developer concierge separately from the authenticated workspace assistant. It loads only the dedicated public AI RPC projections and never reads private workspace tables.
