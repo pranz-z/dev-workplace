@@ -2356,8 +2356,10 @@ export default function Home() {
                 <SortableList
                   items={projectMilestonesList}
                   getId={(item) => item.id}
+                  getLabel={(item) => item.title}
                   className="space-y-3"
-                  disabled={authStatus !== "authenticated" || workspaceStatus !== "ready" || isPersistingOrder}
+                  disabled={authStatus !== "authenticated" || workspaceStatus !== "ready"}
+                  busy={isPersistingOrder}
                   onReorder={(items) => reorderMilestones(selectedProject.id, items)}
                   renderItem={(milestone, dragHandle) => (
                     <div className="flex items-center justify-between gap-2 dark-inset p-3">
@@ -2465,7 +2467,8 @@ export default function Home() {
             <ProjectKanbanBoard
               projects={collectionProjects}
               selectedProjectId={selectedProject?.id ?? ""}
-              busy={authStatus !== "authenticated" || workspaceStatus !== "ready" || isPersistingOrder || contextQuery !== "" || projectStatusFilter !== "all"}
+              busy={isPersistingOrder}
+              readOnly={authStatus !== "authenticated" || workspaceStatus !== "ready" || contextQuery !== "" || projectStatusFilter !== "all"}
               onSelect={(projectId) => {
                 const project = projects.find((item) => item.id === projectId);
                 if (project) openProjectDetail(project);
@@ -2684,7 +2687,9 @@ export default function Home() {
                   <SortableList
                     items={plan.items}
                     getId={(item) => item.id}
-                    disabled={authStatus !== "authenticated" || workspaceStatus !== "ready" || isPersistingOrder}
+                    getLabel={(item) => item.label}
+                    disabled={authStatus !== "authenticated" || workspaceStatus !== "ready"}
+                    busy={isPersistingOrder}
                     onReorder={(items) => reorderChecklist(plan.id, items)}
                     renderItem={(item, dragHandle) => (
                       <div className="flex items-center gap-2 text-sm t-dark-soft">

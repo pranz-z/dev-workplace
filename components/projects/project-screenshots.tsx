@@ -262,6 +262,7 @@ export function ProjectScreenshots({ projectId, screenshots, loading, loadError,
         <SortableList
           items={screenshots}
           getId={(item) => item.id}
+          getLabel={(item) => item.caption || "project screenshot"}
           className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3"
           layout="grid"
           disabled={saving}

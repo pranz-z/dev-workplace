@@ -12,11 +12,11 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
 } from "@dnd-kit/core";
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { dropsAfter, kanbanCollisionDetection } from "@/components/workspace/kanbanDrag";
+import { dragAnnouncements, dropsAfter, kanbanCollisionDetection, kanbanKeyboardCoordinates } from "@/components/workspace/kanbanDrag";
 import { WORKFLOW_PIPELINE } from "@/lib/projectProgress";
 import { WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload } from "@/lib/ai/chat-drag";
 import type { Project, WorkflowPhase } from "@/types";
@@ -32,6 +32,7 @@ interface ProjectKanbanBoardProps {
   projects: Project[];
   selectedProjectId: string;
   busy: boolean;
+  readOnly: boolean;
   onSelect: (projectId: string) => void;
   onMove: (move: {
     projectId: string;
@@ -44,10 +45,11 @@ interface ProjectKanbanBoardProps {
 
 type DropEdge = { id: string; edge: "before" | "after" };
 
-function ProjectCard({ project, selected, disabled, dropEdge, onSelect }: {
+function ProjectCard({ project, selected, disabled, readOnly, dropEdge, onSelect }: {
   project: Project;
   selected: boolean;
   disabled: boolean;
+  readOnly: boolean;
   dropEdge?: DropEdge["edge"];
   onSelect: () => void;
 }) {
@@ -69,7 +71,8 @@ function ProjectCard({ project, selected, disabled, dropEdge, onSelect }: {
         <p className="truncate text-sm font-medium t-dark">{project.name}</p>
         <p className="mt-1 text-[10px] uppercase tracking-[0.18em] t-dark-muted">{project.progress}%</p>
       </button>
-      {!disabled && (
+      {/* Stays mounted while a move saves, so keyboard focus can return here after the drop. */}
+      {!readOnly && (
         <button
           ref={setActivatorNodeRef}
           type="button"
@@ -87,11 +90,12 @@ function ProjectCard({ project, selected, disabled, dropEdge, onSelect }: {
   );
 }
 
-function WorkflowColumn({ stage, projects, selectedProjectId, disabled, dropEdge, onSelect }: {
+function WorkflowColumn({ stage, projects, selectedProjectId, disabled, readOnly, dropEdge, onSelect }: {
   stage: WorkflowPhase;
   projects: Project[];
   selectedProjectId: string;
   disabled: boolean;
+  readOnly: boolean;
   dropEdge: DropEdge | null;
   onSelect: (projectId: string) => void;
 }) {
@@ -112,25 +116,26 @@ function WorkflowColumn({ stage, projects, selectedProjectId, disabled, dropEdge
               project={project}
               selected={project.id === selectedProjectId}
               disabled={disabled}
+              readOnly={readOnly}
               dropEdge={dropEdge?.id === project.id ? dropEdge.edge : undefined}
               onSelect={() => onSelect(project.id)}
             />
           ))}
         </SortableContext>
-        {projects.length === 0 && <p className="p-3 text-xs t-dark-muted">{disabled ? "No projects" : "Drop a project here"}</p>}
+        {projects.length === 0 && <p className="p-3 text-xs t-dark-muted">{readOnly ? "No projects" : "Drop a project here"}</p>}
       </div>
     </section>
   );
 }
 
-export function ProjectKanbanBoard({ projects, selectedProjectId, busy, onSelect, onMove }: ProjectKanbanBoardProps) {
+export function ProjectKanbanBoard({ projects, selectedProjectId, busy, readOnly, onSelect, onMove }: ProjectKanbanBoardProps) {
   const [activeProjectId, setActiveProjectId] = useState("");
   const [dropEdge, setDropEdge] = useState<DropEdge | null>(null);
   const activeProject = projects.find((item) => item.id === activeProjectId);
   const endDrag = () => { setActiveProjectId(""); setDropEdge(null); };
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 7 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, { coordinateGetter: kanbanKeyboardCoordinates }),
   );
 
   // Inside a column the sortable gap shows the position; across columns nothing opens, so mark the edge.
@@ -144,7 +149,7 @@ export function ProjectKanbanBoard({ projects, selectedProjectId, busy, onSelect
 
   const handleDragEnd = (event: DragEndEvent) => {
     endDrag();
-    if (busy || !event.over || event.active.id === event.over.id) return;
+    if (busy || readOnly || !event.over || event.active.id === event.over.id) return;
     const project = projects.find((item) => item.id === String(event.active.id));
     if (!project) return;
     const overProject = projects.find((item) => item.id === String(event.over?.id));
@@ -175,7 +180,7 @@ export function ProjectKanbanBoard({ projects, selectedProjectId, busy, onSelect
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={kanbanCollisionDetection} onDragStart={(event) => setActiveProjectId(String(event.active.id))} onDragMove={handleDragMove} onDragCancel={endDrag} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={kanbanCollisionDetection} accessibility={{ announcements: dragAnnouncements((id) => String(id).startsWith("workflow:") ? `the ${stageLabel(String(id).slice(9) as WorkflowPhase)} column` : projects.find((item) => item.id === id)?.name ?? "this project") }} onDragStart={(event) => setActiveProjectId(String(event.active.id))} onDragMove={handleDragMove} onDragCancel={endDrag} onDragEnd={handleDragEnd}>
       <div className="grid gap-4 xl:grid-cols-3">
         {BOARD_STAGES.map((stage) => (
           <WorkflowColumn
@@ -183,7 +188,8 @@ export function ProjectKanbanBoard({ projects, selectedProjectId, busy, onSelect
             stage={stage}
             projects={projects.filter((project) => project.currentPhase === stage).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))}
             selectedProjectId={selectedProjectId}
-            disabled={busy}
+            disabled={busy || readOnly}
+            readOnly={readOnly}
             dropEdge={dropEdge}
             onSelect={onSelect}
           />

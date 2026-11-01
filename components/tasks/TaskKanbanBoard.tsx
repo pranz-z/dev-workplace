@@ -12,7 +12,7 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
 } from "@dnd-kit/core";
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AlertCircle, CalendarDays, CheckCircle2, CircleDashed, Eye, FlaskConical, GripVertical, Play, Plus, Sparkles } from "lucide-react";
 import { useRef, useState } from "react";
@@ -21,7 +21,7 @@ import type { Task, TaskStatus } from "@/types";
 import { formatCalendarDate, taskCalendarDate } from "@/data/workspaceCalendar";
 import { WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload } from "@/lib/ai/chat-drag";
 import { buildTaskBoardDrop, buildTaskKanbanMove } from "@/data/taskKanban";
-import { dropsAfter, kanbanCollisionDetection } from "@/components/workspace/kanbanDrag";
+import { dragAnnouncements, dropsAfter, kanbanCollisionDetection, kanbanKeyboardCoordinates } from "@/components/workspace/kanbanDrag";
 import { WorkspaceDialog } from "@/components/workspace/WorkspaceDialog";
 
 interface TaskKanbanBoardProps {
@@ -56,13 +56,14 @@ const statusIcon: Record<TaskStatus, LucideIcon> = {
 
 type DropEdge = { id: string; edge: "before" | "after" };
 
-function TaskCard({ task, projectName, projectScoped, onOpenTask, onRequestMove, disabled, dropEdge, timeZone, today }: {
+function TaskCard({ task, projectName, projectScoped, onOpenTask, onRequestMove, disabled, readOnly, dropEdge, timeZone, today }: {
   task: Task;
   projectName: string;
   projectScoped: boolean;
   onOpenTask: (task: Task) => void;
   onRequestMove: (task: Task) => void;
   disabled: boolean;
+  readOnly: boolean;
   dropEdge?: DropEdge["edge"];
   timeZone: string;
   today: string;
@@ -78,7 +79,8 @@ function TaskCard({ task, projectName, projectScoped, onOpenTask, onRequestMove,
       className={`task-kanban-card ${task.status === "Completed" ? "is-completed" : ""} ${isDragging ? "is-dragging" : ""}`}
     >
       <div {...listeners} className={`notebook-drag-surface flex items-start gap-2 ${disabled ? "" : "cursor-grab active:cursor-grabbing"}`}>
-        {!disabled && <button
+        {/* Stays mounted while a move saves, so keyboard focus can return here after the drop. */}
+        {!readOnly && <button
           ref={setActivatorNodeRef}
           type="button"
           {...attributes}
@@ -115,12 +117,13 @@ function TaskCard({ task, projectName, projectScoped, onOpenTask, onRequestMove,
   );
 }
 
-function TaskColumn({ status, tasks, projectNames, projectScoped, disabled, draggingTaskTitle, dropEdge, onOpenTask, onRequestMove, timeZone, today }: {
+function TaskColumn({ status, tasks, projectNames, projectScoped, disabled, readOnly, draggingTaskTitle, dropEdge, onOpenTask, onRequestMove, timeZone, today }: {
   status: TaskStatus;
   tasks: Task[];
   projectNames: Map<string, string>;
   projectScoped: boolean;
   disabled: boolean;
+  readOnly: boolean;
   draggingTaskTitle: string;
   dropEdge: DropEdge | null;
   onOpenTask: (task: Task) => void;
@@ -141,10 +144,10 @@ function TaskColumn({ status, tasks, projectNames, projectScoped, disabled, drag
       </header>
       <div className={`task-kanban-drop-zone ${isOver ? "is-over" : ""}`}>
         <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
-          {tasks.map((task) => <TaskCard key={task.id} task={task} projectName={projectNames.get(task.projectId) ?? "Project"} projectScoped={projectScoped} onOpenTask={onOpenTask} onRequestMove={onRequestMove} disabled={disabled} dropEdge={dropEdge?.id === task.id ? dropEdge.edge : undefined} timeZone={timeZone} today={today} />)}
+          {tasks.map((task) => <TaskCard key={task.id} task={task} projectName={projectNames.get(task.projectId) ?? "Project"} projectScoped={projectScoped} onOpenTask={onOpenTask} onRequestMove={onRequestMove} disabled={disabled} readOnly={readOnly} dropEdge={dropEdge?.id === task.id ? dropEdge.edge : undefined} timeZone={timeZone} today={today} />)}
         </SortableContext>
         {tasks.length === 0 && <div className={`task-kanban-empty ${isOver ? "is-over" : ""}`}>
-          {isOver && draggingTaskTitle ? <><Plus size={17} aria-hidden="true" /><span>Drop “{draggingTaskTitle}” here</span></> : <><Plus size={17} aria-hidden="true" /><span>{disabled ? "No tasks" : "Drop task here"}</span></>}
+          {isOver && draggingTaskTitle ? <><Plus size={17} aria-hidden="true" /><span>Drop “{draggingTaskTitle}” here</span></> : <><Plus size={17} aria-hidden="true" /><span>{readOnly ? "No tasks" : "Drop task here"}</span></>}
         </div>}
       </div>
     </section>
@@ -165,7 +168,7 @@ export function TaskKanbanBoard({ projectId, canMove, tasks, columns, onMove, on
   const placementTasks = movingProjectTasks.filter(task => task.status === destination && task.id !== movingTask?.id).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 7 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, { coordinateGetter: kanbanKeyboardCoordinates }),
   );
 
   const endDrag = () => { setActiveTaskId(""); setDropEdge(null); };
@@ -191,6 +194,7 @@ export function TaskKanbanBoard({ projectId, canMove, tasks, columns, onMove, on
     <DndContext
       sensors={sensors}
       collisionDetection={kanbanCollisionDetection}
+      accessibility={{ announcements: dragAnnouncements((id) => String(id).startsWith("column:") ? `the ${String(id).slice(7)} column` : tasks.find((task) => task.id === id)?.title ?? "this task") }}
       autoScroll
       onDragStart={(event) => setActiveTaskId(String(event.active.id))}
       onDragMove={handleDragMove}
@@ -209,6 +213,7 @@ export function TaskKanbanBoard({ projectId, canMove, tasks, columns, onMove, on
               projectNames={projectNames}
               projectScoped={projectScoped}
               disabled={!canMove || busy}
+              readOnly={!canMove}
               draggingTaskTitle={draggingTaskTitle}
               dropEdge={dropEdge}
               onOpenTask={onOpenTask}
