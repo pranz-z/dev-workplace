@@ -11,6 +11,7 @@ import { ChatMessageBubble, ChatTypingIndicator, type ChatMessage } from "@/comp
 import { MAX_CHAT_ENTITIES, MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, MAX_CHAT_TOTAL_FILE_BYTES, MAX_CHAT_HISTORY_MESSAGES, MAX_CHAT_MESSAGE_LENGTH, type WorkspaceEntityRef } from "@/lib/ai/chat-contract";
 import { parseWorkspaceEntityDragPayload, WORKSPACE_AI_DRAG_TYPE } from "@/lib/ai/chat-drag";
 import { PanelResizeHandle } from "@/components/workspace/PanelResizeHandle";
+import { readPanelLayout, storedWidth, writePanelLayout } from "@/components/workspace/panelLayout";
 import type { ToolActivity, ProposalBatch } from "@/lib/ai/agent/contract";
 import { normalizeAgentAnswer } from "@/lib/ai/agent/format";
 import { AgentProposalCards } from "@/components/ai/AgentProposalCards";
@@ -50,7 +51,8 @@ export function WorkspaceAiChat({ projects, tasks, plans, milestones=[], open, o
   const [contextType, setContextType] = useState<WorkspaceEntityRef["type"]>("project");
   const [pickerId, setPickerId] = useState("");
   const [query, setQuery] = useState("");
-  const [panelWidth, setPanelWidth] = useState(352);
+  // Mounted only after sign-in on the client, so reading storage here cannot cause a hydration mismatch.
+  const [panelWidth, setPanelWidth] = useState(() => storedWidth(readPanelLayout().aiWidth, 300, 520, 352));
   const requestSequence = useRef(0);
   const controller = useRef<AbortController | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -154,7 +156,7 @@ export function WorkspaceAiChat({ projects, tasks, plans, milestones=[], open, o
   };
 
   const panel = <section style={{ "--ai-panel-width": `${panelWidth}px` } as React.CSSProperties} onDragOver={(event) => { event.preventDefault(); if (mode === "chat") setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }} onDrop={handleDrop} aria-label="Workspace AI chat" className={`workspace-ai-panel ${open ? "is-open" : ""}`}>
-    {open && <PanelResizeHandle reverse label="Workspace AI panel width" value={panelWidth} min={300} max={520} onChange={setPanelWidth} />}
+    {open && <PanelResizeHandle reverse label="Workspace AI panel width" value={panelWidth} min={300} max={520} onChange={(next) => { setPanelWidth(next); writePanelLayout({ aiWidth: next }); }} />}
     {!open ? <button type="button" onClick={() => onOpenChange(true)} aria-label="Open Workspace AI chat" className="flex h-full w-full items-center justify-center gap-1 rounded-full t-dark"><Sparkles size={17} /><span className="text-xs font-bold">AI</span></button> : <>
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--edge-dark)] p-4">
         <div className="min-w-0"><p className="eyebrow t-mood">Private workspace assistant</p><h2 className="mt-1 text-lg font-semibold t-dark">Workspace AI</h2><p className="mt-1 text-xs t-dark-muted">{mode === "agent" ? "Agent can inspect your workspace and propose task changes, deadline dates, and time blocks. Plan my day uses saved working hours. Only Apply changes workspace data. Relevant workspace data is sent to Gemini." : "Only the message, attached context, and files are sent when you send."}</p>

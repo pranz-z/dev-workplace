@@ -5,7 +5,7 @@ import ts from "typescript";
 
 const source = readFileSync(new URL("./taskKanban.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-const { buildTaskKanbanMove } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { buildTaskBoardDrop, buildTaskKanbanMove } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 
 const statuses = ["Backlog", "Planned", "In Progress", "Review", "Testing", "Blocked", "Completed"];
 const task = (id, status = "Backlog", sortOrder = 1, projectId = "p1") => ({ id, projectId, status, sortOrder });
@@ -67,4 +67,21 @@ test("project filters cannot submit mixed or cross-project task order", () => {
 
 test("unknown drag targets are ignored instead of altering status or order", () => {
   assert.equal(buildTaskKanbanMove([task("a")], statuses, "p1", "a", "missing"), null);
+});
+
+test("all-projects board moves a task within its own project and ignores same-column drops", () => {
+  const tasks = [task("a", "Backlog", 1, "p1"), task("b", "Planned", 1, "p1"), task("x", "Planned", 1, "p2"), task("y", "Backlog", 2, "p2")];
+  const onOtherProjectCard = buildTaskBoardDrop(tasks, statuses, "", "a", "x");
+  assert.equal(onOtherProjectCard.destinationStatus, "Planned");
+  assert.deepEqual(onOtherProjectCard.destinationTaskIds, ["b", "a"]);
+  assert.deepEqual(onOtherProjectCard.sourceTaskIds, []);
+  const onOwnCard = buildTaskBoardDrop(tasks, statuses, "", "a", "b");
+  assert.deepEqual(onOwnCard.destinationTaskIds, ["a", "b"]);
+  assert.equal(buildTaskBoardDrop(tasks, statuses, "", "a", "y"), null);
+  assert.equal(buildTaskBoardDrop(tasks, statuses, "", "a", "column:Backlog"), null);
+});
+
+test("project-scoped board still reorders within a column", () => {
+  const tasks = [task("a", "Backlog", 1), task("b", "Backlog", 2)];
+  assert.deepEqual(buildTaskBoardDrop(tasks, statuses, "p1", "a", "b").destinationTaskIds, ["b", "a"]);
 });

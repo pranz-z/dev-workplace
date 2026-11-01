@@ -3,6 +3,7 @@
 import { Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { PanelResizeHandle } from "./PanelResizeHandle";
+import { readPanelLayout, storedWidth, writePanelLayout } from "./panelLayout";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { formatFocusDuration } from "@/data/focusSession";
 import { Logo } from "@/components/brand/Logo";
@@ -25,6 +26,7 @@ export function WorkspaceShell({ onToggleTheme, items, active, onNavigate, conte
   const [contextOpen, setContextOpen] = useState(false);
   const [width, setWidth] = useState(224);
   const [focusMode, setFocusMode] = useState(false);
+  const [panelsRestored, setPanelsRestored] = useState(false);
   const priorPanels = useRef<{ collapsed: boolean; aiOpen: boolean; compact: boolean } | null>(null);
   const layout = useRef<HTMLDivElement>(null);
   const focusButton = useRef<HTMLButtonElement>(null);
@@ -36,6 +38,19 @@ export function WorkspaceShell({ onToggleTheme, items, active, onNavigate, conte
   const groups = [...new Set(items.map(item => item.group ?? "Work"))];
   const modalAi = aiOpen && !wide && !focusMode;
   const navigate = (key: string) => { onNavigate(key); setDrawer(false); setContextOpen(false); };
+  // State rather than a ref: Strict Mode re-runs effects on mount, and defaults must never be saved.
+  useEffect(() => {
+    if (panelsRestored && !focusMode) writePanelLayout({ contextWidth: width, collapsed, compact });
+  }, [collapsed, compact, focusMode, panelsRestored, width]);
+  useEffect(() => {
+    const saved = readPanelLayout();
+    // Storage is only readable after hydration, so the server and first client render use defaults.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setWidth(storedWidth(saved.contextWidth, 192, 300, 224));
+    setCollapsed(saved.collapsed === true);
+    setCompact(saved.compact === true);
+    setPanelsRestored(true);
+  }, []);
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1280px)");
     const update = () => {
@@ -88,8 +103,9 @@ export function WorkspaceShell({ onToggleTheme, items, active, onNavigate, conte
     focusSessionOwnedMode.current = false;
     previousFocusSessionActive.current = false;
     setFocusMode(false);
-    setCollapsed(false);
-    setCompact(false);
+    const saved = readPanelLayout();
+    setCollapsed(saved.collapsed === true);
+    setCompact(saved.compact === true);
     setContextOpen(false);
     onAiOpenChange(false);
   }, [onAiOpenChange, sessionKey]);
@@ -138,7 +154,7 @@ export function WorkspaceShell({ onToggleTheme, items, active, onNavigate, conte
     </nav>
     {wide && !collapsed && <aside className="workspace-context" aria-label={`${title} navigation`}>
       <div className="flex items-center justify-between gap-2 pb-4"><h2 className="font-semibold">{title}</h2><button type="button" aria-label="Collapse sidebar" onClick={() => { setCollapsed(true); requestAnimationFrame(() => layout.current?.querySelector<HTMLButtonElement>('[aria-label="Expand sidebar"]')?.focus()); }} className="rounded-lg p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink-green)]"><PanelLeftClose size={17} /></button></div>
-      {context}
+      <div className="workspace-context-body">{context}</div>
       <PanelResizeHandle label="Context sidebar width" value={width} min={192} max={300} onChange={setWidth} />
     </aside>}
     <div className="workspace-center" inert={modalAi}>

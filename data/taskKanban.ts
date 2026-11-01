@@ -14,6 +14,29 @@ function orderedTasks(tasks: Task[], status: TaskStatus): Task[] {
     .sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0));
 }
 
+/**
+ * Resolve a board drop to a move inside the dragged task's own project. The all-projects
+ * board orders cards by creation date, so there only a change of column is a move.
+ */
+export function buildTaskBoardDrop(
+  tasks: Task[],
+  columns: readonly TaskStatus[],
+  scopedProjectId: string,
+  activeId: string,
+  overId: string,
+  insertAfter = false,
+): TaskKanbanMove | null {
+  const task = tasks.find((item) => item.id === activeId);
+  if (!task) return null;
+  const projectTasks = tasks.filter((item) => item.projectId === task.projectId);
+  const overTask = tasks.find((item) => item.id === overId);
+  const destinationStatus = overTask?.status ?? columns.find((status) => `column:${status}` === overId);
+  if (!scopedProjectId && destinationStatus === task.status) return null;
+  // A card from another project only identifies the column.
+  const target = overTask && overTask.projectId !== task.projectId ? `column:${overTask.status}` : overId;
+  return buildTaskKanbanMove(projectTasks, columns, task.projectId, activeId, target, insertAfter);
+}
+
 /** Build a project-scoped sortable move. Reject mixed/filtered data so hidden tasks cannot be reordered accidentally. */
 export function buildTaskKanbanMove(
   tasks: Task[],

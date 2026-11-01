@@ -1540,8 +1540,8 @@ export default function Home() {
   };
 
   const moveTaskInBoard = (move: { taskId: string; sourceStatus: TaskStatus; destinationStatus: TaskStatus; sourceTaskIds: string[]; destinationTaskIds: string[] }) => {
-    if (orderWriteLock.current || !taskBoardProjectId) return;
-    const projectId = taskBoardProjectId;
+    const projectId = tasks.find((task) => task.id === move.taskId)?.projectId;
+    if (orderWriteLock.current || !projectId) return;
     const orderedIds = move.sourceStatus === move.destinationStatus
       ? [{ status: move.destinationStatus, ids: move.destinationTaskIds }]
       : [{ status: move.sourceStatus, ids: move.sourceTaskIds }, { status: move.destinationStatus, ids: move.destinationTaskIds }];
@@ -2599,17 +2599,18 @@ export default function Home() {
               <label className="flex min-w-0 flex-col gap-1 text-xs t-dark-muted">
                 Reorder within project
                 <select aria-label="Choose a project for Task Kanban ordering" value={taskBoardProjectId} onChange={(event) => setTaskBoardProjectId(event.target.value)} className="task-kanban-project-select dark-chip px-3 py-2 text-sm t-dark">
-                  <option value="">All projects · reordering disabled</option>
+                  <option value="">All projects</option>
                   {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
                 </select>
               </label>
             </div>
           </header>
-          {!taskBoardProjectId && tasks.length > 0 && <p className="mb-3 text-sm t-dark-muted">Task order is saved per project. Choose a project to reorder its tasks; the mixed-project board is read-only for ordering.</p>}
+          {!taskBoardProjectId && tasks.length > 0 && <p className="mb-3 text-sm t-dark-muted">Drag a task to another column to change its status. Choose a project to also reorder tasks within a column.</p>}
           {tasks.length === 0
             ? <p className="text-sm t-dark-muted">No tasks yet. Add a project before creating a task.</p>
             : <TaskKanbanBoard
-                projectId={authStatus === "authenticated" && workspaceStatus === "ready" ? taskBoardProjectId : ""}
+                projectId={taskBoardProjectId}
+                canMove={authStatus === "authenticated" && workspaceStatus === "ready"}
                 tasks={boardTasks}
                 columns={taskColumns}
                 onMove={moveTaskInBoard}

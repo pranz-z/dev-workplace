@@ -50,6 +50,12 @@ test("mobile keeps drawer navigation and desktop collapse removes the sidebar gr
   assert.match(shell, /inert=\{modalAi\}/);
 });
 
+test("panels resize from an unlabelled edge and popovers stay out of the header flow", () => {
+  assert.doesNotMatch(styles, /Resize"/);
+  assert.match(styles, /\.dark-panel\.absolute \{ position: absolute; \}/);
+  assert.match(shell, /writePanelLayout\(\{ contextWidth: width, collapsed, compact \}\)/);
+});
+
 test("workspace destructive actions use the themed dialog, not native browser prompts", () => {
   for (const file of ["../../app/app/page.tsx", "../google-drive/DriveFiles.tsx", "../google-drive/DriveConnectionControl.tsx", "../accountability/accountability-workspace.tsx"]) {
     const source = readFileSync(new URL(file, import.meta.url), "utf8");
