@@ -145,12 +145,16 @@ export async function createProject(draft: ProjectDraft): Promise<ServiceResult<
     return serviceFail("Couldn't find a free public address for that name. Try a slightly different title.");
   }
 
+  // Only report technologies that were actually linked, so the card never shows a pill the database lacks.
+  const linkedTechnologies: string[] = [];
   for (const technologyName of draft.technologies ?? []) {
     const technology = await createTechnology(technologyName);
-    if (technology.ok) await attachTechnology(created.id, technology.data.id);
+    if (!technology.ok) continue;
+    const link = await attachTechnology(created.id, technology.data.id);
+    if (link.ok) linkedTechnologies.push(technology.data.name);
   }
 
-  return serviceOk(mapProjectRow(created, { technologies: draft.technologies ?? [] }));
+  return serviceOk(mapProjectRow(created, { technologies: linkedTechnologies }));
 }
 
 export interface ProjectPatch {

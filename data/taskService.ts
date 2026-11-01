@@ -10,6 +10,7 @@ import {
   serviceOk,
   type ServiceResult,
 } from "@/data/serviceResult";
+import { fetchAllRows } from "@/data/pagedQuery";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -18,9 +19,9 @@ const TASK_COLUMNS = "id, user_id, project_id, milestone_id, title, description,
 export async function listTasks(): Promise<Task[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.from("tasks").select(TASK_COLUMNS).order("sort_order", { ascending: true }).order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((row) => mapTaskRow(row as TaskRow));
+  const rows = await fetchAllRows((from, to) => supabase.from("tasks").select(TASK_COLUMNS)
+    .order("sort_order", { ascending: true }).order("created_at", { ascending: false }).order("id", { ascending: true }).range(from, to));
+  return rows.map((row) => mapTaskRow(row as TaskRow));
 }
 
 export interface TaskInput {
@@ -99,7 +100,29 @@ export async function updateTask(taskId: string, patch: TaskPatch): Promise<Serv
     if (title.length === 0) return serviceFail("Give the task a title first.");
     payload.title = title;
   }
-  if (patch.projectId !== undefined) payload.project_id = patch.projectId;
+  if (patch.projectId !== undefined) {
+    payload.project_id = patch.projectId;
+    // A milestone belongs to one project, so moving a task elsewhere detaches it
+    // unless the caller names a milestone in the destination project.
+    if (patch.milestoneId === undefined) {
+      const { data: current, error: currentError } = await context.supabase.from("tasks").select("project_id").eq("id", taskId).maybeSingle();
+      if (currentError) return serviceFail(describeDatabaseError(currentError, SAVE_FAILED_MESSAGE));
+      if (!current) return serviceFail(SAVE_FAILED_MESSAGE);
+      if ((current as { project_id: string }).project_id !== patch.projectId) {
+        payload.milestone_id = null;
+        const { data: last, error: orderError } = await context.supabase
+          .from("tasks")
+          .select("sort_order")
+          .eq("project_id", patch.projectId)
+          .eq("status", patch.status ?? "Backlog")
+          .order("sort_order", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (orderError) return serviceFail(describeDatabaseError(orderError, SAVE_FAILED_MESSAGE));
+        payload.sort_order = ((last as { sort_order?: number } | null)?.sort_order ?? 0) + 1;
+      }
+    }
+  }
   if (patch.description !== undefined) payload.description = patch.description;
   if (patch.priority !== undefined) payload.priority = patch.priority;
   if (patch.status !== undefined) {
@@ -159,22 +182,15 @@ export async function reorderProjectTasks(projectId: string, movedTaskId: string
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
-  const results = await Promise.all(updates.map(async (item) => {
-    const payload: { status?: TaskStatus; sort_order: number; completed_at?: string | null } = { sort_order: item.sortOrder };
-    if (item.id === movedTaskId) {
-      payload.status = item.status;
-      if (item.status !== sourceStatus) payload.completed_at = item.status === "Completed" ? new Date().toISOString() : null;
-    }
-    return context.supabase.from("tasks").update(payload)
-      .eq("id", item.id)
-      .eq("project_id", projectId)
-      .eq("user_id", context.userId)
-      .select("id")
-      .maybeSingle();
-  }));
-  const failed = results.find((result) => result.error || !result.data);
-  if (failed?.error) return serviceFail(describeDatabaseError(failed.error, SAVE_FAILED_MESSAGE));
-  if (failed) return serviceFail(SAVE_FAILED_MESSAGE);
+  const moved = updates.find((item) => item.id === movedTaskId);
+  const { error } = await context.supabase.rpc("reorder_project_tasks", {
+    p_project_id: projectId,
+    p_moved_task_id: movedTaskId,
+    p_moved_status: moved?.status ?? sourceStatus,
+    p_task_ids: updates.map((item) => item.id),
+    p_sort_orders: updates.map((item) => item.sortOrder),
+  });
+  if (error) return serviceFail(describeDatabaseError(error, SAVE_FAILED_MESSAGE));
   return serviceOk({ id: projectId });
 }
 

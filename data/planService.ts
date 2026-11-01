@@ -10,6 +10,7 @@ import {
   serviceOk,
   type ServiceResult,
 } from "@/data/serviceResult";
+import { fetchAllRows } from "@/data/pagedQuery";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -20,15 +21,13 @@ export async function listPlans(): Promise<Plan[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseBrowserClient();
 
-  const [{ data: plans, error: planError }, { data: items, error: itemError }] = await Promise.all([
-    supabase.from("plans").select(PLAN_COLUMNS).order("created_at", { ascending: false }),
-    supabase.from("project_plan_items").select(PLAN_ITEM_COLUMNS).order("sort_order", { ascending: true }),
+  const [plans, items] = await Promise.all([
+    fetchAllRows((from, to) => supabase.from("plans").select(PLAN_COLUMNS).order("created_at", { ascending: false }).order("id", { ascending: true }).range(from, to)),
+    fetchAllRows((from, to) => supabase.from("project_plan_items").select(PLAN_ITEM_COLUMNS).order("sort_order", { ascending: true }).order("id", { ascending: true }).range(from, to)),
   ]);
-  if (planError) throw planError;
-  if (itemError) throw itemError;
 
-  const planItems = (items ?? []) as PlanItemRow[];
-  return ((plans ?? []) as PlanRow[]).map((row) => mapPlanRow(row, planItems));
+  const planItems = items as PlanItemRow[];
+  return (plans as PlanRow[]).map((row) => mapPlanRow(row, planItems));
 }
 
 export interface PlanItemInput {

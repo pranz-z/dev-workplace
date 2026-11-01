@@ -408,6 +408,7 @@ export default function Home() {
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
   const [workspaceError, setWorkspaceError] = useState("");
   const [shareNotice, setShareNotice] = useState<{ projectId: string; message: string } | null>(null);
+  const [workspaceReloadKey, setWorkspaceReloadKey] = useState(0);
   const [privateProjectConfirmation, setPrivateProjectConfirmation] = useState<Project | null>(null);
   const [isSavingVisibility, setIsSavingVisibility] = useState(false);
   const visibilitySaveLock = useRef(false);
@@ -569,13 +570,13 @@ export default function Home() {
         setTechnologies([]);
         setSelectedProjectId("");
         setWorkspaceUserId(null);
-        setWorkspaceError("Couldn't load your synced workspace. Refresh to try again.");
+        setWorkspaceError("Couldn't load your synced workspace.");
         setWorkspaceStatus("error");
       }
     };
     void hydrateWorkspace();
     return () => { active = false; };
-  }, [authStatus, user?.id]);
+  }, [authStatus, user?.id, workspaceReloadKey]);
 
   const handleSignOut = async () => {
     const result = await signOutOfSession();
@@ -2863,7 +2864,7 @@ export default function Home() {
           if(target.type==='milestone'){const milestone=milestones.find(m=>m.id===target.id);if(milestone){setSelectedProjectId(milestone.projectId);setProjectTab('Milestones');setActiveView('projects');handleEditMilestone(milestone);}}
         }} projects={projects} tasks={tasks} plans={plans} milestones={milestones} timeZone={workspaceTimeZone} open={aiOpen} onOpenChange={setAiOpen} inboxOpenRequest={inboxOpenRequest} onAgentApplied={async () => { const remote = await loadWorkspaceData(); if (!remote) throw new Error("Workspace refresh failed"); setTasks(remote.tasks); setProjects(remote.projects); setMilestones(remote.milestones); setPlans(remote.plans); }} /> : null}>
             {workspaceStatus === "checking" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Loading your workspace...</div>}
-            {workspaceStatus === "error" && <div className="mb-4 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}</div>}
+            {workspaceStatus === "error" && <div role="alert" className="mb-4 flex items-center justify-between gap-3 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted"><span>{workspaceError}</span><button type="button" className="dark-chip px-3 py-1.5" onClick={() => setWorkspaceReloadKey((key) => key + 1)}>Retry</button></div>}
             {workspaceStatus === "mock" && <div className="mb-4 dark-panel px-4 py-3 text-sm t-dark-muted">Prototype mode: showing local workspace data. Sign in with GitHub to sync with Supabase.</div>}
             {workspaceError && workspaceStatus !== "error" && <div role="alert" className="mb-4 flex items-center justify-between gap-3 dark-panel border-[var(--accent-peach-solid)] px-4 py-3 text-sm t-dark-muted">{workspaceError}<button type="button" onClick={() => setWorkspaceError("")} aria-label="Dismiss error"><X size={14} /></button></div>}
             {((authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id) || (authStatus === "unauthenticated" && workspaceStatus === "mock")) && renderPage()}
