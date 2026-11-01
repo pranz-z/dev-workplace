@@ -95,7 +95,7 @@ function SettingsSession({ onChanged }: Props) {
     </>}
     {busy && <p role="status">Saving Agent settings…</p>}
     {confirmation && <WorkspaceDialog label="Clear proactive Agent memory" onClose={() => { if (!busy) setConfirmation(false); }}>
-      <section className="max-w-lg space-y-3 p-4 text-sm">
+      <section className="dark-panel w-full max-w-lg space-y-3 p-4 text-sm">
         <h3 className="font-semibold">Clear proactive Agent memory?</h3>
         <p>Proactive observations and memory are cleared. Relevant conditions may be rediscovered later.</p>
         <p>Your workspace projects, tasks and files are not deleted.</p>

@@ -45,6 +45,7 @@ import { AiAssistant, AiSettingsStatus } from "@/components/ai/AiAssistant";
 import { WorkspaceAiChat } from "@/components/ai/WorkspaceAiChat";
 import { AgentPulseBrief } from "@/components/ai/AgentPulseBrief";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
+import { WorkspaceConfirmDialog, WorkspacePromptDialog } from "@/components/workspace/WorkspaceConfirm";
 import { WorkspaceDialog } from "@/components/workspace/WorkspaceDialog";
 import { DriveConnectionControl } from "@/components/google-drive/DriveConnectionControl";
 import { DriveFiles } from "@/components/google-drive/DriveFiles";
@@ -58,7 +59,7 @@ import { buildSeedState } from "@/data/mockData";
 import { calculateProjectAccountability } from "@/data/accountabilityService";
 import { AccountabilityWorkspace } from "@/components/accountability/accountability-workspace";
 import { calculateProjectProgress } from "@/lib/projectProgress";
-import { filterTaskView, localCalendarDate, calendarDatePatch, formatCalendarDate, taskCalendarDate, type WorkspaceCalendarEvent } from "@/data/workspaceCalendar";
+import { deriveTodayTasks, filterTaskView, localCalendarDate, calendarDatePatch, formatCalendarDate, taskCalendarDate, type WorkspaceCalendarEvent } from "@/data/workspaceCalendar";
 import { loadWorkspaceData } from "@/data/workspaceService";
 import { completeTask, createTask, deleteTask, listTasks, reopenTask, reorderProjectTasks, setTaskStatus, updateTask } from "@/data/taskService";
 import { deriveTaskList, parseTaskListSort, parseTaskListStatusFilter, TASK_STATUSES, type TaskListSort, type TaskListStatusFilter } from "@/data/taskList";
@@ -217,7 +218,7 @@ const priorityColors: Record<string, string> = {
   Low: "prio prio-low",
   Medium: "prio prio-medium",
   High: "prio prio-high",
-  Critical: "prio prio-high",
+  Critical: "prio prio-critical",
 };
 
 /* Per-project muted accent, expressed as a mood token instead of a raw tint */
@@ -407,8 +408,8 @@ export default function Home() {
   const [workspaceStatus, setWorkspaceStatus] = useState<"checking" | "mock" | "ready" | "error">("checking");
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
   const [workspaceError, setWorkspaceError] = useState("");
-  const [shareNotice, setShareNotice] = useState<{ projectId: string; message: string } | null>(null);
   const [workspaceReloadKey, setWorkspaceReloadKey] = useState(0);
+  const [shareNotice, setShareNotice] = useState<{ projectId: string; message: string } | null>(null);
   const [privateProjectConfirmation, setPrivateProjectConfirmation] = useState<Project | null>(null);
   const [isSavingVisibility, setIsSavingVisibility] = useState(false);
   const visibilitySaveLock = useRef(false);
@@ -422,6 +423,25 @@ export default function Home() {
   const editorSaveLock = useRef(false);
   const [technologyName, setTechnologyName] = useState("");
   const [technologyProjectId, setTechnologyProjectId] = useState("");
+
+  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [planStepPlanId, setPlanStepPlanId] = useState<string | null>(null);
+  const [isSavingPlanStep, setIsSavingPlanStep] = useState(false);
+
+  const runPendingConfirm = async () => {
+    if (!pendingConfirm || isConfirming) return;
+    setIsConfirming(true);
+    try {
+      await pendingConfirm.run();
+    } catch {
+      console.error("[workspace] confirmed action failed", { category: "confirm_failed" });
+      setWorkspaceError("Couldn't finish that. Check your connection and try again.");
+    } finally {
+      setIsConfirming(false);
+      setPendingConfirm(null);
+    }
+  };
 
   const closeWorkspaceEditor = () => {
     if (editorSaveLock.current) return;
@@ -755,8 +775,8 @@ export default function Home() {
   };
 
   const todayTasks = useMemo(
-    () => tasks.filter((task) => task.status !== "Completed").slice(0, 4),
-    [tasks],
+    () => deriveTodayTasks(tasks, localCalendarDate(workspaceNow, workspaceTimeZone), workspaceTimeZone),
+    [tasks, workspaceNow, workspaceTimeZone],
   );
 
   const completedToday = useMemo(() => {
@@ -1064,21 +1084,27 @@ export default function Home() {
     setNotes((current) => current.map((note) => note.id === result.data.id ? result.data : note));
   };
 
-  const handleDeleteProject = async (project: Project) => {
-    if (!window.confirm(`Delete ${project.name} and its workspace records?`)) return;
-    const result = await deleteProject(project.id);
-    if (!result.ok) {
-      setWorkspaceError(result.error);
-      return;
-    }
-    const remaining = projects.filter((item) => item.id !== project.id);
-    setProjects(remaining);
-    setTasks((current) => current.filter((task) => task.projectId !== project.id));
-    setMilestones((current) => current.filter((milestone) => milestone.projectId !== project.id));
-    setNotes((current) => current.map((note) => note.projectId === project.id ? { ...note, projectId: undefined } : note));
-    setSelectedProjectId(remaining[0]?.id ?? "");
-    void refreshTechnologyData();
-    setWorkspaceError("");
+  const handleDeleteProject = (project: Project) => {
+    setPendingConfirm({
+      title: `Delete ${project.name}?`,
+      message: "Its tasks and milestones are deleted too. Notes stay but lose the project link. This can't be undone.",
+      confirmLabel: "Delete project",
+      run: async () => {
+        const result = await deleteProject(project.id);
+        if (!result.ok) {
+          setWorkspaceError(result.error);
+          return;
+        }
+        const remaining = projects.filter((item) => item.id !== project.id);
+        setProjects(remaining);
+        setTasks((current) => current.filter((task) => task.projectId !== project.id));
+        setMilestones((current) => current.filter((milestone) => milestone.projectId !== project.id));
+        setNotes((current) => current.map((note) => note.projectId === project.id ? { ...note, projectId: undefined } : note));
+        setSelectedProjectId(remaining[0]?.id ?? "");
+        void refreshTechnologyData();
+        setWorkspaceError("");
+      },
+    });
   };
 
   const updateDerivedProjectProgress = (projectId: string, nextTasks = tasks, nextMilestones = milestones) => {
@@ -1189,10 +1215,17 @@ export default function Home() {
     else setWorkspaceError(result.error);
   };
 
-  const removePlan = async (planId: string) => {
-    const result = await deletePlan(planId);
-    if (result.ok) setPlans((current) => current.filter((plan) => plan.id !== planId));
-    else setWorkspaceError(result.error);
+  const removePlan = (plan: Plan) => {
+    setPendingConfirm({
+      title: `Delete ${plan.title}?`,
+      message: "The plan and its checklist are deleted. This can't be undone.",
+      confirmLabel: "Delete plan",
+      run: async () => {
+        const result = await deletePlan(plan.id);
+        if (result.ok) setPlans((current) => current.filter((item) => item.id !== plan.id));
+        else setWorkspaceError(result.error);
+      },
+    });
   };
 
   const togglePlanItem = async (planId: string, itemId: string, done: boolean) => {
@@ -1208,19 +1241,27 @@ export default function Home() {
     } : plan));
   };
 
-  const addPlanItem = async (planId: string) => {
-    const label = window.prompt("Plan step");
-    if (!label?.trim()) return;
-    const result = await createPlanItem(planId, { label });
-    if (!result.ok) {
-      setWorkspaceError(result.error);
-      return;
+  const addPlanItem = async (planId: string, label: string) => {
+    if (isSavingPlanStep) return;
+    setIsSavingPlanStep(true);
+    try {
+      const result = await createPlanItem(planId, { label });
+      if (!result.ok) {
+        setWorkspaceError(result.error);
+        return;
+      }
+      setPlans((current) => current.map((plan) => plan.id === planId ? {
+        ...plan,
+        items: [...(plan.items ?? []), result.data],
+        tasks: [...plan.tasks, { id: result.data.id, label: result.data.label, done: result.data.done }],
+      } : plan));
+    } catch {
+      console.error("[workspace] plan step save failed", { category: "save_failed" });
+      setWorkspaceError("Couldn't save changes. Check your connection and try again.");
+    } finally {
+      setIsSavingPlanStep(false);
+      setPlanStepPlanId(null);
     }
-    setPlans((current) => current.map((plan) => plan.id === planId ? {
-      ...plan,
-      items: [...(plan.items ?? []), result.data],
-      tasks: [...plan.tasks, { id: result.data.id, label: result.data.label, done: result.data.done }],
-    } : plan));
   };
 
   const removePlanItem = async (planId: string, itemId: string) => {
@@ -1303,20 +1344,22 @@ export default function Home() {
   const saveMilestone = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!milestoneEditor) return;
-    const result = milestoneEditor.id
-      ? await updateMilestone(milestoneEditor.id, { title: milestoneEditor.title, description: milestoneEditor.description, targetDate: milestoneEditor.targetDate || null })
-      : await createMilestone({ projectId: milestoneEditor.projectId, title: milestoneEditor.title, description: milestoneEditor.description, targetDate: milestoneEditor.targetDate || null });
-    if (!result.ok) {
-      setWorkspaceError(result.error);
-      return;
-    }
-    const nextMilestones = milestoneEditor.id
-      ? milestones.map((milestone) => milestone.id === result.data.id ? result.data : milestone)
-      : [...milestones, result.data];
-    setMilestones(nextMilestones);
-    updateDerivedProjectProgress(result.data.projectId, tasks, nextMilestones);
-    setMilestoneEditor(null);
-    setWorkspaceError("");
+    await withEditorSaveProtection(async () => {
+      const result = milestoneEditor.id
+        ? await updateMilestone(milestoneEditor.id, { title: milestoneEditor.title, description: milestoneEditor.description, targetDate: milestoneEditor.targetDate || null })
+        : await createMilestone({ projectId: milestoneEditor.projectId, title: milestoneEditor.title, description: milestoneEditor.description, targetDate: milestoneEditor.targetDate || null });
+      if (!result.ok) {
+        setWorkspaceError(result.error);
+        return;
+      }
+      const nextMilestones = milestoneEditor.id
+        ? milestones.map((milestone) => milestone.id === result.data.id ? result.data : milestone)
+        : [...milestones, result.data];
+      setMilestones(nextMilestones);
+      updateDerivedProjectProgress(result.data.projectId, tasks, nextMilestones);
+      setMilestoneEditor(null);
+      setWorkspaceError("");
+    });
   };
 
   const changeMilestoneStatus = async (milestone: Milestone, status: Milestone["status"]) => {
@@ -1329,15 +1372,21 @@ export default function Home() {
     else setWorkspaceError(result.error);
   };
 
-  const removeMilestone = async (milestoneId: string) => {
-    const result = await deleteMilestone(milestoneId);
-    if (result.ok) {
-      const projectId = milestones.find((item) => item.id === milestoneId)?.projectId;
-      const nextMilestones = milestones.filter((item) => item.id !== milestoneId);
-      setMilestones(nextMilestones);
-      if (projectId) updateDerivedProjectProgress(projectId, tasks, nextMilestones);
-    }
-    else setWorkspaceError(result.error);
+  const removeMilestone = (milestone: Milestone) => {
+    setPendingConfirm({
+      title: `Delete ${milestone.title}?`,
+      message: "Tasks on this milestone stay in the project. This can't be undone.",
+      confirmLabel: "Delete milestone",
+      run: async () => {
+        const result = await deleteMilestone(milestone.id);
+        if (result.ok) {
+          const nextMilestones = milestones.filter((item) => item.id !== milestone.id);
+          setMilestones(nextMilestones);
+          updateDerivedProjectProgress(milestone.projectId, tasks, nextMilestones);
+        }
+        else setWorkspaceError(result.error);
+      },
+    });
   };
 
   const handleCreateNote = () => setNoteEditor({ title: "", content: "", projectId: selectedProject?.id ?? "" });
@@ -1347,22 +1396,31 @@ export default function Home() {
   const saveNote = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!noteEditor) return;
-    const result = noteEditor.id
-      ? await updateNote(noteEditor.id, { title: noteEditor.title, content: noteEditor.content, projectId: noteEditor.projectId || null })
-      : await createNote({ title: noteEditor.title, content: noteEditor.content, projectId: noteEditor.projectId || null });
-    if (!result.ok) {
-      setWorkspaceError(result.error);
-      return;
-    }
-    setNotes((current) => noteEditor.id ? current.map((note) => note.id === result.data.id ? result.data : note) : [result.data, ...current]);
-    setNoteEditor(null);
-    setWorkspaceError("");
+    await withEditorSaveProtection(async () => {
+      const result = noteEditor.id
+        ? await updateNote(noteEditor.id, { title: noteEditor.title, content: noteEditor.content, projectId: noteEditor.projectId || null })
+        : await createNote({ title: noteEditor.title, content: noteEditor.content, projectId: noteEditor.projectId || null });
+      if (!result.ok) {
+        setWorkspaceError(result.error);
+        return;
+      }
+      setNotes((current) => noteEditor.id ? current.map((note) => note.id === result.data.id ? result.data : note) : [result.data, ...current]);
+      setNoteEditor(null);
+      setWorkspaceError("");
+    });
   };
 
-  const removeNote = async (noteId: string) => {
-    const result = await deleteNote(noteId);
-    if (result.ok) setNotes((current) => current.filter((note) => note.id !== noteId));
-    else setWorkspaceError(result.error);
+  const removeNote = (note: NoteItem) => {
+    setPendingConfirm({
+      title: `Delete ${note.title}?`,
+      message: "This note is deleted permanently.",
+      confirmLabel: "Delete note",
+      run: async () => {
+        const result = await deleteNote(note.id);
+        if (result.ok) setNotes((current) => current.filter((item) => item.id !== note.id));
+        else setWorkspaceError(result.error);
+      },
+    });
   };
 
   const refreshTechnologyData = async () => {
@@ -1572,18 +1630,22 @@ export default function Home() {
   };
 
   /** Persist-first delete — the task leaves the list only after Supabase confirms it. */
-  const handleDeleteTask = (taskId: string) => {
-    void (async () => {
-      const result = await deleteTask(taskId);
-      if (result.ok) {
-        const projectId = tasks.find((task) => task.id === taskId)?.projectId;
-        const nextTasks = tasks.filter((task) => task.id !== taskId);
-        setTasks(nextTasks);
-        if (projectId) updateDerivedProjectProgress(projectId, nextTasks);
-      } else {
-        setWorkspaceError(result.error);
-      }
-    })();
+  const handleDeleteTask = (task: Task) => {
+    setPendingConfirm({
+      title: `Delete ${task.title}?`,
+      message: "This task is deleted permanently. Complete it instead to keep it in your history.",
+      confirmLabel: "Delete task",
+      run: async () => {
+        const result = await deleteTask(task.id);
+        if (result.ok) {
+          const nextTasks = tasks.filter((item) => item.id !== task.id);
+          setTasks(nextTasks);
+          updateDerivedProjectProgress(task.projectId, nextTasks);
+        } else {
+          setWorkspaceError(result.error);
+        }
+      },
+    });
   };
 
   const renderDashboard = () => (
@@ -1614,7 +1676,7 @@ export default function Home() {
       {authStatus === "authenticated" && workspaceStatus === "ready" && workspaceUserId === user?.id && <AgentPulseBrief key={user.id} onOpenInbox={() => { setAiOpen(true); setInboxOpenRequest(previous => (previous ?? 0) + 1); }} />}
 
       {/* STAT SHEETS — cream cards, pastel corner accents, deep warm numbers */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {[
           { label: "Active projects", value: `${projects.filter((project) => project.status !== "Completed").length}`, mood: "mood-peach" },
           { label: "Open tasks", value: `${tasks.filter((task) => task.status !== "Completed").length}`, mood: "mood-lavender" },
@@ -1636,7 +1698,7 @@ export default function Home() {
           <div><p className="eyebrow t-mood">Project health</p><h2 className="mt-2 text-2xl font-semibold t-dark"><UnderlineHeading>Your current project rhythm</UnderlineHeading></h2><p className="mt-1 text-sm t-dark-muted">Workspace progress; open a project&apos;s GitHub tab to include its repository activity.</p></div>
           <span className="dark-chip px-2.5 py-1 text-xs">Private workspace</span>
         </div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
           {(["Active", "Steady", "Needs Attention"] as const).map((health) => <div key={health} className="dark-inset p-3"><p className="text-xs t-dark-muted">{health}</p><p className="mt-1 text-2xl font-semibold t-dark">{projectAccountability.filter((item) => item.result.githubStatus !== "loading" && item.result.health === health).length}</p></div>)}
           <div className="dark-inset p-3"><p className="text-xs t-dark-muted">Repository check needed</p><p className="mt-1 text-2xl font-semibold t-dark">{projectAccountability.filter((item) => item.result.githubStatus === "loading").length}</p></div>
         </div>
@@ -1710,7 +1772,8 @@ export default function Home() {
               </button>
             </div>
             <div className="space-y-3">
-              {todayTasks.map((task) => (
+              {todayTasks.length === 0 && <p className="dark-inset p-3 text-sm t-dark-muted">Nothing due today or overdue.</p>}
+              {todayTasks.slice(0, 4).map((task) => (
                 <div key={task.id} className="dark-inset p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -1719,9 +1782,10 @@ export default function Home() {
                     </div>
                     <input
                       type="checkbox"
+                      aria-label={`Complete ${task.title}`}
                       checked={task.status === "Completed"}
                       onChange={() => toggleTaskComplete(task.id)}
-                      className="h-4 w-4"
+                      className="h-4 w-4 shrink-0"
                     />
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1738,6 +1802,7 @@ export default function Home() {
               <h2 className="section-title text-[30px]"><UnderlineHeading>Upcoming</UnderlineHeading></h2>
             </div>
             <div className="space-y-3">
+              {upcomingItems.length === 0 && <p className="inset-soft p-3 text-sm t-paper-muted">No upcoming dates.</p>}
               {upcomingItems.map((item) => (
                 <div key={`${item.type}-${item.id}`} className="inset-soft p-3">
                   <div className="flex items-center justify-between gap-2">
@@ -1866,27 +1931,30 @@ export default function Home() {
         <div className="dark-panel p-4">
           <h3 className="t-dark mb-4 text-lg font-semibold">Today&apos;s tasks</h3>
           <div className="space-y-3">
-            {tasks.slice(0, 5).map((task) => (
+            {todayTasks.length === 0 && <p className="dark-inset p-3 text-sm t-dark-muted">Nothing due today or overdue. Pick something from Tasks, or start a general focus session.</p>}
+            {todayTasks.map((task) => (
               <div key={task.id} className="dark-inset flex items-center justify-between gap-3 p-3">
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <input
                     type="checkbox"
+                    aria-label={`Complete ${task.title}`}
                     checked={task.status === "Completed"}
                     onChange={() => toggleTaskComplete(task.id)}
-                    className="h-4 w-4"
+                    className="h-4 w-4 shrink-0"
                   />
-                  <div>
-                    <p className="t-dark font-medium">{task.title}</p>
+                  <div className="min-w-0">
+                    <p className="t-dark font-medium [overflow-wrap:anywhere]">{task.title}</p>
                     <div className="t-dark-soft mt-1 flex flex-wrap gap-2 text-[10px]">
                       <span>{projects.find((project) => project.id === task.projectId)?.name}</span>
                       <span>•</span>
                       <span>{formatDisplayDate(task.dueDate)}</span>
+                      {(taskCalendarDate(task.dueDate, workspaceTimeZone) ?? "") < localCalendarDate(workspaceNow, workspaceTimeZone) && <span className="font-semibold text-[var(--nb-accent-text)]">Overdue</span>}
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`prio prio-${task.priority.toLowerCase()}`}>{task.priority}</span>
-                  <button type="button" aria-label={`Delete ${task.title}`} onClick={() => handleDeleteTask(task.id)} className="t-dark-muted rounded-lg p-1 transition hover:text-[var(--accent-coral)]">
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className={priorityColors[task.priority]}>{task.priority}</span>
+                  <button type="button" aria-label={`Delete ${task.title}`} onClick={() => handleDeleteTask(task)} className="t-dark-muted rounded-lg p-1 transition hover:text-[var(--accent-coral)]">
                     <X size={14} />
                   </button>
                 </div>
@@ -2033,7 +2101,7 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => handleEditProject(selectedProject)} className="dark-chip px-3 py-2 text-sm">Edit</button>
-            <button type="button" onClick={() => void handleDeleteProject(selectedProject)} className="dark-chip px-3 py-2 text-sm hover:text-[var(--accent-coral)]">Delete</button>
+            <button type="button" onClick={() => handleDeleteProject(selectedProject)} className="dark-chip px-3 py-2 text-sm hover:text-[var(--accent-coral)]">Delete</button>
             <a href="/api/github/connect" className="dark-chip px-3 py-2 text-sm">Connect GitHub</a>
             {(selectedProject.visibility ?? "Private") !== "Private" && <button type="button" onClick={() => sharePublicProject(selectedProject)} className="rounded-xl ink-button px-3 py-2 text-sm">Open Public View</button>}
             {(selectedProject.visibility ?? "Private") !== "Private" && selectedProject.slug && <button type="button" onClick={() => void copyPublicProjectLink(selectedProject)} className="dark-chip px-3 py-2 text-sm">Copy Public Link</button>}
@@ -2285,7 +2353,7 @@ export default function Home() {
                           {(["pending", "active", "completed"] as const).map((status) => <option key={status}>{status}</option>)}
                         </select>
                         <button type="button" onClick={() => handleEditMilestone(milestone)} className="dark-chip px-2 py-1 text-xs">Edit</button>
-                        <button type="button" aria-label={`Delete ${milestone.title}`} onClick={() => void removeMilestone(milestone.id)} className="dark-chip p-1.5"><X size={13} /></button>
+                        <button type="button" aria-label={`Delete ${milestone.title}`} onClick={() => removeMilestone(milestone)} className="dark-chip p-1.5"><X size={13} /></button>
                       </div>
                     </div>
                   )}
@@ -2554,7 +2622,7 @@ export default function Home() {
                 >
                   {taskColumns.map((column) => <option key={column} value={column}>{column}</option>)}
                 </select>
-                <button type="button" aria-label={`Delete ${task.title}`} onClick={() => handleDeleteTask(task.id)} className="dark-chip p-1.5 hover:text-[var(--accent-coral)]"><X size={13} /></button>
+                <button type="button" aria-label={`Delete ${task.title}`} onClick={() => handleDeleteTask(task)} className="dark-chip p-1.5 hover:text-[var(--accent-coral)]"><X size={13} /></button>
               </div>
             </div>
           ))}
@@ -2573,16 +2641,17 @@ export default function Home() {
           const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
           return (
             <div key={plan.id} className="dark-panel p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold t-dark">{plan.title}</h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="min-w-0 text-lg font-semibold t-dark [overflow-wrap:anywhere]">{plan.title}</h3>
                 <div className="flex items-center gap-2"><span className="dark-chip px-2 py-1">{percent}%</span>{authStatus === "authenticated" && workspaceStatus === "ready" && <button type="button" draggable onDragStart={(event) => { event.dataTransfer.setData(WORKSPACE_AI_DRAG_TYPE, workspaceEntityDragPayload({ type: "plan", id: plan.id })); event.dataTransfer.effectAllowed = "copy"; }} aria-label={`Drag ${plan.title} into Workspace AI context`} title={`Drag ${plan.title} into Workspace AI`} className="dark-chip cursor-grab p-1.5 active:cursor-grabbing"><Sparkles size={14} /></button>}</div>
               </div>
-              <p className="mt-3 text-sm t-dark-muted">{plan.goal}</p>
+              {plan.goal && <p className="mt-3 text-sm t-dark-muted">{plan.goal}</p>}
               <p className="mt-3 eyebrow t-dark-soft">Deadline: {formatDisplayDate(plan.deadline)}</p>
               <div className="progress-track mt-4 h-2">
                 <div className="progress-fill" style={{ width: `${percent}%` }} />
               </div>
               <div className="mt-4 space-y-2">
+                {total === 0 && <p className="text-sm t-dark-muted">No steps yet.</p>}
                 {plan.items ? (
                   <SortableList
                     items={plan.items}
@@ -2592,27 +2661,27 @@ export default function Home() {
                     renderItem={(item, dragHandle) => (
                       <div className="flex items-center gap-2 text-sm t-dark-soft">
                         {dragHandle}
-                        <input type="checkbox" checked={item.done} onChange={(event) => void togglePlanItem(plan.id, item.id, event.target.checked)} />
+                        <input type="checkbox" aria-label={`Mark ${item.label} done`} checked={item.done} onChange={(event) => void togglePlanItem(plan.id, item.id, event.target.checked)} />
                         <span className={item.done ? "text-[var(--ink-green)]" : "text-[var(--text-light-soft)]"}>{item.label}</span>
-                        <button type="button" onClick={() => void removePlanItem(plan.id, item.id)} className="ml-auto dark-chip p-1"><X size={12} /></button>
+                        <button type="button" aria-label={`Remove ${item.label}`} onClick={() => void removePlanItem(plan.id, item.id)} className="ml-auto dark-chip p-1"><X size={12} /></button>
                       </div>
                     )}
                   />
                 ) : plan.tasks.map((item) => (
                   <div key={item.id ?? item.label} className="flex items-center gap-2 text-sm t-dark-soft">
-                    <input type="checkbox" checked={item.done} disabled={!item.id} onChange={(event) => item.id && void togglePlanItem(plan.id, item.id, event.target.checked)} />
+                    <input type="checkbox" aria-label={`Mark ${item.label} done`} checked={item.done} disabled={!item.id} onChange={(event) => item.id && void togglePlanItem(plan.id, item.id, event.target.checked)} />
                     <span className={item.done ? "text-[var(--ink-green)]" : "text-[var(--text-light-soft)]"}>{item.label}</span>
-                    {item.id && <button type="button" onClick={() => void removePlanItem(plan.id, item.id!)} className="ml-auto dark-chip p-1"><X size={12} /></button>}
+                    {item.id && <button type="button" aria-label={`Remove ${item.label}`} onClick={() => void removePlanItem(plan.id, item.id!)} className="ml-auto dark-chip p-1"><X size={12} /></button>}
                   </div>
                 ))}
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 <button type="button" onClick={() => handleEditPlan(plan)} className="dark-chip px-2 py-1 text-xs">Edit</button>
-                <select value={plan.status ?? "Planning"} onChange={(event) => void changePlanStatus(plan.id, event.target.value as NonNullable<Plan["status"]>)} className="dark-chip px-2 py-1 text-xs">
+                <select aria-label={`${plan.title} status`} value={plan.status ?? "Planning"} onChange={(event) => void changePlanStatus(plan.id, event.target.value as NonNullable<Plan["status"]>)} className="dark-chip px-2 py-1 text-xs">
                   {(["Planning", "Active", "Paused", "Completed", "Cancelled"] as const).map((status) => <option key={status}>{status}</option>)}
                 </select>
-                <button type="button" onClick={() => void addPlanItem(plan.id)} className="dark-chip px-2 py-1 text-xs">Add step</button>
-                <button type="button" onClick={() => void removePlan(plan.id)} className="dark-chip px-2 py-1 text-xs">Delete</button>
+                <button type="button" onClick={() => setPlanStepPlanId(plan.id)} className="dark-chip px-2 py-1 text-xs">Add step</button>
+                <button type="button" onClick={() => removePlan(plan)} className="ml-auto dark-chip px-2 py-1 text-xs hover:text-[var(--accent-coral)]">Delete</button>
               </div>
             </div>
           );
@@ -2675,8 +2744,9 @@ export default function Home() {
           <div className="mt-4 space-y-3">
             {visibleNotes.map((note) => (
               <div key={note.id} className="dark-inset p-3">
-                <div className="flex items-start justify-between gap-2"><p className="font-medium t-dark">{note.title}</p><div className="flex flex-wrap gap-1">{authStatus === "authenticated" && workspaceStatus === "ready" && <AiAssistant key={`note-ai-${note.id}`} mode="note" project={projects.find((item) => item.id === note.projectId) ?? selectedProject ?? projects[0]} note={note} projects={projects} onAddTasks={addAiTasks} onSetNextAction={(projectId, nextAction) => applyAiProjectPatch(projectId, { nextAction })} onApplyDescription={(projectId, description) => applyAiProjectPatch(projectId, { description })} onApplyCaseStudy={(projectId, patch) => applyAiProjectPatch(projectId, patch)} onApplyNoteSummary={applyAiNoteSummary} />}<button type="button" onClick={() => handleEditNote(note)} className="dark-chip px-2 py-1 text-xs">Edit</button><button type="button" aria-label={`Delete ${note.title}`} onClick={() => void removeNote(note.id)} className="dark-chip p-1.5"><X size={13} /></button></div></div>
-                <p className="mt-2 text-sm t-dark-muted">{note.content}</p>
+                <p className="font-medium t-dark [overflow-wrap:anywhere]">{note.title}</p>
+                {note.content ? <p className="mt-2 whitespace-pre-wrap text-sm t-dark-muted [overflow-wrap:anywhere]">{note.content}</p> : <p className="mt-2 text-sm t-dark-soft">Empty note.</p>}
+                <div className="mt-3 flex flex-wrap items-start justify-between gap-2"><div className="min-w-0">{authStatus === "authenticated" && workspaceStatus === "ready" && <AiAssistant key={`note-ai-${note.id}`} mode="note" project={projects.find((item) => item.id === note.projectId) ?? selectedProject ?? projects[0]} note={note} projects={projects} onAddTasks={addAiTasks} onSetNextAction={(projectId, nextAction) => applyAiProjectPatch(projectId, { nextAction })} onApplyDescription={(projectId, description) => applyAiProjectPatch(projectId, { description })} onApplyCaseStudy={(projectId, patch) => applyAiProjectPatch(projectId, patch)} onApplyNoteSummary={applyAiNoteSummary} />}</div><div className="flex shrink-0 gap-1"><button type="button" onClick={() => handleEditNote(note)} className="dark-chip px-2 py-1 text-xs">Edit</button><button type="button" aria-label={`Delete ${note.title}`} onClick={() => removeNote(note)} className="dark-chip p-1.5 hover:text-[var(--accent-coral)]"><X size={13} /></button></div></div>
               </div>
             ))}
             {visibleNotes.length === 0 && <div className="rounded-xl dark-inset p-3 text-sm t-dark-muted">{documentationProject ? "No documentation yet." : "No notes yet."} Use the action above to add one.</div>}
@@ -2944,6 +3014,9 @@ export default function Home() {
           </div>
         </WorkspaceDialog>
       )}
+
+      {pendingConfirm && <WorkspaceConfirmDialog title={pendingConfirm.title} message={pendingConfirm.message} confirmLabel={pendingConfirm.confirmLabel} busy={isConfirming} onConfirm={() => void runPendingConfirm()} onCancel={() => setPendingConfirm(null)} />}
+      {planStepPlanId && <WorkspacePromptDialog title="Add a step" label="Step" submitLabel="Add step" busy={isSavingPlanStep} onSubmit={(label) => void addPlanItem(planStepPlanId, label)} onCancel={() => setPlanStepPlanId(null)} />}
 
       {(projectEditor || taskEditor || planEditor || milestoneEditor || noteEditor) && (
         <WorkspaceDialog label="Workspace editor" onClose={closeWorkspaceEditor}>

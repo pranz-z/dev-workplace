@@ -1,5 +1,6 @@
 "use client";
 
+import { WorkspaceConfirmDialog } from "@/components/workspace/WorkspaceConfirm";
 import { useCallback, useEffect, useState } from "react";
 import { driveClientRequest } from "@/lib/google-drive/client";
 
@@ -7,6 +8,7 @@ export function DriveConnectionControl({ onOpenFiles }: { onOpenFiles: () => voi
   const [connected, setConnected] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [message, setMessage] = useState("");
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -36,7 +38,7 @@ export function DriveConnectionControl({ onOpenFiles }: { onOpenFiles: () => voi
   }, [refresh]);
 
   const disconnect = async () => {
-    if (!window.confirm("Disconnect Google Drive? Your Drive files and Workplace file associations will remain.")) return;
+    setConfirmDisconnect(false);
     setBusy(true); setError(""); setMessage("");
     try {
       const result = await driveClientRequest<{ revoked: boolean }>("/api/drive/disconnect", { method: "DELETE" });
@@ -52,11 +54,12 @@ export function DriveConnectionControl({ onOpenFiles }: { onOpenFiles: () => voi
     <p className="mt-2 text-sm t-dark" role="status">{busy ? "Checking connection…" : connected === null ? "Status unavailable" : connected ? "Connected" : "Disconnected"}</p>
     <div className="mt-3 flex flex-wrap gap-2">
       {connected === false && !busy && <a href="/api/drive/connect" className="ink-button primary px-3 py-2 text-sm">Connect Google Drive</a>}
-      {connected && <button type="button" disabled={busy} onClick={() => void disconnect()} className="dark-chip px-3 py-2 text-sm disabled:opacity-50">Disconnect</button>}
+      {connected && <button type="button" disabled={busy} onClick={() => setConfirmDisconnect(true)} className="dark-chip px-3 py-2 text-sm disabled:opacity-50">Disconnect</button>}
       <button type="button" onClick={onOpenFiles} className="dark-chip px-3 py-2 text-sm">Open Files</button>
       <button type="button" disabled={busy} onClick={() => void refresh()} className="dark-chip px-3 py-2 text-sm disabled:opacity-50">Refresh status</button>
     </div>
     {error && <p role="alert" className="mt-3 text-sm text-[var(--accent-peach)]">{error}</p>}
     {message && <p role="status" data-feedback="success" className="mt-3 text-sm t-dark-muted">{message}</p>}
+    {confirmDisconnect && <WorkspaceConfirmDialog title="Disconnect Google Drive?" message="Your Drive files and Workplace file associations will remain." confirmLabel="Disconnect" onConfirm={() => void disconnect()} onCancel={() => setConfirmDisconnect(false)} />}
   </section>;
 }

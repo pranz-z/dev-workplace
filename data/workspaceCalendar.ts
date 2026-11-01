@@ -65,6 +65,15 @@ export function filterTaskView(tasks: Task[], view: "list" | "kanban" | "today" 
   });
 }
 
+/** Open tasks due today or already overdue, oldest due date first. */
+export function deriveTodayTasks(tasks: Task[], today: string, timeZone: string): Task[] {
+  return tasks
+    .map((task) => ({ task, date: task.status === "Completed" ? null : taskCalendarDate(task.dueDate, timeZone) }))
+    .filter((entry): entry is { task: Task; date: string } => entry.date !== null && entry.date <= today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((entry) => entry.task);
+}
+
 export function normalizeCalendarEvents(
   projects: Project[],
   tasks: Task[],
