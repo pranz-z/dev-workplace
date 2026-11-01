@@ -278,11 +278,18 @@ select is((select count(*)::int from public.accountability_snapshots), 1, 'User 
 select is((select count(*)::int from public.accountability_goals), 1, 'User B sees only their own accountability goal');
 select is_empty($$update public.projects set visibility = 'Public' where id = 'aaaaaaaa-0000-4000-8000-000000000102' returning 1$$, 'User B cannot publish User A private project');
 
+-- Public projections return nothing until a site owner is configured, which
+-- would make every "never resolves publicly" check below pass without testing
+-- anything. Make User A the owner; the test transaction rolls this back.
+reset role;
+insert into public.profiles (id) values ('aaaaaaaa-0000-4000-8000-000000000001'), ('bbbbbbbb-0000-4000-8000-000000000002') on conflict (id) do nothing;
+update private.portfolio_site_config set owner_id = 'aaaaaaaa-0000-4000-8000-000000000001' where singleton;
+select is(private.canonical_portfolio_owner_id(), 'aaaaaaaa-0000-4000-8000-000000000001'::uuid, 'public projection checks run with a configured site owner');
+
 -- Baseline visibility counts, captured before impersonating anon, so the public
 -- assertions stay valid whether or not the local database has been seeded.
-reset role;
-select set_config('test.public_projects', (select count(*)::text from public.projects where visibility = 'Public'), true);
-select set_config('test.unlisted_projects', (select count(*)::text from public.projects where visibility = 'Unlisted'), true);
+select set_config('test.public_projects', (select count(*)::text from public.projects where visibility = 'Public' and user_id = 'aaaaaaaa-0000-4000-8000-000000000001'), true);
+select set_config('test.unlisted_projects', (select count(*)::text from public.projects where visibility = 'Unlisted' and user_id = 'aaaaaaaa-0000-4000-8000-000000000001'), true);
 
 -- ---------------------------------------------------------------------------
 -- 3c. anonymous visitor: no table access, curated projection only
@@ -294,7 +301,9 @@ select throws_ok('select count(*)::int from public.projects', '42501', null, 'an
 select throws_ok('select count(*)::int from public.tasks', '42501', null, 'anon cannot read the tasks table');
 select throws_ok('select count(*)::int from public.notes', '42501', null, 'anon cannot read the notes table');
 
-select is((select count(*)::int from public.public_project_list()), current_setting('test.public_projects')::int, 'the public list returns exactly the Public projects');
+select is((select count(*)::int from public.public_project_list()), current_setting('test.public_projects')::int, 'the public list returns exactly the owner Public projects');
+select is((select count(*)::int from public.public_project_list() where slug = 'rls-user-b-public'), 0, 'another account public project is not on the owner site list');
+select is((select count(*)::int from public.public_project_by_slug('rls-user-b-public')), 0, 'another account public project does not resolve on the owner site');
 select is((select count(*)::int from public.public_project_list() where visibility <> 'Public'), 0, 'the public list never contains non-public rows');
 select is((select count(*)::int from public.public_project_list() where slug = 'rls-user-a-unlisted'), 0, 'an unlisted project is not listed');
 select is((select count(*)::int from public.public_project_by_slug('rls-user-a-unlisted')), 1, 'an unlisted project resolves through its exact share slug');
@@ -303,13 +312,11 @@ select is((select count(*)::int from public.public_project_by_slug('rls-user-a-p
 select is((select count(*)::int from public.public_project_by_slug('rls-user-b-private')), 0, 'another account private project never resolves publicly');
 select is((select count(*)::int from public.public_project_list() where technologies is null), 0, 'technologies is always an array, never null');
 select is((select repository_url from public.public_project_list() where slug = 'rls-user-a-public'), null, 'private GitHub repository details stay out of the public projection');
-select is((select repository_url from public.public_project_list() where slug = 'rls-user-b-public'), 'https://github.com/owner/public-repository', 'public repository URL appears only when repository display is enabled');
 select is((select progress from public.public_project_by_slug('rls-user-a-public') limit 1), 43, 'progress is derived deterministically from the workflow stage');
 select is((select public_accountability_health from public.public_project_list() where slug = 'rls-user-a-public'), null, 'the public project list omits accountability data even when sharing is enabled');
 select is((select public_accountability_health from public.public_project_by_slug('rls-user-a-public')), 'Active', 'an opted-in public project returns only its latest health label');
 select is((select public_accountability_score from public.public_project_by_slug('rls-user-a-public')), null, 'numeric score remains hidden until separately enabled');
 select is((select repository_url from public.public_project_by_slug('rls-user-a-public')), null, 'private GitHub repository details stay hidden from the accountability projection');
-select is((select public_accountability_health from public.public_project_by_slug('rls-user-b-public')), null, 'new projects default to private accountability');
 select is((select public_accountability_health from public.public_project_by_slug('rls-user-a-unlisted')), 'Building Baseline', 'an opted-in unlisted project gets a baseline label only through its exact link');
 select is((select public_accountability_score from public.public_project_by_slug('rls-user-a-unlisted')), null, 'baseline state never exposes a zero score');
 select is((select count(*)::int from public.public_project_by_slug('rls-user-a-private')), 0, 'sharing does not make a private project publicly resolvable');
@@ -317,6 +324,19 @@ select is((select count(*)::int from pg_attribute where attrelid = 'public.publi
 select is(
   (select count(*)::int from public.public_project_by_slug('rls-user-a-unlisted')),
   least(current_setting('test.unlisted_projects')::int, 1), 'exactly one unlisted row is reachable through its slug');
+
+-- These two rows belong to User B, so B is the owner just for these checks.
+reset role;
+update private.portfolio_site_config set owner_id = 'bbbbbbbb-0000-4000-8000-000000000002' where singleton;
+set local role anon;
+set local request.jwt.claims = '{}';
+select is((select repository_url from public.public_project_list() where slug = 'rls-user-b-public'), 'https://github.com/owner/public-repository', 'public repository URL appears only when repository display is enabled');
+select is((select public_accountability_health from public.public_project_by_slug('rls-user-b-public')), null, 'new projects default to private accountability');
+select is((select count(*)::int from public.public_project_by_slug('rls-user-a-public')), 0, 'changing the site owner removes the previous owner projects');
+reset role;
+update private.portfolio_site_config set owner_id = 'aaaaaaaa-0000-4000-8000-000000000001' where singleton;
+set local role anon;
+set local request.jwt.claims = '{}';
 
 reset role;
 set local role authenticated;
