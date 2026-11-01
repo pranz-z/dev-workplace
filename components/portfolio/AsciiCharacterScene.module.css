@@ -1,0 +1,22 @@
+.scene { position: relative; width: 100%; aspect-ratio: 36 / 35; container-type: inline-size; overflow: clip; }
+.artLayers { position: relative; pointer-events: none; }
+.ambientLight { position: absolute; inset: 15% 5% 30% 25%; pointer-events: none; opacity: 0; background: radial-gradient(ellipse, var(--nb-accent-text), transparent 65%); }
+.coolLight { background: radial-gradient(ellipse, var(--nb-accent2-text), transparent 65%); }
+:global(html[data-theme="light"]) .ambientLight { display: none; }
+@media (prefers-color-scheme: light) { :global(html:not([data-theme])) .ambientLight { display: none; } }
+.artwork { position: relative; margin: 0; padding: 0; border: 0; background: transparent; color: var(--nb-ink); font: 400 calc(100cqw / 108) / 1 var(--font-geist-mono), monospace; letter-spacing: 0; white-space: pre; user-select: none; pointer-events: none; }
+.row { display: block; height: 1em; }
+.lightArtwork { display: none; font-weight: 700; text-shadow: 0 0 .65px rgb(48 35 22 / .9); }
+:global(html[data-theme="light"]) .darkArtwork { display: none; }
+:global(html[data-theme="light"]) .lightArtwork { display: block; }
+@media (prefers-color-scheme: light) {
+ :global(html:not([data-theme])) .darkArtwork { display: none; }
+ :global(html:not([data-theme])) .lightArtwork { display: block; }
+}
+.playback { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--nb-muted); cursor: pointer; font: 500 .75rem / 1.5 var(--font-geist-sans), sans-serif; }
+.playback:hover { background: var(--nb-card); }
+.playback:focus-visible { outline: 3px solid var(--nb-accent-text); outline-offset: -3px; }
+.playLabel { position: absolute; right: 44px; white-space: nowrap; color: var(--nb-ink); }
+/* Phone: use the reserved full-width scene without changing its art or ratio. */
+@media (max-width: 767px) { .scene { max-width: none; } }
+@media (prefers-reduced-motion: reduce) { .ambientLight { display: none; } }

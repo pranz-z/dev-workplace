@@ -198,15 +198,9 @@ select is((select count(*)::int from public.accountability_goals), 0, 'User A ca
 select is((select count(*)::int from public.external_files), 1, 'User A sees only their own external file metadata');
 select is((select count(*)::int from public.external_files where id = 'bbbbbbbb-0000-4000-8000-000000000402'), 0, 'User A cannot read User B external file metadata');
 
-select is(
-  (with updated as (update public.projects set title = 'hacked' where id = 'bbbbbbbb-0000-4000-8000-000000000202' returning 1)
-   select count(*)::int from updated),
-  0, 'User A cannot update User B project');
+select is_empty($$update public.projects set title = 'hacked' where id = 'bbbbbbbb-0000-4000-8000-000000000202' returning 1$$, 'User A cannot update User B project');
 
-select is(
-  (with removed as (delete from public.projects where id = 'bbbbbbbb-0000-4000-8000-000000000202' returning 1)
-   select count(*)::int from removed),
-  0, 'User A cannot delete User B project');
+select is_empty($$delete from public.projects where id = 'bbbbbbbb-0000-4000-8000-000000000202' returning 1$$, 'User A cannot delete User B project');
 
 select lives_ok(
   $$insert into public.projects (user_id, slug, title) values ('aaaaaaaa-0000-4000-8000-000000000001', 'rls-user-a-created', 'A created this')$$,
@@ -256,10 +250,7 @@ select throws_ok(
 select throws_ok(
   $$insert into public.github_repository_links (project_id, user_id, installation_record_id, repository_id, owner, name, full_name, default_branch, html_url, is_private) values ('bbbbbbbb-0000-4000-8000-000000000201', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 60002, 'owner', 'other', 'owner/other', 'main', 'https://github.com/owner/other', true)$$,
   '42501', null, 'User A cannot link a repository to User B project');
-select is(
-  (with updated as (update public.github_repository_links set name = 'hacked' where project_id = 'bbbbbbbb-0000-4000-8000-000000000201' returning 1)
-   select count(*)::int from updated),
-  0, 'User A cannot mutate User B repository link');
+select is_empty($$update public.github_repository_links set name = 'hacked' where project_id = 'bbbbbbbb-0000-4000-8000-000000000201' returning 1$$, 'User A cannot mutate User B repository link');
 select throws_ok(
   $$insert into public.github_repository_links (project_id, user_id, installation_record_id, repository_id, owner, name, full_name, default_branch, html_url, is_private) values ('aaaaaaaa-0000-4000-8000-000000000102', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 60001, 'owner', 'private-repository', 'owner/private-repository', 'main', 'https://github.com/owner/private-repository', true)$$,
   '23505', null, 'the same user cannot link one repository to multiple projects');
@@ -281,17 +272,11 @@ select is((select count(*)::int from public.external_files), 1, 'User B sees onl
 select is((select count(*)::int from public.github_installations), 1, 'User B sees only their own GitHub installation');
 select is((select count(*)::int from public.github_repository_links where project_id = 'aaaaaaaa-0000-4000-8000-000000000101'), 0, 'User B cannot read User A repository links');
 select is((select count(*)::int from public.github_repository_links where repository_id = 60001), 1, 'User B can independently link the same repository as User A');
-select is(
-  (with updated as (update public.github_repository_links set name = 'hacked' where project_id = 'aaaaaaaa-0000-4000-8000-000000000101' returning 1)
-   select count(*)::int from updated),
-  0, 'User B cannot update User A repository link');
+select is_empty($$update public.github_repository_links set name = 'hacked' where project_id = 'aaaaaaaa-0000-4000-8000-000000000101' returning 1$$, 'User B cannot update User A repository link');
 select is((select count(*)::int from public.milestones), 0, 'User B cannot read User A milestones');
 select is((select count(*)::int from public.accountability_snapshots), 1, 'User B sees only their own accountability snapshot');
 select is((select count(*)::int from public.accountability_goals), 1, 'User B sees only their own accountability goal');
-select is(
-  (with updated as (update public.projects set visibility = 'Public' where id = 'aaaaaaaa-0000-4000-8000-000000000102' returning 1)
-   select count(*)::int from updated),
-  0, 'User B cannot publish User A private project');
+select is_empty($$update public.projects set visibility = 'Public' where id = 'aaaaaaaa-0000-4000-8000-000000000102' returning 1$$, 'User B cannot publish User A private project');
 
 -- Baseline visibility counts, captured before impersonating anon, so the public
 -- assertions stay valid whether or not the local database has been seeded.
@@ -340,7 +325,7 @@ update public.project_settings set show_public_accountability_score = true where
 reset role;
 set local role anon;
 set local request.jwt.claims = '{}';
-select is((select public_accountability_score from public.public_project_by_slug('rls-user-a-public')), 77, 'numeric score appears only after the owner separately enables it');
+select is((select public_accountability_score::int from public.public_project_by_slug('rls-user-a-public')), 77, 'numeric score appears only after the owner separately enables it');
 
 reset role;
 set local role authenticated;

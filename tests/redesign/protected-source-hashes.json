@@ -1,0 +1,6 @@
+{
+  "components/ai/AgentInbox.tsx": "9dbbc0d45eaa541f0347c7ea4dde0651f30e03e34acf7c734ebb4ff5d30d3652",
+  "components/ai/WorkspaceAiChat.tsx": "ca38fd009553a783377fb4b0921c1a8d8cbf52c467345a0e4356c5971cece3a1",
+  "components/auth/auth-provider.tsx": "fcbe5578ce35da22da9814b4796aab7b7eedcf799991c2c0fbb3a3814bcafaea",
+  "data/agentInboxService.ts": "a041cb3943d0cd434028646b8a2f3a3839cf6f5f453e47dfe2d89dd69ce8bab2"
+}

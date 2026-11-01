@@ -48,6 +48,7 @@ export interface StoredObservation {
   key: string; target: PulseTarget; family: SignalFamily; state: ObservationState;
   materialFingerprint: string; sourceToken: string; evidenceValidUntil: string;
   rowRevision?: number;
+  contentRevision?: number; attemptCount?: number; attemptTerminal?: boolean;
 }
 export interface PulseSourceSnapshot {
   userId: string; evaluatedAt: string; timeZone: string | null;
@@ -104,4 +105,7 @@ export interface PulseScan {
 export interface PulseAuthority {
   userId: string; pulseId: string; slot: string; leaseToken: string;
   leaseExpiresAt: string; fence: number; settingsRevision: number; policyVersion: string;
+  oneShotAttemptId?: string;
+  /** Initial fresh dispatch only. Never log, persist or project this credential. */
+  oneShotAdmission?: {authorizationId:string;credential:string};
 }

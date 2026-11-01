@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { WorkspaceDialog } from "@/components/workspace/WorkspaceDialog";
 
 interface UserMenuProps {
   /** Opens the workspace settings view; wired to the shell's own view switcher. */
@@ -34,6 +35,7 @@ export function UserMenu({ onOpenSettings }: UserMenuProps) {
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const metadata = user?.user_metadata ?? {};
   const displayName = readMetadataString(metadata.full_name) || readMetadataString(metadata.name) || readMetadataString(metadata.user_name) || user?.email || "Your account";
@@ -53,11 +55,12 @@ export function UserMenu({ onOpenSettings }: UserMenuProps) {
 
   useEffect(() => {
     if (!menuOpen) return;
+    containerRef.current?.querySelector<HTMLButtonElement>('[aria-label="Account menu"] button')?.focus();
     const handlePointerDown = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) setMenuOpen(false);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setMenuOpen(false); triggerRef.current?.focus(); }
     };
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -95,12 +98,12 @@ export function UserMenu({ onOpenSettings }: UserMenuProps) {
 
   return (
     <div ref={containerRef} className="notebook-user-menu relative">
-      <button type="button" onClick={() => setMenuOpen((current) => !current)} aria-label="Open account menu" aria-expanded={menuOpen} className="block rounded-full">
+      <button ref={triggerRef} type="button" onClick={() => setMenuOpen((current) => !current)} aria-label="Open account menu" aria-expanded={menuOpen} className="block rounded-full">
         <Avatar avatarUrl={avatarUrl} initials={initials} displayName={displayName} className="h-9 w-9" />
       </button>
 
       {menuOpen && (
-        <div className="absolute right-0 top-11 z-50 w-72 max-w-[calc(100vw-2rem)] dark-panel p-2 shadow-[var(--shadow-dark-lift)]">
+        <div role="group" aria-label="Account menu" className="absolute right-0 top-11 z-50 w-72 max-w-[calc(100vw-2rem)] dark-panel p-2 shadow-[var(--shadow-dark-lift)]">
           <div className="flex items-center gap-3 dark-inset p-3">
             <Avatar avatarUrl={avatarUrl} initials={initials} displayName={displayName} className="h-9 w-9 text-xs" />
             <div className="min-w-0">
@@ -150,14 +153,14 @@ export function UserMenu({ onOpenSettings }: UserMenuProps) {
       )}
 
       {profileOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)] p-4 backdrop-blur-sm">
+        <WorkspaceDialog label="Your profile" onClose={() => { setProfileOpen(false); requestAnimationFrame(() => triggerRef.current?.focus()); }}>
           <div className="dark-panel w-full max-w-sm p-5 shadow-[var(--shadow-dark-lift)]">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="eyebrow t-mood">Profile</p>
                 <h3 className="mt-2 text-xl font-semibold t-dark">Your GitHub identity</h3>
               </div>
-              <button type="button" onClick={() => setProfileOpen(false)} className="dark-chip p-2" aria-label="Close profile">
+              <button type="button" onClick={() => { setProfileOpen(false); requestAnimationFrame(() => triggerRef.current?.focus()); }} className="dark-chip p-2" aria-label="Close profile">
                 <X size={15} />
               </button>
             </div>
@@ -173,12 +176,12 @@ export function UserMenu({ onOpenSettings }: UserMenuProps) {
               Supabase Auth verifies this account. Repository access is connected separately with the GitHub App.
             </p>
             <div className="mt-5 flex justify-end">
-              <button type="button" onClick={() => setProfileOpen(false)} className="ink-button primary px-3 py-2 text-sm">
+              <button type="button" onClick={() => { setProfileOpen(false); requestAnimationFrame(() => triggerRef.current?.focus()); }} className="ink-button primary px-3 py-2 text-sm">
                 Close
               </button>
             </div>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
     </div>
   );

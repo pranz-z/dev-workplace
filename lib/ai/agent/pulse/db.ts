@@ -2,6 +2,7 @@ import 'server-only';
 import type { PulseAuthority, PulseScan, PulseSourceSnapshot, PulseStatus } from './types';
 import type { ProactiveSettings } from './privacy';
 import type { AgentInboxItem, AgentPulseJournalItem } from '@/data/agentInbox';
+import type {OneShotBinding,OneShotAdmission,OneShotReason} from './one-shot';
 
 export interface PulseRpcClient {
   rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
@@ -17,7 +18,7 @@ export interface PulseReservation { reserved: boolean; sendAllowed: boolean; rec
 export interface PulseIdeaPublication { accepted: boolean; recovered?: boolean; id?: string; reason?: 'SOURCE_CHANGED' | 'AI_MALFORMED' | 'BUDGET' | 'CAPACITY' }
 export interface PulseDispatchBatch { slot: string; replay: boolean; outcome: 'claimed' | 'empty' | 'disabled'; claimCount: number; claims: PulseAuthority[] }
 /** The worker receives fixed Agent-owned RPC capabilities, never the underlying client. */
-export type PulseRepository = Pick<ReturnType<typeof createPulseRepository>, 'getSettings' | 'readSource' | 'publishDeterministic' | 'reserveAi' | 'publishAi' | 'recover' | 'finish' | 'claimDispatch' | 'retain' | 'retainInstallation'>;
+export type PulseRepository = Pick<ReturnType<typeof createPulseRepository>, 'getSettings' | 'readSource' | 'publishDeterministic' | 'reserveAi' | 'publishAi' | 'recover' | 'finish' | 'claimDispatch' | 'retain' | 'retainInstallation' | 'oneShotContext' | 'reserveOneShot' | 'recordOneShot'>;
 export function createPulseRepository(client: PulseRpcClient) {
   async function call(name: string, args: Record<string, unknown>): Promise<unknown> {
     const { data, error } = await client.rpc(name, args);
@@ -25,6 +26,22 @@ export function createPulseRepository(client: PulseRpcClient) {
     return data;
   }
   return {
+    async oneShotContext(a:PulseAuthority,id:string):Promise<{authorization: {binding:OneShotBinding;status:string};source:PulseSourceSnapshot|null}|null> {
+      const data=await call('agent_pulse_one_shot_context',{p_user_id:a.userId,p_pulse_id:a.pulseId,p_lease_token:a.leaseToken,p_fence:a.fence,p_authorization_id:id});
+      if(data===null)return null;
+      if(!data||typeof data!=='object'||!('authorization' in data)||!('source' in data))unavailable();
+      return data as {authorization:{binding:OneShotBinding;status:string};source:PulseSourceSnapshot|null};
+    },
+    async reserveOneShot(a:PulseAuthority,admission:OneShotAdmission,provider:string,model:string,fingerprint:string):Promise<PulseReservation> {
+      const data=await call('agent_pulse_one_shot_consume',{p_user_id:a.userId,p_pulse_id:a.pulseId,p_lease_token:a.leaseToken,p_fence:a.fence,p_settings_revision:a.settingsRevision,
+        p_authorization_id:admission.authorizationId,p_credential:admission.credential,p_provider:provider,p_model:model,p_context_fingerprint:fingerprint});
+      if(!data||typeof data!=='object'||!('sendAllowed' in data)||typeof data.sendAllowed!=='boolean'||!('reserved' in data)||typeof data.reserved!=='boolean')unavailable();
+      if(data.sendAllowed&&(!data.reserved||!('recovered' in data)||data.recovered!==false))unavailable();
+      return data as PulseReservation;
+    },
+    async recordOneShot(a:PulseAuthority,id:string,event:string,reason:OneShotReason|null=null) {
+      return call('agent_pulse_one_shot_record',{p_user_id:a.userId,p_pulse_id:a.pulseId,p_lease_token:a.leaseToken,p_fence:a.fence,p_authorization_id:id,p_event:event,p_reason:reason});
+    },
     async listInbox(owner: string, state: 'active' | 'snoozed' | 'dismissed' | 'resolved' | 'all', cursor: string | null = null, limit = 20) {
       const decoded = decodeCursor(cursor);
       const data = await call('agent_pulse_list_inbox', { p_user_id: owner, p_state: state, p_cursor: decoded, p_limit: limit });
@@ -100,8 +117,16 @@ export function createPulseRepository(client: PulseRpcClient) {
       if (!stamp(d.slot) || typeof d.replay!=='boolean' || !oneOf(d.outcome,['claimed','empty','disabled']) || !integer(d.claimCount,0,2) ||
         !Array.isArray(d.claims) || d.claims.length>2 || d.claims.length>(d.claimCount as number)) unavailable();
       for (const value of d.claims) {
-        const a = object(value,['userId','pulseId','slot','leaseToken','leaseExpiresAt','fence','settingsRevision','policyVersion']);
+        if(!value||typeof value!=='object')unavailable();
+        const extra=Object.hasOwn(value,'oneShotAttemptId')?['oneShotAttemptId']:[];
+        if(Object.hasOwn(value,'oneShotAdmission'))extra.push('oneShotAdmission');
+        const a = object(value,['userId','pulseId','slot','leaseToken','leaseExpiresAt','fence','settingsRevision','policyVersion',...extra]);
         if (!uuid(a.userId) || !uuid(a.pulseId) || !uuid(a.leaseToken) || !stamp(a.leaseExpiresAt) || a.slot!==d.slot || !integer(a.fence,1) || !integer(a.settingsRevision,1) || a.policyVersion!=='pulse-v1') unavailable();
+        if(a.oneShotAttemptId!==undefined&&!uuid(a.oneShotAttemptId))unavailable();
+        if(a.oneShotAdmission!==undefined){
+          const admission=object(a.oneShotAdmission,['authorizationId','credential']);
+          if(d.replay||!uuid(admission.authorizationId)||admission.authorizationId!==a.oneShotAttemptId||typeof admission.credential!=='string'||!/^[0-9a-f]{64}$/.test(admission.credential))unavailable();
+        }
       }
       if (new Set(d.claims.map(a=>a.userId)).size!==d.claims.length) unavailable();
       return d as unknown as PulseDispatchBatch;

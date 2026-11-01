@@ -11,6 +11,7 @@ import type { PulseSettingsDto, PulseSettingsResponse, InboxItem, InboxPage, Inb
 const headers = { 'Cache-Control': 'no-store' };
 const unavailable: () => never = () => { throw new AiError('UPSTREAM_ERROR'); };
 class StateChanged extends Error {}
+export {ownerBoundary as pulseOwnerBoundary,body as pulseOwnerBody,failure as pulseOwnerFailure};
 type OwnerClient = NonNullable<Awaited<ReturnType<typeof getSupabaseServerClient>>>;
 type SettingsRpc = 'agent_pulse_get_settings' | 'agent_pulse_set_settings' | 'agent_pulse_clear_memory' |
   'agent_pulse_list_inbox' | 'agent_pulse_get_observation' | 'agent_pulse_get_brief' | 'agent_pulse_list_journal' | 'agent_pulse_feedback' | 'agent_pulse_ack';
