@@ -192,7 +192,8 @@ select is((select count(*)::int from public.projects where id = 'bbbbbbbb-0000-4
 select is((select count(*)::int from public.tasks where user_id = 'bbbbbbbb-0000-4000-8000-000000000002'), 0, 'User A cannot read User B tasks');
 select is((select count(*)::int from public.notes where user_id = 'bbbbbbbb-0000-4000-8000-000000000002'), 0, 'User A cannot read User B notes');
 select is((select count(*)::int from public.tasks), 1, 'User A sees exactly their own task');
-select is((select count(*)::int from public.accountability_snapshots), 0, 'User A cannot read User B accountability snapshots');
+select is((select count(*)::int from public.accountability_snapshots where user_id = 'bbbbbbbb-0000-4000-8000-000000000002'), 0, 'User A cannot read User B accountability snapshots');
+select is((select count(*)::int from public.accountability_snapshots), 4, 'User A sees exactly their own four accountability snapshots');
 select is((select count(*)::int from public.accountability_goals), 0, 'User A cannot read User B accountability goals');
 select is((select count(*)::int from public.external_files), 1, 'User A sees only their own external file metadata');
 select is((select count(*)::int from public.external_files where id = 'bbbbbbbb-0000-4000-8000-000000000402'), 0, 'User A cannot read User B external file metadata');

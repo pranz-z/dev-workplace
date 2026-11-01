@@ -47,12 +47,20 @@ set request.jwt.claims = '{"sub":"cccccccc-0000-4000-8000-000000000001","role":"
 select set_config('rls.a_own_projects', (select count(*)::text from public.projects), false);
 select set_config('rls.a_sees_b_private', (select count(*)::text from public.projects where id = 'dddddddd-0000-4000-8000-000000000201'), false);
 select set_config('rls.a_sees_b_tasks', (select count(*)::text from public.tasks), false);
-select set_config('rls.a_cannot_update_b', (
-  with updated as (update public.projects set title = 'hacked' where id = 'dddddddd-0000-4000-8000-000000000202' returning 1)
-  select count(*)::text from updated), false);
-select set_config('rls.a_cannot_delete_b', (
-  with removed as (delete from public.projects where id = 'dddddddd-0000-4000-8000-000000000202' returning 1)
-  select count(*)::text from removed), false);
+do $$
+declare affected integer;
+begin
+  update public.projects set title = 'hacked' where id = 'dddddddd-0000-4000-8000-000000000202';
+  get diagnostics affected = row_count;
+  perform set_config('rls.a_cannot_update_b', affected::text, false);
+end $$;
+do $$
+declare affected integer;
+begin
+  delete from public.projects where id = 'dddddddd-0000-4000-8000-000000000202';
+  get diagnostics affected = row_count;
+  perform set_config('rls.a_cannot_delete_b', affected::text, false);
+end $$;
 
 do $$
 begin
@@ -82,9 +90,13 @@ set request.jwt.claims = '{"sub":"dddddddd-0000-4000-8000-000000000002","role":"
 select set_config('rls.b_own_projects', (select count(*)::text from public.projects), false);
 select set_config('rls.b_sees_a_private', (select count(*)::text from public.projects where id = 'cccccccc-0000-4000-8000-000000000102'), false);
 select set_config('rls.b_sees_a_notes', (select count(*)::text from public.notes), false);
-select set_config('rls.b_cannot_publish_a', (
-  with updated as (update public.projects set visibility = 'Public' where id = 'cccccccc-0000-4000-8000-000000000102' returning 1)
-  select count(*)::text from updated), false);
+do $$
+declare affected integer;
+begin
+  update public.projects set visibility = 'Public' where id = 'cccccccc-0000-4000-8000-000000000102';
+  get diagnostics affected = row_count;
+  perform set_config('rls.b_cannot_publish_a', affected::text, false);
+end $$;
 
 reset role;
 
@@ -92,6 +104,10 @@ reset role;
 -- anonymous visitor
 -- ---------------------------------------------------------------------------
 select set_config('rls.public_total', (select count(*)::text from public.projects where visibility = 'Public'), false);
+
+-- Probe table access as anon, not as the superuser the script runs as.
+set role anon;
+set request.jwt.claims = '{}';
 
 do $$
 begin
@@ -114,9 +130,6 @@ begin
     perform set_config('rls.anon_blocked_notes', 'true', false);
   end;
 end $$;
-
-set role anon;
-set request.jwt.claims = '{}';
 
 select set_config('rls.anon_list_total', (select count(*)::text from public.public_project_list()), false);
 select set_config('rls.anon_list_non_public', (select count(*)::text from public.public_project_list() where visibility <> 'Public'), false);
