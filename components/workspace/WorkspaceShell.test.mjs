@@ -49,3 +49,10 @@ test("mobile keeps drawer navigation and desktop collapse removes the sidebar gr
   assert.match(shell, /WorkspaceDialog label=\{`\$\{title\} context`\}/);
   assert.match(shell, /inert=\{modalAi\}/);
 });
+
+test("workspace destructive actions use the themed dialog, not native browser prompts", () => {
+  for (const file of ["../../app/app/page.tsx", "../google-drive/DriveFiles.tsx", "../google-drive/DriveConnectionControl.tsx", "../accountability/accountability-workspace.tsx"]) {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /window\.(confirm|prompt|alert)\(/, file);
+  }
+});

@@ -731,6 +731,7 @@ html[data-theme="dark"] .text-shadow-paper {
   text-transform: uppercase;
 }
 .prio-high { background-color: var(--badge-blocked-bg); color: var(--badge-blocked-ink); border-color: var(--badge-blocked-edge); }
+.prio-critical { background-color: var(--badge-blocked-ink); color: var(--badge-blocked-bg); border-color: var(--badge-blocked-ink); }
 .prio-medium { background-color: var(--badge-development-bg); color: var(--badge-development-ink); border-color: var(--badge-development-edge); }
 .prio-low { background-color: var(--badge-completed-bg); color: var(--badge-completed-ink); border-color: var(--badge-completed-edge); }
 .prio-neutral { background-color: var(--badge-neutral-bg); color: var(--badge-neutral-ink); border-color: var(--badge-neutral-edge); }
@@ -1003,7 +1004,9 @@ html[data-theme="dark"] .workspace-header {
   flex-direction: column;
   align-items: center;
   gap: 5px;
+  overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: thin;
   padding: 8px 0;
   border-right: 1px solid var(--edge-cream);
   background: var(--sidebar);
@@ -1044,7 +1047,8 @@ html[data-theme="dark"] .workspace-context { border-color: var(--edge-dark); }
 .workspace-center { min-width: 0; }
 .workspace-toolbar { position: sticky; top: 0; z-index: 20; display: flex; min-height: 62px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; }
 .workspace-toolbar-actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 7px; }
-.workspace-content { min-width: 0; max-width: 1480px; margin-inline: auto; padding: 20px; }
+/* Bottom padding lets the last content scroll clear of the floating AI button. */
+.workspace-content { min-width: 0; max-width: 1480px; margin-inline: auto; padding: 20px 20px 88px; }
 .workspace-content:focus { outline: none; }
 .workspace-document-tabs { display: flex; min-width: 0; gap: 4px; overflow-x: auto; padding: 8px 14px 0; border-bottom: 1px solid var(--edge-cream); }
 html[data-theme="dark"] .workspace-document-tabs { border-color: var(--edge-dark); }
@@ -1232,7 +1236,7 @@ html[data-theme="dark"] .task-kanban-ai-handle { border-color: var(--edge-dark-s
   .workspace-toolbar { gap: 6px; padding: 8px 10px; }
   .workspace-toolbar-actions { gap: 4px; }
   .workspace-ai-panel:not(.is-open) { right: max(12px, env(safe-area-inset-right)); bottom: calc(74px + env(safe-area-inset-bottom)); }
-  .workspace-content { padding: 12px; padding-bottom: 82px; }
+  .workspace-content { padding: 12px; padding-bottom: 96px; }
   .workspace-document-tabs { padding-inline: 8px; }
   .task-kanban-workspace { border-radius: 19px; padding: 10px; }
   .task-kanban-toolbar { align-items: stretch; flex-direction: column; gap: 10px; padding-bottom: 11px; }
@@ -1839,6 +1843,9 @@ html[data-theme] .notebook-workspace :is(.notebook-dense.dark-inset,.notebook-de
 html[data-theme] .notebook-public-accountability { --ink: var(--nb-ink); --muted: var(--nb-muted); --surface: var(--nb-bg); --public-border: var(--nb-muted); color: var(--nb-ink); background: var(--nb-bg); border: 1.5px solid var(--nb-muted); border-radius: var(--nb-card-radius); box-shadow: none; }
 .notebook-public-accountability h2 { border: 0; }
 .notebook-workspace .workspace-dialog:not(.workspace-drawer) { width: min(48rem, calc(100vw - 2rem)); height: fit-content; max-height: 90dvh; margin: auto; }
+/* The inner panel is the sheet; framing the dialog too drew a second, empty card around every modal. */
+html[data-theme] .notebook-workspace dialog.workspace-dialog:not(.workspace-drawer) { border: 0; background: transparent; box-shadow: none; }
+html[data-theme] .notebook-workspace .workspace-dialog .ink-button.coral { background: var(--badge-blocked-ink); background-image: none; color: var(--badge-blocked-bg); border-color: var(--badge-blocked-ink); }
 .notebook-workspace .workspace-dialog :is(.flex,.grid) > :is(div,label,fieldset) { min-width: 0; }
 .notebook-workspace :is(.notebook-dense,.workspace-dialog) :is(input,textarea,select,button,a):focus-visible,
 .public-ai-concierge :is(textarea,button,a):focus-visible { outline: 3px dashed var(--nb-accent-text); outline-offset: 3px; }
@@ -1861,6 +1868,9 @@ html[data-theme] .notebook-public-accountability { --ink: var(--nb-ink); --muted
   .notebook-workspace .notebook-dense > .flex { flex-wrap: wrap; }
   .notebook-workspace .notebook-dense :is(h2,h3) { overflow-wrap: anywhere; }
   .notebook-workspace .notebook-dense select { max-width: 100%; }
+  /* Day cells are too narrow for a grip and type badge; keep the title readable. The date editor still reschedules. */
+  .notebook-workspace .calendar-sheet .calendar-event-card button[aria-label^="Drag"],
+  .notebook-workspace .calendar-sheet .calendar-event-card span.uppercase { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .notebook-typing :is(.notebook-typing-pencil,.notebook-typing-line) { animation: none; transform: none; stroke-dashoffset: 0; }
@@ -2130,7 +2140,7 @@ html[data-theme] .notebook-workspace .workspace-content button.soft-pill[aria-pr
 .notebook-workspace .daily-surface :where(.flex > div) { min-width: 0; }
 .notebook-workspace .daily-surface select { min-width: 0; max-width: 100%; }
 .notebook-workspace .daily-surface [data-page-title] { margin: 0; }
-.notebook-workspace .dashboard-next .dark-inset { border: 0; border-top: 1px solid var(--edge-dark); border-radius: 0; padding-inline: 0; }
+html[data-theme] .notebook-workspace .dashboard-next .dark-inset { border: 0; border-top: 1px solid var(--edge-dark); border-radius: 0; padding-inline: 0; }
 .notebook-workspace .dashboard-totals { font-variant-numeric: tabular-nums; }
 .notebook-workspace .dashboard-totals .dot-badge { display: none; }
 .notebook-workspace .daily-surface nav [aria-pressed="true"] { background: var(--workspace-action); color: var(--workspace-on-action); font-weight: 700; }

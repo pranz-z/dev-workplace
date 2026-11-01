@@ -84,7 +84,7 @@ test("the List view keys each task by ID and exposes a filtered empty state with
   const page = readFileSync(new URL("../app/app/page.tsx", import.meta.url), "utf8");
   assert.match(page, /visibleTasks\.map\(\(task\) => \(\s*<div key=\{task\.id\}/);
   assert.match(page, /updateTaskStatus\(task\.id, event\.target\.value as Task\["status"\]\)/);
-  assert.match(page, /handleDeleteTask\(task\.id\)/);
+  assert.match(page, /handleDeleteTask\(task\)/);
   assert.match(page, /No tasks match these filters\./);
   assert.match(page, /Clear status filter/);
 });

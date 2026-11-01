@@ -7,6 +7,7 @@ const source = readFileSync(new URL("./workspaceCalendar.ts", import.meta.url), 
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
 const {
   calendarDatePatch,
+  deriveTodayTasks,
   filterCalendarEvents,
   filterTaskView,
   formatCalendarDate,
@@ -126,4 +127,15 @@ test("rescheduling updates the existing nullable source date fields in YYYY-MM-D
   assert.deepEqual(calendarDatePatch("milestone", null), { targetDate: null });
   assert.deepEqual(calendarDatePatch("project", null), { targetDate: null });
   assert.throws(() => calendarDatePatch("task", "2026-02-30"), RangeError);
+});
+
+test("today tasks are open tasks due today or overdue, oldest first", () => {
+  const tasks = [
+    { id: "future", status: "Backlog", dueDate: "2026-11-03" },
+    { id: "today", status: "Backlog", dueDate: "2026-11-01" },
+    { id: "overdue", status: "Testing", dueDate: "2026-10-30" },
+    { id: "done", status: "Completed", dueDate: "2026-11-01" },
+    { id: "undated", status: "Backlog" },
+  ];
+  assert.deepEqual(deriveTodayTasks(tasks, "2026-11-01", "UTC").map((task) => task.id), ["overdue", "today"]);
 });
