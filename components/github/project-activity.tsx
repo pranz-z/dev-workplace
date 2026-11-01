@@ -21,7 +21,7 @@ const displayDate = (value: string | null) => value
   : "Not available";
 
 function ActivityLink({ href, children }: { href: string; children: ReactNode }) {
-  return <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--ink-coral)] hover:underline">
+  return <a href={href} target="_blank" rel="noopener noreferrer" className="github-activity-link inline-flex items-center gap-1 text-[var(--ink-coral)] hover:underline">
     {children}<ExternalLink size={12} />
   </a>;
 }
@@ -65,13 +65,12 @@ export function GithubProjectActivity({ projectId, project, tasks, milestones, p
     return () => window.clearTimeout(timer);
   }, [loadActivity]);
 
-  return <div className="notebook-dense space-y-4">
+  return <div className="notebook-dense integration-surface github-activity-surface space-y-4">
     {showAccountability && <ProjectAccountabilityCard projectName={project.name} result={accountability} />}
     <section className="dark-panel p-4 md:p-5" aria-label="GitHub activity">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <p className="eyebrow t-dark-soft">Connected repository</p>
-        <h3 className="mt-1 text-lg font-semibold t-dark">GitHub activity</h3>
+        <h3 className="text-lg font-semibold t-dark">GitHub activity</h3>
         {activity && <p className="mt-1 text-sm t-dark-muted">{activity.repository.fullName}{activity.repository.archived ? " · Archived" : ""}</p>}
       </div>
       <button type="button" onClick={() => void loadActivity(true)} disabled={loading} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm">
@@ -82,7 +81,7 @@ export function GithubProjectActivity({ projectId, project, tasks, milestones, p
     {error && <p role="alert" className="mt-4 rounded-lg notebook-feedback-error p-3 text-sm">{error}</p>}
     {loading && !activity && <p role="status" className="mt-4 text-sm t-dark-muted">Loading recent repository activity…</p>}
     {!loading && activity && <>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="github-activity-summary mt-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
         <div className="dark-inset p-3"><p className="text-xs t-dark-muted">Last activity</p><p className="mt-1 text-sm font-medium t-dark">{displayDate(activity.summary.lastActivityAt)}</p></div>
         <div className="dark-inset p-3"><p className="text-xs t-dark-muted">Recent commits</p><p className="mt-1 text-sm font-medium t-dark">{activity.summary.recentCommitCount}</p></div>
         <div className="dark-inset p-3"><p className="text-xs t-dark-muted">Recent pull requests</p><p className="mt-1 text-sm font-medium t-dark">{activity.summary.recentPullRequestCount}</p></div>

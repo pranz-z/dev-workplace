@@ -142,17 +142,17 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
       plans,
       github: { status: "not-connected" },
     }) : null;
-    return <div className="notebook-dense space-y-4">
+    return <div className="notebook-dense integration-surface github-surface space-y-4">
       {showAccountability && !loading && !linkedForProject && project && accountability && <ProjectAccountabilityCard projectName={project.name} result={accountability} />}
       <section className="dark-panel p-4" aria-label="GitHub repository">
-      <div className="flex items-center justify-between gap-3">
-        <div><p className="eyebrow t-dark-soft">GitHub repository</p><h3 className="mt-1 text-lg font-semibold t-dark">{linkedForProject?.fullName ?? "No repository linked"}</h3></div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0"><h3 className="text-lg font-semibold t-dark">{linkedForProject?.fullName ?? "No repository linked"}</h3></div>
         {linkedForProject && <><button type="button" disabled={busy || loading} onClick={() => void refresh(true)} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm"><RefreshCw size={14} /> Refresh</button><button type="button" disabled={busy} onClick={() => void unlinkProject(projectId)} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm"><Unlink size={14} /> Unlink</button></>}
       </div>
       {error && <p role="status" className="mt-3 text-sm notebook-feedback-error">{error}</p>}
       {linkedForProject && <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm t-dark-muted">
         <span>{linkedForProject.private ? "Private" : "Public"}</span><span>{linkedForProject.language ?? "Language not specified"}</span><span>Default branch: {linkedForProject.defaultBranch}</span><span>Updated {linkedForProject.updatedAt ? dateLabel(linkedForProject.updatedAt) : "unknown"}</span>
-        <a href={linkedForProject.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--ink-coral)]">Open GitHub <ExternalLink size={13} /></a>
+        <a href={linkedForProject.url} target="_blank" rel="noopener noreferrer" className="dark-chip inline-flex items-center gap-1 px-3 py-2 text-sm">Open GitHub <ExternalLink size={13} /></a>
       </div>}
       {!linkedForProject && error && <button type="button" onClick={() => void refresh()} className="mt-2 text-sm text-[var(--ink-coral)]">Refresh repository status</button>}
       </section>
@@ -160,31 +160,33 @@ export function GithubRepositoryBrowser({ projects, projectId, onLinked, onClose
     </div>;
   }
 
-  return <div className="notebook-dense space-y-5">
+  return <div className="notebook-dense integration-surface github-surface space-y-5">
     <div className="dark-panel p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><p className="eyebrow t-mood">GitHub App</p><h2 className="mt-2 text-2xl font-semibold t-dark">Repository access</h2><p className="mt-1 text-sm t-dark-muted">{connected ? "Connected repositories authorized for this workspace." : "Repository access is separate from GitHub sign in."}</p></div>
+        <div className="min-w-0"><h1 data-page-title className="text-2xl t-dark">Repository access</h1><p className="mt-1 text-sm t-dark-muted">Repository access is separate from GitHub sign in.</p><p className="mt-2 text-sm t-dark-muted">{loading ? "Checking authorized repository access…" : connected ? "GitHub App access is authorized for this workspace." : "Connect the GitHub App and choose which repositories it can access."}</p></div>
         <div className="flex gap-2">
           {connected && <button type="button" onClick={() => void refresh()} disabled={loading} className="dark-chip inline-flex items-center gap-2 px-3 py-2 text-sm"><RefreshCw size={14} /> Refresh</button>}
-          {!connected && <a href="/api/github/connect" className="ink-button coral rounded-xl px-3 py-2 text-sm">Connect GitHub</a>}
+          {!connected && !loading && <a href="/api/github/connect" className="ink-button coral rounded-xl px-3 py-2 text-sm">Connect GitHub</a>}
           {onClose && <button type="button" onClick={onClose} className="dark-chip px-3 py-2 text-sm">Close</button>}
         </div>
       </div>
-      {error && <p role="alert" className="mt-4 rounded-lg notebook-feedback-error p-3 text-sm">{error}</p>}
+      {error && <div role="alert" className="mt-4 rounded-lg notebook-feedback-error p-3 text-sm"><p>{error}</p><button type="button" onClick={() => void refresh()} disabled={loading} className="dark-chip mt-2 px-3 py-2">Retry repository access</button></div>}
     </div>
 
+    {loading && <p role="status" className="dark-panel p-4 text-sm t-dark-muted">Loading authorized repositories…</p>}
     {connected && <>
       <div className="flex flex-wrap gap-3">
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search repositories" className="min-w-56 flex-1 dark-chip px-3 py-2 text-sm" aria-label="Search repositories" />
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search repositories" className="min-w-0 w-full flex-1 dark-chip px-3 py-2 text-sm" aria-label="Search repositories" />
         <select value={visibility} onChange={(event) => setVisibility(event.target.value as typeof visibility)} className="dark-chip px-3 py-2 text-sm" aria-label="Filter repository visibility"><option value="all">All repositories</option><option value="public">Public</option><option value="private">Private</option></select>
       </div>
-      {loading ? <p className="dark-panel p-4 text-sm t-dark-muted">Loading authorized repositories…</p> : filtered.length === 0 ? <p className="dark-panel p-4 text-sm t-dark-muted">{repositories.length ? "No repositories match this search." : "This GitHub installation has no accessible repositories."}</p> :
+      {!loading && !error && filtered.length === 0 ? <div className="dark-panel p-4"><h2 data-empty-state-heading className="text-xl t-dark">{repositories.length ? "No matching repositories" : "No accessible repositories"}</h2><p className="mt-2 text-sm t-dark-muted">{repositories.length ? "Change the search or visibility filter to see authorized repositories." : "This GitHub installation has no accessible repositories. Check the GitHub App repository selection, then refresh."}</p></div> : !loading && filtered.length > 0 &&
         <div className="grid gap-4 xl:grid-cols-2">{filtered.map((repository) => <article key={`${repository.installationRecordId}:${repository.id}`} className={`dark-panel p-4 ${selectedId === repository.id ? "ring-1 ring-[var(--ink-coral)]" : ""}`}>
-          <button type="button" onClick={() => setSelectedId(repository.id)} className="block w-full text-left">
+          <button type="button" aria-pressed={selectedId === repository.id} onClick={() => setSelectedId(repository.id)} className="block w-full text-left">
             <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold t-dark">{repository.fullName}</h3><p className="mt-1 text-sm t-dark-muted">{repository.description || "No description"}</p></div><span className="dark-chip shrink-0 px-2 py-1 text-xs">{repository.private ? "Private" : "Public"}</span></div>
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs t-dark-muted"><span>{repository.language ?? "Language not specified"}</span><span>{repository.defaultBranch}</span><span>Updated {dateLabel(repository.updatedAt)}</span><span>Owner: {repository.owner}</span></div>
           </button>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <p className="mt-3 text-xs t-dark-muted">Import creates a Workplace project. Attach links this repository to an existing project.</p>
+          <div className="github-repository-actions mt-4 flex flex-wrap items-center gap-2">
             {repository.linkedProjectId ? <span className="dark-chip px-2 py-1 text-xs">Already linked{projects.find((project) => project.id === repository.linkedProjectId) ? `: ${projects.find((project) => project.id === repository.linkedProjectId)?.name}` : ""}</span> : <>
               <button type="button" disabled={busy} onClick={() => void linkRepository(repository, "import")} className="ink-button primary rounded-xl px-3 py-2 text-sm">Import as project</button>
               {availableProjects.length > 0 && <><select value={attachProjectIds[repository.id] ?? ""} onChange={(event) => setAttachProjectIds((current) => ({ ...current, [repository.id]: event.target.value }))} className="dark-chip min-w-40 px-2 py-2 text-sm" aria-label={`Project to attach ${repository.fullName}`}><option value="">Choose project…</option>{availableProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><button type="button" disabled={busy || !attachProjectIds[repository.id]} onClick={() => void linkRepository(repository, "attach", attachProjectIds[repository.id])} className="dark-chip px-3 py-2 text-sm">Attach</button></>}

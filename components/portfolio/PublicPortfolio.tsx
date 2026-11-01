@@ -11,10 +11,13 @@ import type { PublicProfile } from "@/types";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { PublicProfessionalContent } from "@/lib/portfolio/resume-content";
 import { ProfessionalEducation, ProfessionalExperience, ProfessionalFocus, ProfessionalSkills } from "@/components/portfolio/ProfessionalSections";
+import { PortfolioHeader } from "./PortfolioHeader";
 import { Logo } from "@/components/brand/Logo";
 import { Card, Chip, UnderlineHeading } from "@/components/ui/notebook";
 import { DoodlePad } from "./NotebookInteractions";
 import { PortfolioHero } from "./PortfolioHero";
+
+import { ProjectCardMedia } from "./ProjectCardMedia";
 
 type ThemeMode = "light" | "dark" | "system";
 const THEME_STORAGE_KEY = "developer-workspace-theme";
@@ -111,18 +114,17 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
 
   return (
     <div className="public-shell notebook-portfolio min-h-screen">
-      <header className="notebook-portfolio-header">
-        <div>
-          <button type="button" className="notebook-logo" aria-label="Toggle chalkboard or paper theme" onClick={() => setThemeMode(getResolvedTheme(themeMode) === "dark" ? "light" : "dark")}><Logo variant="full" size={30} /></button>
-          <nav aria-label="Portfolio">{navigation.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}</nav>
-        </div>
-      </header>
+      <PortfolioHeader navigation={navigation} authenticated={status === "authenticated"} toggleTheme={() => setThemeMode(getResolvedTheme(themeMode) === "dark" ? "light" : "dark")} />
 
       <main className="mx-auto max-w-6xl space-y-10 px-4 pb-16">
         {(loadError || supabaseMissing) && <p role="alert" className="public-card p-4 text-sm text-[var(--muted)]">The public portfolio could not be loaded right now.</p>}
         {(professional?.sections.hero.enabled ?? true) && <PortfolioHero
           name={displayName || ""} headline={introduction.headline} avatar={avatar}
-          projectsEnabled={professional?.sections.projects.enabled ?? true} authenticated={status === "authenticated"}
+          projectsEnabled={professional?.sections.projects.enabled ?? true}
+          proof={[
+            (professional?.sections.projects.enabled ?? true) && publicProjects.length > 0 ? `${publicProjects.length} public ${publicProjects.length === 1 ? "project" : "projects"}` : "",
+            ...professional?.sections.education.enabled ? professional.education.filter((item) => item.enabled).map((item) => item.honors.trim()) : [],
+          ].filter((fact, index, facts) => Boolean(fact) && facts.indexOf(fact) === index)}
         >
           {professional?.hero.description && <p>{professional.hero.description}</p>}
           {introduction.bio && <p className="mt-3 whitespace-pre-line">{introduction.bio}</p>}
@@ -137,12 +139,12 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
 
         {(professional?.sections.projects.enabled ?? true) && <section id="projects" className="space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Selected work</p><h2 className="mt-2 text-3xl font-black tracking-tight text-[var(--ink)]"><UnderlineHeading>{professional?.projects.title || "Projects"}</UnderlineHeading></h2>{professional?.projects.intro && <p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{professional.projects.intro}</p>}</div>
+            <div><h2 className="mt-2 text-3xl font-black tracking-tight text-[var(--ink)]"><UnderlineHeading>{professional?.projects.title || "Projects"}</UnderlineHeading></h2>{professional?.projects.intro && <p className="mt-3 whitespace-pre-line text-sm leading-7 text-[var(--muted)]">{professional.projects.intro}</p>}</div>
             {types.length > 1 && <div className="flex max-w-full flex-wrap gap-2" aria-label="Filter projects by type">
               {["All", ...types].map((type) => <button key={type} type="button" aria-pressed={selectedType === type} onClick={() => setSelectedType(type)} className={`rounded-full border px-3 py-2 text-xs ${selectedType === type ? "border-[var(--ink)] bg-[var(--ink)] text-[var(--surface)]" : "border-[var(--public-border)] bg-[var(--surface)] text-[var(--muted)]"}`}>{type}</button>)}
             </div>}
           </div>
-          {featuredProjects.length > 0 && selectedType === "All" && <div className="space-y-4"><h3 className="text-xl font-bold text-[var(--ink)]">Featured work</h3><div className="grid gap-5 md:grid-cols-2">
+          {featuredProjects.length > 0 && selectedType === "All" && <div className="space-y-4"><h3 className="text-xl font-bold text-[var(--ink)]">Featured work</h3><div className="portfolio-featured-grid grid gap-5 md:grid-cols-2">
             {featuredProjects.map((project) => <ProjectCard key={project.slug} project={project} featured coverUrl={covers[project.slug]} />)}
           </div></div>}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -153,7 +155,6 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
         </section>}
 
         {(professional ? professional.sections.about.enabled && Boolean(professional.about.body || professional.about.secondary) : profile?.bio) && <section id="about" className="public-card p-6 md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">About</p>
           <h2 className="mt-2 text-3xl font-black text-[var(--ink)]"><UnderlineHeading>{professional?.about.title || "About my work"}</UnderlineHeading></h2>
           {(professional ? [professional.about.body, professional.about.secondary].filter(Boolean) : profile?.bio?.split(/\n\s*\n/) ?? []).map((paragraph, index) => <p key={index} className="mt-4 max-w-3xl whitespace-pre-line text-base leading-7 text-[var(--muted)]">{paragraph}</p>)}
         </section>}
@@ -173,7 +174,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
         </section>}
         <PublicAiConcierge />
         {contactEnabled && (contactEmail || socialLinks.length > 0 || professional?.contact.phone || professional?.contact.location) && <section id="contact" className="notebook-contact">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Contact</p><h2 className="mt-2 text-2xl font-bold text-[var(--ink)]"><UnderlineHeading>{professional?.contact.cta || "Let's connect"}</UnderlineHeading></h2>{professional?.contact.note && <p className="mt-3 whitespace-pre-line text-sm text-[var(--muted)]">{professional.contact.note}</p>}{professional?.contact.location && <p className="mt-3 text-sm text-[var(--muted)]">{professional.contact.location}</p>}</div>
+          <div><h2 className="mt-2 text-2xl font-bold text-[var(--ink)]"><UnderlineHeading>{professional?.contact.cta || "Let's connect"}</UnderlineHeading></h2>{professional?.contact.note && <p className="mt-3 whitespace-pre-line text-sm text-[var(--muted)]">{professional.contact.note}</p>}{professional?.contact.location && <p className="mt-3 text-sm text-[var(--muted)]">{professional.contact.location}</p>}</div>
           <div className="flex max-w-full flex-wrap gap-2">{contactEmail && <a className="public-link break-all" href={`mailto:${contactEmail}`}>Email</a>}{professional?.contact.phone && <a className="public-link" href={`tel:${professional.contact.phone.replace(/[^+0-9]/g, "")}`}>{professional.contact.phone}</a>}{socialLinks.map((item, index) => <a key={`${index}-${item.label}`} className="public-link break-all" href={item.href} target="_blank" rel="noopener noreferrer">{item.label} <ArrowUpRight size={14} /></a>)}</div>
           <DoodlePad />
         </section>}
@@ -192,11 +193,9 @@ function ProjectCard({ project, featured = false, coverUrl }: { project: PublicP
   const repoUrl = safeExternalUrl(project.links.github);
   const demoUrl = safeExternalUrl(project.links.live);
   const summary = (project.publicSummary || project.description).trim();
-  return <Card tilt animated className={`portfolio-project flex min-w-0 flex-col ${featured ? "p-6" : "p-5"}`}>
-    {coverUrl ? <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={coverUrl} alt={`${project.name} project preview`} loading="lazy" decoding="async" className="mb-4 aspect-video w-full rounded-2xl border border-[var(--public-border)] object-cover" />
-    </> : <div aria-hidden="true" className="mb-4 flex aspect-video items-end rounded-2xl border border-[var(--public-border)] bg-[linear-gradient(135deg,var(--surface-strong),var(--surface))] p-4"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">{project.type}</span></div>}
+  return <Card className={`portfolio-project flex min-w-0 flex-col ${featured ? "portfolio-project-featured p-6" : "p-5"}`}>
+    <ProjectCardMedia slug={project.slug} name={project.name} type={project.type} coverUrl={coverUrl} />
+    <div className="portfolio-project-content flex min-w-0 flex-1 flex-col">
     <p className="public-eyebrow">{project.type}{project.role ? ` · ${project.role}` : ""}</p>
     <h3 className="mt-4 text-2xl font-bold text-[var(--ink)]">{project.name}</h3>
     {summary && <p className="mt-3 line-clamp-3 text-sm leading-6 text-[var(--muted)]">{summary}</p>}
@@ -205,6 +204,7 @@ function ProjectCard({ project, featured = false, coverUrl }: { project: PublicP
       <Link href={`/projects/${encodeURIComponent(project.slug)}`} className="public-link" aria-label={`View case study: ${project.name}`}>View Case Study <ArrowUpRight size={14} /></Link>
       {demoUrl && <a href={demoUrl} target="_blank" rel="noopener noreferrer" className="public-link">Live demo <ArrowUpRight size={14} /></a>}
       {repoUrl && <a href={repoUrl} target="_blank" rel="noopener noreferrer" className="public-link">Repository <FolderGit2 size={14} /></a>}
+    </div>
     </div>
   </Card>;
 }

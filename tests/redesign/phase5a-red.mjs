@@ -1,0 +1,3 @@
+import assert from 'node:assert/strict';import {createHarness} from './browser-harness.mjs';import {ready,navigate} from './matrix-utils.mjs';import {resolve} from 'node:path';
+const output=process.argv[2],h=await createHarness(resolve(output,'assets'));
+try{const {page,context}=await h.session('unseen',{width:390,height:844},'dark',{variant:'drive-folders'});try{await ready(page);await navigate(page,'files','Files');assert.equal(await page.getByRole('heading',{name:'Current location',exact:true}).count(),1,'Files must name its current-location region separately from project navigation/results');}finally{await context.close();}}finally{await h.close();}

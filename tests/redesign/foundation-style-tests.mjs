@@ -1,0 +1,13 @@
+import {spawnSync} from 'node:child_process';
+import {writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {defaultEsbuild} from './build-fixture.mjs';
+const output=process.argv[2];
+const files=['components/projects/project-screenshots.test.mjs','components/workspace/WorkspaceShell.test.mjs','lib/project-video/browser.test.mjs','lib/portfolio/cms-editor.test.mjs','lib/ai/agent/phase5d-ui.test.mjs'];
+const result=spawnSync(process.execPath,['--test','--test-reporter=tap',...files],{env:{...process.env,PORTFOLIO_TEST_ESBUILD_MODULE:defaultEsbuild,PORTFOLIO_TEST_PGLITE_MODULE:'C:/Users/Franz/AppData/Local/Temp/workspace-agent-phase2-tools/node_modules/@electric-sql/pglite/dist/index.js'},encoding:'utf8',maxBuffer:16*1024*1024});
+const log=(result.stdout??'')+(result.stderr??'');await writeFile(resolve(output,'final-style-tests.log'),log);
+const failures=[...log.matchAll(/^\s*not ok \d+ - (.+)$/gm)].map(match=>match[1]);
+const counts={};for(const name of ['tests','pass','fail','skipped'])counts[name]=Number([...log.matchAll(new RegExp(`^# ${name} (\\d+)`,'gm'))].at(-1)?.[1]??0);
+await writeFile(resolve(output,'final-style-tests.json'),JSON.stringify({files,exitCode:result.status,counts,failures,finalCss:true},null,2));
+if(!counts.tests||failures.some(name=>!name.startsWith('browser: CMS CRUD')))process.exitCode=1;
+console.log(`Final CSS consumers rerun: ${failures.length} baseline CMS failure(s); no new failures: ${!process.exitCode}`);

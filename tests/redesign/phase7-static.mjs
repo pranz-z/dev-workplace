@@ -1,0 +1,11 @@
+import {spawnSync} from 'node:child_process';
+import {writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {checkSources} from './source-guard.mjs';
+const o=process.argv[2],files=spawnSync('git',['diff','--name-only'],{encoding:'utf8'}).stdout.trim().split('\n').filter(f=>/\.[jt]sx?$/.test(f));
+const r=spawnSync(process.execPath,['node_modules/eslint/bin/eslint.js',...files],{encoding:'utf8',env:process.env});
+await writeFile(resolve(o,'lint.log'),r.stdout+r.stderr);
+const diff=spawnSync('git',['diff','--check'],{encoding:'utf8'});
+await writeFile(resolve(o,'static-gates.json'),JSON.stringify({lint:{files,exitCode:r.status},diffCheck:{exitCode:diff.status,output:diff.stdout+diff.stderr},protected:await checkSources()},null,2));
+assert.equal(r.status,0);assert.equal(diff.status,0);

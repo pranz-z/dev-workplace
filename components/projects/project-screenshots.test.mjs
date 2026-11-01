@@ -9,7 +9,7 @@ import { chromium } from "playwright";
 
 const root = resolve(import.meta.dirname, "../..");
 const source = readFileSync(resolve(root, "data/projectScreenshotService.ts"), "utf8").replace(/^import .*;\r?\n/gm, "");
-const compiled = ts.transpileModule(`const serviceFail = error => ({ok:false,error}); const serviceOk = data => ({ok:true,data}); const isUuid=()=>true; const getWorkspaceContext=async()=>globalThis.projectScreenshotTestContext;\n${source}`, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+const compiled = ts.transpileModule(`const serviceFail = error => ({ok:false,error}); const serviceOk = data => ({ok:true,data}); const describeDatabaseError=(_error,message)=>message; const isUuid=id=>id!=='invalid'; const getWorkspaceContext=async()=>globalThis.projectScreenshotTestContext;\n${source}`, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
 const service = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 
 test("screenshot validation preserves accepted types and the existing per-file size limit", () => {
@@ -43,10 +43,39 @@ test("a saved screenshot with a signing failure is identified so batch retry can
   } finally { delete globalThis.projectScreenshotTestContext; }
 });
 
-test("batch screenshot picker previews, removes, uploads sequentially and retries only failed files", { skip: !process.env.PORTFOLIO_TEST_ESBUILD_MODULE }, async () => {
+test("bulk visibility uses one owner/project-scoped update and returns only saved IDs", async () => {
+  const calls = [];
+  let response = { data: [{ id: "first" }] };
+  globalThis.projectScreenshotTestContext = {
+    userId: "owner",
+    supabase: { from(table) { calls.push(["from", table]); return {
+      update(value) { calls.push(["update", value]); return this; },
+      eq(key, value) { calls.push(["eq", key, value]); return this; },
+      in(key, value) { calls.push(["in", key, value]); return this; },
+      async select(columns) { calls.push(["select", columns]); return response; },
+    }; } },
+  };
+  try {
+    assert.deepEqual(await service.makeProjectScreenshotsPublic("project", ["first", "second", "first"]), { ok: true, data: ["first"] });
+    assert.deepEqual(calls, [["from", "project_screenshots"], ["update", { is_public: true }], ["eq", "project_id", "project"], ["eq", "user_id", "owner"], ["in", "id", ["first", "second"]], ["select", "id"]]);
+    response = { error: { code: "FAIL" } };
+    assert.equal((await service.makeProjectScreenshotsPublic("project", ["first"])).ok, false);
+    calls.length = 0;
+    assert.deepEqual(await service.makeProjectScreenshotsPublic("project", []), { ok: true, data: [] });
+    assert.equal((await service.makeProjectScreenshotsPublic("invalid", ["first"])).ok, false);
+    assert.equal((await service.makeProjectScreenshotsPublic("project", ["invalid"])).ok, false);
+    assert.equal(calls.length, 0);
+    delete globalThis.projectScreenshotTestContext;
+    assert.equal((await service.makeProjectScreenshotsPublic("project", ["first"])).ok, false);
+  } finally { delete globalThis.projectScreenshotTestContext; }
+});
+
+test("batch screenshot picker uploads, retries, and publishes selected or all screenshots", { skip: !process.env.PORTFOLIO_TEST_ESBUILD_MODULE }, async () => {
   const { build } = await import(pathToFileURL(process.env.PORTFOLIO_TEST_ESBUILD_MODULE).href);
   const image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jO9sAAAAASUVORK5CYII=";
   const calls = [];
+  const visibilityCalls = [];
+  let failVisibility = true;
   let active = 0, maxActive = 0, failSecond = true;
   const saved = [{ id: "existing", caption: "Existing", signedUrl: image, sortOrder: 0, isPublic: false }];
   const cssDirectory = resolve(root, ".next/static/chunks");
@@ -60,6 +89,7 @@ test("batch screenshot picker previews, removes, uploads sequentially and retrie
       b.onResolve({ filter: /^@\/data\/projectScreenshotService$/ }, () => ({ path: "service", namespace: "fixture" }));
       b.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ loader: "js", contents: `export const validateProjectScreenshotFile=file=>!['image/jpeg','image/png','image/webp'].includes(file.type)?'Choose a JPEG, PNG, or WebP image.':!file.size||file.size>10485760?'Choose an image smaller than 10 MB.':null;
         export const addProjectScreenshot=async(projectId,file,caption)=>fetch('/upload',{method:'POST',body:JSON.stringify({name:file.name,caption,projectId})}).then(r=>r.json());
+        export const makeProjectScreenshotsPublic=async(projectId,ids)=>fetch('/visibility',{method:'POST',body:JSON.stringify({projectId,ids})}).then(r=>r.json());
         export const deleteProjectScreenshot=async()=>({ok:true});export const setProjectScreenshotPublic=async()=>({ok:true});export const reorderProjectScreenshots=async()=>({ok:true,data:[]});` }));
     } }],
   });
@@ -68,6 +98,14 @@ test("batch screenshot picker previews, removes, uploads sequentially and retrie
     if (req.url === "/style.css") { res.setHeader("Content-Type", "text/css"); return res.end(css); }
     if (req.url.includes("/media/")) { const file = resolve(root, ".next/static/media", basename(req.url)); if (existsSync(file)) { res.setHeader("Content-Type", "font/woff2"); return res.end(readFileSync(file)); } }
     if (req.url === "/saved") { res.setHeader("Content-Type", "application/json"); return res.end(JSON.stringify(saved)); }
+    if (req.url === "/visibility") {
+      let body = ""; for await (const chunk of req) body += chunk;
+      const input = JSON.parse(body); visibilityCalls.push(input);
+      res.setHeader("Content-Type", "application/json");
+      if (failVisibility) { failVisibility = false; return res.end(JSON.stringify({ ok: false, error: "Visibility update failed" })); }
+      for (const item of saved) if (input.ids.includes(item.id)) item.isPublic = true;
+      return res.end(JSON.stringify({ ok: true, data: input.ids }));
+    }
     if (req.url === "/upload") {
       let body = ""; for await (const chunk of req) body += chunk;
       const input = JSON.parse(body); calls.push(input); maxActive = Math.max(maxActive, ++active);
@@ -118,12 +156,36 @@ test("batch screenshot picker previews, removes, uploads sequentially and retrie
     assert.deepEqual(calls.slice(-5).map(call => [call.name, call.projectId, call.caption]), batchNames.map(name => [name, "one", "Release preview"]));
     assert.equal(calls.length, 10);
     assert.equal(await page.getByLabel("Caption for all (optional)").inputValue(), "");
+    const makeSelected = page.getByRole("button", { name: "Make selected public", exact: true });
+    const makeAll = page.getByRole("button", { name: "Make all public", exact: true });
+    assert.equal(await makeSelected.isDisabled(), true);
+    await page.getByRole("checkbox", { name: "Select screenshot: Existing", exact: true }).check();
+    assert.equal(await page.getByRole("checkbox", { name: "Select all", exact: true }).evaluate(input => input.indeterminate), true);
+    await makeSelected.click();
+    await page.getByRole("alert").filter({ hasText: "Visibility update failed" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Public", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("checkbox", { name: "Select screenshot: Existing", exact: true }).isChecked(), true);
+    await makeSelected.click();
+    await page.getByText("Made 1 screenshot public.", { exact: true }).waitFor();
+    assert.deepEqual(visibilityCalls.slice(0, 2), [{ projectId: "one", ids: ["existing"] }, { projectId: "one", ids: ["existing"] }]);
+    assert.equal(await page.getByRole("button", { name: "Public", exact: true }).count(), 1);
+    await page.getByRole("checkbox", { name: "Select all", exact: true }).check();
+    assert.equal(await page.getByRole("checkbox", { name: /^Select screenshot:/ }).count(), saved.length);
+    assert.equal(await page.getByRole("checkbox", { name: /^Select screenshot:/ }).evaluateAll(inputs => inputs.every(input => input.checked)), true);
+    await page.getByRole("checkbox", { name: "Select all", exact: true }).uncheck();
+    assert.equal(await makeSelected.isDisabled(), true);
+    await makeAll.click();
+    await page.getByText(`Made ${saved.length - 1} screenshots public.`, { exact: true }).waitFor();
+    assert.deepEqual(visibilityCalls[2], { projectId: "one", ids: saved.filter(item => item.id !== "existing").map(item => item.id) });
+    assert.equal(await page.getByRole("button", { name: "Public", exact: true }).count(), saved.length);
+    assert.equal(await makeAll.isDisabled(), true);
     await picker.setInputFiles(png("a-long-project-screenshot-name-for-the-mobile-preview.png"));
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `No overflow at ${width}px`);
     }
     await page.getByRole("button", { name: "Switch project" }).click();
+    await page.getByText("0 selected", { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => window.previewUrls.size), 0);
     assert.deepEqual(errors, []);
   } finally { await browser?.close(); await new Promise(done => server.close(done)); }
