@@ -14,6 +14,8 @@ import { fetchAllRows } from "@/data/pagedQuery";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
+type WorkspaceClient = NonNullable<Awaited<ReturnType<typeof getWorkspaceContext>>>["supabase"];
+
 const TASK_COLUMNS = "id, user_id, project_id, milestone_id, title, description, status, sort_order, priority, due_date, created_at, updated_at, completed_at";
 
 export async function listTasks(): Promise<Task[]> {
@@ -77,6 +79,18 @@ export async function createTask(input: TaskInput): Promise<ServiceResult<Task>>
   return serviceOk(mapTaskRow(data as TaskRow));
 }
 
+/**
+ * The columns a status write must set. Re-saving a task that is already completed
+ * sets nothing, so editing it never rewrites the date it was really finished.
+ */
+async function completionColumns(supabase: WorkspaceClient, taskId: string, status: TaskStatus) {
+  if (status !== "Completed") return { columns: { completed_at: null }, error: null };
+  const { data, error } = await supabase.from("tasks").select("status").eq("id", taskId).maybeSingle();
+  if (error) return { columns: {}, error };
+  const alreadyCompleted = (data as { status: TaskStatus } | null)?.status === "Completed";
+  return { columns: alreadyCompleted ? {} : { completed_at: new Date().toISOString() }, error: null };
+}
+
 export interface TaskPatch {
   projectId?: string;
   title?: string;
@@ -126,8 +140,10 @@ export async function updateTask(taskId: string, patch: TaskPatch): Promise<Serv
   if (patch.description !== undefined) payload.description = patch.description;
   if (patch.priority !== undefined) payload.priority = patch.priority;
   if (patch.status !== undefined) {
+    const completion = await completionColumns(context.supabase, taskId, patch.status);
+    if (completion.error) return serviceFail(describeDatabaseError(completion.error, SAVE_FAILED_MESSAGE));
     payload.status = patch.status;
-    payload.completed_at = patch.status === "Completed" ? new Date().toISOString() : null;
+    Object.assign(payload, completion.columns);
   }
   if (patch.dueDate !== undefined) payload.due_date = patch.dueDate ?? null;
   if (patch.milestoneId !== undefined) payload.milestone_id = patch.milestoneId ?? null;
@@ -139,17 +155,20 @@ export async function updateTask(taskId: string, patch: TaskPatch): Promise<Serv
 }
 
 /**
- * Status transitions own `completed_at`, so an un-complete always clears the
- * timestamp (the check constraint would reject anything else).
+ * Status transitions own `completed_at`: completing sets it once, and an
+ * un-complete always clears it (the check constraint would reject anything else).
  */
 export async function setTaskStatus(taskId: string, status: TaskStatus): Promise<ServiceResult<Task>> {
   if (!isUuid(taskId)) return serviceFail("That task is no longer available. Refresh and try again.");
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
 
+  const completion = await completionColumns(context.supabase, taskId, status);
+  if (completion.error) return serviceFail(describeDatabaseError(completion.error, SAVE_FAILED_MESSAGE));
+
   const { data, error } = await context.supabase
     .from("tasks")
-    .update({ status, completed_at: status === "Completed" ? new Date().toISOString() : null })
+    .update({ status, ...completion.columns })
     .eq("id", taskId)
     .select(TASK_COLUMNS)
     .single();

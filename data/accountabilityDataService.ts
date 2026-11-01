@@ -1,4 +1,5 @@
 import { getWorkspaceContext, isUuid } from "@/data/context";
+import { fetchAllRows } from "@/data/pagedQuery";
 import type { AccountabilityGoalRow, AccountabilitySnapshotRow } from "@/data/database.types";
 import { describeDatabaseError, SAVE_FAILED_MESSAGE, serviceFail, serviceOk, type ServiceResult } from "@/data/serviceResult";
 
@@ -26,11 +27,12 @@ export async function listAccountabilityData(): Promise<{ goals: AccountabilityG
   if (!context) throw new Error(SAVE_FAILED_MESSAGE);
   const [goals, snapshots] = await Promise.all([
     context.supabase.from("accountability_goals").select(GOAL_COLUMNS).eq("user_id", context.userId).order("period_start", { ascending: false }),
-    context.supabase.from("accountability_snapshots").select(SNAPSHOT_COLUMNS).eq("user_id", context.userId).order("snapshot_date", { ascending: true }),
+    // Oldest first, so a capped read would drop the newest days; page through all of them.
+    fetchAllRows((from, to) => context.supabase.from("accountability_snapshots").select(SNAPSHOT_COLUMNS).eq("user_id", context.userId).order("snapshot_date", { ascending: true }).order("id", { ascending: true }).range(from, to))
+      .catch((error: { code?: string; message?: string }) => { throw new Error(describeDatabaseError(error, "Accountability history could not be loaded.")); }),
   ]);
   if (goals.error) throw new Error(describeDatabaseError(goals.error, "Goals could not be loaded."));
-  if (snapshots.error) throw new Error(describeDatabaseError(snapshots.error, "Accountability history could not be loaded."));
-  return { goals: (goals.data ?? []) as unknown as AccountabilityGoalRow[], snapshots: (snapshots.data ?? []) as unknown as AccountabilitySnapshotRow[] };
+  return { goals: (goals.data ?? []) as unknown as AccountabilityGoalRow[], snapshots: snapshots as unknown as AccountabilitySnapshotRow[] };
 }
 
 export type GoalDraft = Pick<AccountabilityGoalRow, "project_id" | "title" | "description" | "metric" | "target" | "period_start" | "period_end" | "manual_progress">;

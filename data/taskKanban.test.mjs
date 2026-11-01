@@ -85,3 +85,10 @@ test("project-scoped board still reorders within a column", () => {
   const tasks = [task("a", "Backlog", 1), task("b", "Backlog", 2)];
   assert.deepEqual(buildTaskBoardDrop(tasks, statuses, "p1", "a", "b").destinationTaskIds, ["b", "a"]);
 });
+
+test("re-saving a completed task keeps its original completion date", () => {
+  const service = readFileSync(new URL("./taskService.ts", import.meta.url), "utf8");
+  const writers = service.slice(service.indexOf("export async function updateTask"));
+  assert.doesNotMatch(writers, /completed_at: (patch\.)?status === "Completed"/);
+  assert.match(service, /alreadyCompleted \? \{\} : \{ completed_at: new Date\(\)\.toISOString\(\) \}/);
+});

@@ -373,6 +373,20 @@ select is((select count(*)::int from public.public_project_by_slug('rls-user-a-p
 
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- A time block follows its task to another project
+-- ---------------------------------------------------------------------------
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
+insert into public.tasks (id, user_id, project_id, title) values
+  ('aaaaaaaa-0000-4000-8000-000000000901', 'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000101', 'Task with a time block');
+insert into public.workspace_time_blocks (id, user_id, project_id, task_id, title, start_at, end_at, kind, status) values
+  ('aaaaaaaa-0000-4000-8000-000000000902', 'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000101', 'aaaaaaaa-0000-4000-8000-000000000901', 'Block', '2030-01-01 09:00+00', '2030-01-01 10:00+00', 'task', 'scheduled');
+select lives_ok($$update public.tasks set project_id = 'aaaaaaaa-0000-4000-8000-000000000102' where id = 'aaaaaaaa-0000-4000-8000-000000000901'$$, 'a task with a time block can move to another owned project');
+select is((select project_id from public.workspace_time_blocks where id = 'aaaaaaaa-0000-4000-8000-000000000902'), 'aaaaaaaa-0000-4000-8000-000000000102'::uuid, 'the time block follows the task to its new project');
+reset role;
+
 select * from finish();
 rollback;
 
