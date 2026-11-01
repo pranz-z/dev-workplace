@@ -62,16 +62,15 @@ export async function reorderPlanItems(planId: string, itemIds: string[]): Promi
   }
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
-  const results = await Promise.all(itemIds.map((id, index) => context.supabase.from("project_plan_items")
-    .update({ sort_order: index + 1 })
-    .eq("plan_id", planId)
-    .eq("id", id)
+  const { error } = await context.supabase.rpc("reorder_plan_items", { p_plan_id: planId, p_item_ids: itemIds });
+  if (error) return serviceFail(describeDatabaseError(error, SAVE_FAILED_MESSAGE));
+  const { data, error: readError } = await context.supabase
+    .from("project_plan_items")
     .select(PLAN_ITEM_COLUMNS)
-    .maybeSingle()));
-  const failed = results.find((result) => result.error || !result.data);
-  if (failed?.error) return serviceFail(describeDatabaseError(failed.error, SAVE_FAILED_MESSAGE));
-  if (failed) return serviceFail(SAVE_FAILED_MESSAGE);
-  return serviceOk(results.map((result) => mapPlanItemRow(result.data as PlanItemRow)).sort((a, b) => a.order - b.order));
+    .eq("plan_id", planId)
+    .order("sort_order", { ascending: true });
+  if (readError) return serviceFail(describeDatabaseError(readError, SAVE_FAILED_MESSAGE));
+  return serviceOk(((data ?? []) as PlanItemRow[]).map(mapPlanItemRow));
 }
 
 export async function deletePlanItem(itemId: string): Promise<ServiceResult<{ id: string }>> {

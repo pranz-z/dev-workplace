@@ -10,6 +10,7 @@ import {
   serviceOk,
   type ServiceResult,
 } from "@/data/serviceResult";
+import { fetchAllRows } from "@/data/pagedQuery";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -18,9 +19,9 @@ const MILESTONE_COLUMNS = "id, project_id, title, description, status, target_da
 export async function listMilestones(): Promise<Milestone[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.from("milestones").select(MILESTONE_COLUMNS).order("sort_order", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((row) => mapMilestoneRow(row as MilestoneRow));
+  const rows = await fetchAllRows((from, to) => supabase.from("milestones").select(MILESTONE_COLUMNS)
+    .order("sort_order", { ascending: true }).order("id", { ascending: true }).range(from, to));
+  return rows.map((row) => mapMilestoneRow(row as MilestoneRow));
 }
 
 export async function listProjectMilestones(projectId: string): Promise<Milestone[]> {
@@ -157,19 +158,9 @@ export async function moveMilestone(milestoneId: string, direction: "up" | "down
     return serviceOk(rows.map(mapMilestoneRow));
   }
 
-  const neighbour = rows[neighbourIndex];
-  const swap = await Promise.all([
-    context.supabase.from("milestones").update({ sort_order: neighbour.sort_order }).eq("id", milestone.id),
-    context.supabase.from("milestones").update({ sort_order: milestone.sort_order }).eq("id", neighbour.id),
-  ]);
-  const swapError = swap.find((result) => result.error)?.error;
-  if (swapError) return serviceFail(describeDatabaseError(swapError, SAVE_FAILED_MESSAGE));
-
-  const reordered = [...rows];
-  reordered[index] = { ...milestone, sort_order: neighbour.sort_order };
-  reordered[neighbourIndex] = { ...neighbour, sort_order: milestone.sort_order };
-  reordered.sort((a, b) => a.sort_order - b.sort_order);
-  return serviceOk(reordered.map(mapMilestoneRow));
+  const orderedIds = rows.map((row) => row.id);
+  [orderedIds[index], orderedIds[neighbourIndex]] = [orderedIds[neighbourIndex], orderedIds[index]];
+  return reorderProjectMilestones(milestone.project_id, orderedIds);
 }
 
 export async function reorderProjectMilestones(projectId: string, milestoneIds: string[]): Promise<ServiceResult<Milestone[]>> {
@@ -178,16 +169,15 @@ export async function reorderProjectMilestones(projectId: string, milestoneIds: 
   }
   const context = await getWorkspaceContext();
   if (!context) return serviceFail(SAVE_FAILED_MESSAGE);
-  const results = await Promise.all(milestoneIds.map((id, index) => context.supabase.from("milestones")
-    .update({ sort_order: index + 1 })
-    .eq("project_id", projectId)
-    .eq("id", id)
+  const { error } = await context.supabase.rpc("reorder_project_milestones", { p_project_id: projectId, p_milestone_ids: milestoneIds });
+  if (error) return serviceFail(describeDatabaseError(error, SAVE_FAILED_MESSAGE));
+  const { data, error: readError } = await context.supabase
+    .from("milestones")
     .select(MILESTONE_COLUMNS)
-    .maybeSingle()));
-  const failed = results.find((result) => result.error || !result.data);
-  if (failed?.error) return serviceFail(describeDatabaseError(failed.error, SAVE_FAILED_MESSAGE));
-  if (failed) return serviceFail(SAVE_FAILED_MESSAGE);
-  return serviceOk(results.map((result) => mapMilestoneRow(result.data as MilestoneRow)).sort((a, b) => a.order - b.order));
+    .eq("project_id", projectId)
+    .order("sort_order", { ascending: true });
+  if (readError) return serviceFail(describeDatabaseError(readError, SAVE_FAILED_MESSAGE));
+  return serviceOk(((data ?? []) as MilestoneRow[]).map(mapMilestoneRow));
 }
 
 export async function deleteMilestone(milestoneId: string): Promise<ServiceResult<{ id: string }>> {

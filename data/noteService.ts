@@ -10,6 +10,7 @@ import {
   serviceOk,
   type ServiceResult,
 } from "@/data/serviceResult";
+import { fetchAllRows } from "@/data/pagedQuery";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -18,9 +19,9 @@ const NOTE_COLUMNS = "id, user_id, project_id, title, content, created_at, updat
 export async function listNotes(): Promise<NoteItem[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.from("notes").select(NOTE_COLUMNS).order("updated_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((row) => mapNoteRow(row as NoteRow));
+  const rows = await fetchAllRows((from, to) => supabase.from("notes").select(NOTE_COLUMNS)
+    .order("updated_at", { ascending: false }).order("id", { ascending: true }).range(from, to));
+  return rows.map((row) => mapNoteRow(row as NoteRow));
 }
 
 export interface NoteInput {

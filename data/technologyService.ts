@@ -10,6 +10,7 @@ import {
   serviceOk,
   type ServiceResult,
 } from "@/data/serviceResult";
+import { fetchAllRows } from "@/data/pagedQuery";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -29,15 +30,14 @@ export async function listTechnologies(): Promise<TechnologyItem[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseBrowserClient();
 
-  const [{ data: technologies, error: technologyError }, { data: links, error: linkError }] = await Promise.all([
-    supabase.from("technologies").select(TECHNOLOGY_COLUMNS).order("name", { ascending: true }),
-    supabase.from("project_technologies").select("project_id, technology_id, projects ( id, title, project_type )"),
+  const [technologies, links] = await Promise.all([
+    fetchAllRows((from, to) => supabase.from("technologies").select(TECHNOLOGY_COLUMNS).order("name", { ascending: true }).order("id", { ascending: true }).range(from, to)),
+    fetchAllRows((from, to) => supabase.from("project_technologies").select("project_id, technology_id, projects ( id, title, project_type )")
+      .order("project_id", { ascending: true }).order("technology_id", { ascending: true }).range(from, to)),
   ]);
-  if (technologyError) throw technologyError;
-  if (linkError) throw linkError;
 
-  const typedLinks = (links ?? []) as unknown as LinkRow[];
-  return (technologies ?? []).map((row) => {
+  const typedLinks = links as unknown as LinkRow[];
+  return technologies.map((row) => {
     const technology = row as TechnologyRow;
     return mapTechnologyRow(
       technology,
@@ -58,12 +58,13 @@ export async function listProjectTechnologyNames(): Promise<Map<string, string[]
   if (!isSupabaseConfigured()) return byProject;
 
   const supabase = getSupabaseBrowserClient();
-  const { data: links, error } = await supabase
+  const links = await fetchAllRows((from, to) => supabase
     .from("project_technologies")
-    .select("project_id, technology_id, technologies ( id, name )");
-  if (error) throw error;
+    .select("project_id, technology_id, technologies ( id, name )")
+    .order("project_id", { ascending: true }).order("technology_id", { ascending: true })
+    .range(from, to));
 
-  const typed = (links ?? []) as unknown as Array<{ project_id: string; technologies: { name: string } | null }>;
+  const typed = links as unknown as Array<{ project_id: string; technologies: { name: string } | null }>;
   typed.forEach((link) => {
     const name = link.technologies?.name;
     if (!name) return;
@@ -93,7 +94,8 @@ export async function createTechnology(name: string): Promise<ServiceResult<Tech
       const existing = await context.supabase
         .from("technologies")
         .select(TECHNOLOGY_COLUMNS)
-        .ilike("name", trimmed)
+        .eq("user_id", context.userId)
+        .ilike("name", trimmed.replace(/[\\%_]/g, "\\$&"))
         .maybeSingle();
       if (!existing.error && existing.data) {
         return serviceOk(mapTechnologyRow(existing.data as TechnologyRow, []));
