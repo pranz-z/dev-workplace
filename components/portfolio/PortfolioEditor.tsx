@@ -5,10 +5,11 @@ import { WorkspaceDialog } from "@/components/workspace/WorkspaceDialog";
 import { loadPortfolioDraft, savePortfolioDraft, type PortfolioDraft } from "@/data/portfolioService";
 import { moveItem, sectionKeys, type PortfolioContent, type TextItem } from "@/lib/portfolio/content";
 import { resumePortfolioSeed } from "@/lib/portfolio/resume-seed";
+import { serviceIconKeys } from "@/lib/portfolio/service-icons";
 
-export const portfolioTabs = ["Overview", "Hero & Bio", "About", "Core Application Stack", "Experience", "Education", "Technical Toolkit", "Engineering Focus", "Contact & Links", "Public Settings"] as const;
+export const portfolioTabs = ["Overview", "Hero & Bio", "About", "Core Application Stack", "Experience", "Education", "Technical Toolkit", "Engineering Focus", "Services", "Contact & Links", "Public Settings"] as const;
 type Tab = typeof portfolioTabs[number];
-type Collection = "experience" | "education" | "toolkit" | "focus" | "links";
+type Collection = "experience" | "education" | "toolkit" | "focus" | "services" | "links";
 type Entry = PortfolioContent[Collection][number];
 type Field = { key: string; label: string; type?: "month" | "textarea" | "list" | "checkbox" | "url" };
 const fields: Record<Collection, Field[]> = {
@@ -16,6 +17,7 @@ const fields: Record<Collection, Field[]> = {
   education: [{ key: "institution", label: "Institution" }, { key: "degree", label: "Degree" }, { key: "field", label: "Field of study" }, { key: "honors", label: "Honors" }, { key: "start", label: "Start month", type: "month" }, { key: "graduation", label: "Graduation month", type: "month" }, { key: "location", label: "Location" }, { key: "coursework", label: "Coursework", type: "list" }, { key: "activities", label: "Leadership / activity", type: "list" }, { key: "notes", label: "Notes", type: "textarea" }],
   toolkit: [{ key: "label", label: "Category name" }],
   focus: [{ key: "title", label: "Title" }, { key: "description", label: "Description", type: "textarea" }, { key: "icon", label: "Optional icon key" }],
+  services: [{ key: "title", label: "Service name" }, { key: "summary", label: "Summary", type: "textarea" }, { key: "icon", label: `Optional icon (${serviceIconKeys.join(", ")})` }, { key: "highlights", label: "Highlight", type: "list" }],
   links: [{ key: "type", label: "Type (GitHub, LinkedIn, portfolio, or custom)" }, { key: "label", label: "Link label" }, { key: "url", label: "HTTP/HTTPS URL", type: "url" }],
 };
 const button = "dark-chip min-h-10 px-3 py-2 text-sm disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--ink-green)]";
@@ -95,6 +97,7 @@ export function PortfolioEditor({ tab, onTabChange }: { tab: Tab; onTabChange: (
       {tab === "Education" && collectionEditor("education", "Education")}
       {tab === "Technical Toolkit" && collectionEditor("toolkit", "Category")}
       {tab === "Engineering Focus" && collectionEditor("focus", "Focus item")}
+      {tab === "Services" && <><p className="text-sm t-dark-muted">Services appear on the public /services page in this order. Hidden services and a disabled services section are excluded from the public site and Public AI.</p><Input label="Services page heading" value={d.servicesPage.title} maxLength={160} onChange={(title) => set("servicesPage", { ...d.servicesPage, title })} /><Input label="Services page intro" value={d.servicesPage.intro} multiline maxLength={1000} onChange={(intro) => set("servicesPage", { ...d.servicesPage, intro })} />{collectionEditor("services", "Service")}</>}
       {tab === "Contact & Links" && <><div className="grid gap-4 md:grid-cols-2">{(["email", "phone", "location", "cta", "note"] as const).map((key) => <Input key={key} label={{ email: "Public email", phone: "Public phone", location: "Location", cta: "Contact CTA text", note: "Availability / contact note" }[key]} value={d.contact[key]} type={key === "email" ? "email" : "text"} maxLength={key === "phone" ? 40 : key === "email" ? 254 : key === "note" ? 1000 : key === "cta" ? 160 : 240} onChange={(value) => set("contact", { ...d.contact, [key]: value })} />)}</div>{(["showEmail", "showPhone", "showLocation"] as const).map((key) => <Toggle key={key} label={{ showEmail: "Show email publicly", showPhone: "Show phone publicly", showLocation: "Show location publicly" }[key]} checked={d.contact[key]} onChange={(value) => set("contact", { ...d.contact, [key]: value })} />)}{collectionEditor("links", "Link")}</>}
       {tab === "Public Settings" && <><Toggle label="Enable public profile" checked={draft.enabled} onChange={(enabled) => { setDraft({ ...draft, enabled }); setDirty(true); }} /><Toggle label="Enable Public AI (uses only approved public data)" checked={draft.aiEnabled} onChange={(aiEnabled) => { setDraft({ ...draft, aiEnabled }); setDirty(true); }} /><Input label="Projects section heading" value={d.projects.title} maxLength={160} onChange={(title) => set("projects", { ...d.projects, title })} /><Input label="Projects section intro" value={d.projects.intro} multiline maxLength={1000} onChange={(intro) => set("projects", { ...d.projects, intro })} /><p className="text-sm t-dark-muted">Section order is fixed to preserve the public design. Child collections support keyboard-accessible ordering. Disabled sections and hidden contact fields are excluded from both the public site and Public AI.</p>{sectionKeys.map((key) => <Toggle key={key} label={`Show ${key} section publicly`} checked={d.sections[key].enabled} onChange={(enabled) => set("sections", { ...d.sections, [key]: { ...d.sections[key], enabled } })} />)}</>}
     </fieldset>

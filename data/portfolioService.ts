@@ -7,7 +7,9 @@ export async function loadPortfolioDraft(): Promise<PortfolioDraft> {
   if (!context) throw new Error("Sign in to manage your portfolio.");
   const { data, error } = await context.supabase.from("profiles").select("portfolio_content, portfolio_revision, public_profile_enabled, public_ai_assistant_enabled, display_name, headline, bio, avatar_url, public_contact_email, show_public_contact_email, public_github_url, public_linkedin_url, public_website_url").eq("id", context.userId).single();
   if (error) throw new Error("Could not load portfolio. Check that the Portfolio CMS migration has been applied.");
-  const content = data.portfolio_content ?? emptyPortfolio();
+  const empty = emptyPortfolio();
+  // Documents saved before a field existed open with that field's empty default.
+  const content: PortfolioContent = data.portfolio_content ? { ...empty, ...data.portfolio_content, sections: { ...empty.sections, ...data.portfolio_content.sections } } : empty;
   if (!data.portfolio_content) {
     // Preserve explicitly configured profile fields without importing auth metadata.
     content.hero.name = data.display_name ?? ""; content.hero.headline = data.headline ?? "";

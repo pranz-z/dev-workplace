@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { MetadataRoute } from "next";
 import type { PublicProjectCardRow } from "@/data/database.types";
+import type { PortfolioContent } from "@/lib/portfolio/content";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { getApplicationOrigin } from "@/lib/site-origin";
 
@@ -14,6 +15,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const { url, key } = getSupabaseEnv();
     const supabase = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
+    const { data: portfolio, error: portfolioError } = await supabase.rpc("public_portfolio");
+    if (!portfolioError && (portfolio as PortfolioContent | null)?.services?.length) entries.push({ url: `${origin}/services` });
     const { data, error } = await supabase.rpc("public_project_list");
     if (error) {
       console.error("[seo] public sitemap project lookup failed", { operation: "list_public_sitemap_projects", code: error.code ?? "unknown" });
