@@ -1,4 +1,4 @@
-export const sectionKeys = ["hero", "projects", "about", "experience", "toolkit", "education", "focus", "contact"] as const;
+export const sectionKeys = ["hero", "projects", "about", "experience", "toolkit", "education", "focus", "contact", "services"] as const;
 export type SectionKey = typeof sectionKeys[number];
 export interface OrderedItem { id: string; enabled: boolean; sort_order: number }
 export interface TextItem extends OrderedItem { name: string }
@@ -12,6 +12,7 @@ export interface Education extends OrderedItem {
 }
 export interface SkillCategory extends OrderedItem { label: string; items: TextItem[] }
 export interface FocusItem extends OrderedItem { title: string; description: string; icon: string }
+export interface ServiceItem extends OrderedItem { title: string; summary: string; icon: string; highlights: string[] }
 export interface SocialLink extends OrderedItem { type: string; label: string; url: string }
 export interface PortfolioContent {
   hero: { name: string; headline: string; description: string; tagline: string; avatar: string };
@@ -19,6 +20,7 @@ export interface PortfolioContent {
   about: { title: string; body: string; secondary: string };
   projects: { title: string; intro: string };
   stack: TextItem[]; experience: Experience[]; education: Education[]; toolkit: SkillCategory[]; focus: FocusItem[];
+  servicesPage: { title: string; intro: string }; services: ServiceItem[];
   contact: { email: string; showEmail: boolean; phone: string; showPhone: boolean; location: string; showLocation: boolean; cta: string; note: string };
   links: SocialLink[];
   sections: Record<SectionKey, { enabled: boolean; sort_order: number }>;
@@ -29,6 +31,7 @@ export function emptyPortfolio(): PortfolioContent {
     hero: { name: "", headline: "", description: "", tagline: "", avatar: "" }, bio: "",
     about: { title: "", body: "", secondary: "" }, projects: { title: "Projects", intro: "" },
     stack: [], experience: [], education: [], toolkit: [], focus: [], links: [],
+    servicesPage: { title: "Services", intro: "" }, services: [],
     contact: { email: "", showEmail: false, phone: "", showPhone: false, location: "", showLocation: false, cta: "", note: "" },
     sections: Object.fromEntries(sectionKeys.map((key, index) => [key, { enabled: true, sort_order: index }])) as PortfolioContent["sections"],
   };
@@ -53,6 +56,8 @@ export const portfolioSchema: Spec = object({
   education: array(object({ ...base, institution: string(), degree: string(), field: string(), honors: string(), start: string(7, "month"), graduation: string(7, "month"), location: string(), coursework: list, activities: list, notes: string(2000) }), 25),
   toolkit: array(object({ ...base, label: required(100), items: array(textItem, 60) }), 20),
   focus: array(object({ ...base, title: required(160), description: string(2000), icon: string(60) }), 20),
+  servicesPage: object({ title: string(160), intro: string(1000) }),
+  services: array(object({ ...base, title: required(160), summary: string(2000), icon: string(60), highlights: array(required(240), 12) }), 30),
   contact: object({ email: string(254, "email"), showEmail: boolean, phone: string(40, "phone"), showPhone: boolean, location: string(240), showLocation: boolean, cta: string(160), note: string(1000) }),
   links: array(object({ ...base, type: required(60), label: required(80), url: required(2048, "url") }), 20),
   sections: object(Object.fromEntries(sectionKeys.map((key) => [key, object({ enabled: boolean, sort_order: order })]))),

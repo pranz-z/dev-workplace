@@ -105,6 +105,7 @@ export default function PublicViewerPage({ initialProjects, initialProfile, init
   const avatar = professional ? professional.hero.avatar : profile?.avatarUrl;
   const navigation = [
     { href: "#projects", label: "Projects", enabled: professional?.sections.projects.enabled ?? true },
+    { href: "/services", label: "Services", enabled: Boolean(professional?.sections.services?.enabled && professional.services?.length) },
     { href: "#about", label: "About", enabled: professional ? professional.sections.about.enabled && Boolean(professional.about.body || professional.about.secondary) : Boolean(profile?.bio) },
     { href: "#experience", label: "Experience", enabled: Boolean(professional?.sections.experience.enabled && professional.experience.length) },
     { href: "#skills", label: "Skills", enabled: professional ? Boolean(professional.sections.toolkit.enabled && professional.toolkit.length) : technologies.length > 0 },
