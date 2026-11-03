@@ -6,6 +6,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getApplicationOrigin } from "@/lib/site-origin";
 import { getPublicProfessionalContent, publicProfessionalIntroduction } from "@/lib/portfolio/resume-content";
 import { publicPortfolioProject } from "@/lib/portfolio/project-card";
+import { portfolioPreviewImage, previewDescription } from "@/lib/portfolio/preview";
 import type { PortfolioContent } from "@/lib/portfolio/content";
 
 const loadPublicPortfolio = cache(async () => {
@@ -31,19 +32,20 @@ const loadPublicPortfolio = cache(async () => {
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { profile } = await loadPublicPortfolio();
+  const { profile, portfolio } = await loadPublicPortfolio();
   const origin = getApplicationOrigin();
   const introduction = publicProfessionalIntroduction(profile ? { displayName: profile.display_name ?? "", headline: profile.headline, bio: profile.bio } : null);
   const name = introduction.name;
   const headline = introduction.headline;
   const title = name ? `${name}${headline ? ` — ${headline}` : " — Portfolio"}` : "Developer Portfolio";
-  const description = (introduction.bio || headline || "Selected software projects, technologies, and project case studies.").slice(0, 180);
+  const description = previewDescription(portfolio?.services?.length ? portfolio.servicesPage.intro : null, introduction.bio, headline) || "Selected software projects, technologies, and project case studies.";
+  const image = { ...portfolioPreviewImage, alt: title };
   return {
     title,
     description,
     ...(origin ? { metadataBase: new URL(origin), alternates: { canonical: "/" } } : {}),
-    openGraph: { title, description, type: "website", images: ["/opengraph-image.png"], ...(origin ? { url: `${origin}/` } : {}) },
-    twitter: { card: "summary_large_image", title, description, images: ["/opengraph-image.png"] },
+    openGraph: { title, description, type: "website", siteName: name || undefined, images: [image], ...(origin ? { url: `${origin}/` } : {}) },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
 

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import PublicServices from "@/components/portfolio/PublicServices";
 import type { PortfolioContent } from "@/lib/portfolio/content";
+import { portfolioPreviewImage, previewDescription } from "@/lib/portfolio/preview";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getApplicationOrigin } from "@/lib/site-origin";
 
@@ -25,13 +26,14 @@ export async function generateMetadata(): Promise<Metadata> {
   const origin = getApplicationOrigin();
   const heading = portfolio.servicesPage.title || "Services";
   const title = portfolio.hero.name ? `${heading} — ${portfolio.hero.name}` : heading;
-  const description = (portfolio.servicesPage.intro || portfolio.services.map((service) => service.title).join(", ")).slice(0, 180);
+  const description = previewDescription(portfolio.servicesPage.intro, portfolio.services.map((service) => service.title).join(", "));
+  const image = { ...portfolioPreviewImage, alt: title };
   return {
     title,
     description,
     ...(origin ? { metadataBase: new URL(origin), alternates: { canonical: "/services" } } : {}),
-    openGraph: { title, description, type: "website", images: ["/opengraph-image.png"], ...(origin ? { url: `${origin}/services` } : {}) },
-    twitter: { card: "summary_large_image", title, description, images: ["/opengraph-image.png"] },
+    openGraph: { title, description, type: "website", siteName: portfolio.hero.name || undefined, images: [image], ...(origin ? { url: `${origin}/services` } : {}) },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
 
