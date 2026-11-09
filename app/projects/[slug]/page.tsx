@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, FolderGit2, Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, ArrowUpRight, ChevronLeft, ChevronRight, FolderGit2, Moon, Sun } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PublicAccountabilityCard } from "@/components/accountability/public-accountability-card";
 import { PublicAiConcierge } from "@/components/public-ai/public-ai-concierge";
 import { PublicProjectVideo } from "@/components/portfolio/PublicProjectVideo";
@@ -45,8 +45,14 @@ export default function PublicProjectPage() {
   const [accountability, setAccountability] = useState<{ health: PublicAccountabilityHealth; score: number | null } | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [screenshots, setScreenshots] = useState<Array<{ id: string; caption: string; signedUrl: string }>>([]);
-  const [selectedScreenshot, setSelectedScreenshot] = useState<{ slug: string; caption: string; signedUrl: string } | null>(null);
+  const [selectedScreenshot, setSelectedScreenshot] = useState<{ slug: string; index: number } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const swipeStartX = useRef<number | null>(null);
+  const screenshotCount = screenshots.length;
+  const viewing = selectedScreenshot?.slug === slug ? screenshots[selectedScreenshot.index] : undefined;
+  const stepScreenshot = useCallback((delta: number) => {
+    setSelectedScreenshot((current) => current && screenshotCount > 1 ? { ...current, index: (current.index + delta + screenshotCount) % screenshotCount } : current);
+  }, [screenshotCount]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode | null;
@@ -99,6 +105,17 @@ export default function PublicProjectPage() {
     listPublicProjectScreenshots(slug).then((items) => { if (current) setScreenshots(items); }).catch(() => { if (current) setScreenshots([]); });
     return () => { current = false; };
   }, [slug]);
+
+  const viewerOpen = Boolean(viewing);
+  useEffect(() => {
+    if (!viewerOpen || screenshotCount < 2) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") stepScreenshot(-1);
+      else if (event.key === "ArrowRight") stepScreenshot(1);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [viewerOpen, screenshotCount, stepScreenshot]);
 
   const displayProject = resolvedSlug === slug ? project : null;
 
@@ -216,7 +233,7 @@ export default function PublicProjectPage() {
         {screenshots.length > 0 && <section className="space-y-4" aria-labelledby="project-gallery-title">
           <div><h2 id="project-gallery-title" className="mt-2 text-3xl font-black text-[var(--ink)]"><UnderlineHeading>Gallery</UnderlineHeading></h2></div>
           <div className="grid gap-4 md:grid-cols-2">{screenshots.map((screenshot, index) => <figure key={screenshot.id} className="public-card overflow-hidden">
-            <button type="button" className="block w-full cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ink)]" aria-haspopup="dialog" aria-label={`View screenshot: ${screenshot.caption || `${displayProject.name} screenshot ${index + 1}`}`} onClick={() => setSelectedScreenshot({ slug, caption: screenshot.caption, signedUrl: screenshot.signedUrl })}>
+            <button type="button" className="block w-full cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ink)]" aria-haspopup="dialog" aria-label={`View screenshot: ${screenshot.caption || `${displayProject.name} screenshot ${index + 1}`}`} onClick={() => setSelectedScreenshot({ slug, index })}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={screenshot.signedUrl} alt={screenshot.caption || `${displayProject.name} screenshot`} loading="lazy" decoding="async" className="aspect-video w-full object-cover" />
             </button>
@@ -229,12 +246,32 @@ export default function PublicProjectPage() {
           <button type="button" onClick={() => void copyLink()} className="public-link" aria-live="polite">{linkCopied ? "Link copied" : "Copy project link"}</button>
         </section>
       </main>
-      {selectedScreenshot?.slug === slug && <WorkspaceDialog label="Screenshot viewer" onClose={() => setSelectedScreenshot(null)} className="h-dvh w-screen">
-        <figure className="public-card w-full max-w-6xl p-3">
-          <button type="button" className="public-link mb-3" onClick={() => setSelectedScreenshot(null)}>Close screenshot</button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={selectedScreenshot.signedUrl} alt={selectedScreenshot.caption || `${displayProject.name} screenshot`} className="max-h-[75dvh] w-full object-contain" />
-          {selectedScreenshot.caption && <figcaption className="pt-3 text-sm text-[var(--muted)]">{selectedScreenshot.caption}</figcaption>}
+      {viewing && selectedScreenshot && <WorkspaceDialog label="Screenshot viewer" onClose={() => setSelectedScreenshot(null)} className="h-dvh w-screen">
+        <figure
+          className="public-card w-full max-w-6xl touch-pan-y p-3"
+          onTouchStart={(event) => { swipeStartX.current = event.touches[0]?.clientX ?? null; }}
+          onTouchEnd={(event) => {
+            const start = swipeStartX.current;
+            swipeStartX.current = null;
+            const end = event.changedTouches[0]?.clientX;
+            if (start === null || end === undefined || screenshotCount < 2) return;
+            const distance = end - start;
+            if (Math.abs(distance) > 50) stepScreenshot(distance < 0 ? 1 : -1);
+          }}
+        >
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <button type="button" className="public-link" onClick={() => setSelectedScreenshot(null)}>Close screenshot</button>
+            {screenshotCount > 1 && <span className="text-sm text-[var(--muted)]" aria-live="polite">Screenshot {selectedScreenshot.index + 1} of {screenshotCount}</span>}
+          </div>
+          <div className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={viewing.signedUrl} alt={viewing.caption || `${displayProject.name} screenshot`} className="max-h-[75dvh] w-full object-contain" />
+            {screenshotCount > 1 && <>
+              <button type="button" aria-label="Previous screenshot" onClick={() => stepScreenshot(-1)} className="absolute left-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border-[1.5px] border-[var(--ink)] bg-[var(--surface)] text-[var(--ink)] shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]"><ChevronLeft size={22} aria-hidden="true" /></button>
+              <button type="button" aria-label="Next screenshot" onClick={() => stepScreenshot(1)} className="absolute right-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border-[1.5px] border-[var(--ink)] bg-[var(--surface)] text-[var(--ink)] shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]"><ChevronRight size={22} aria-hidden="true" /></button>
+            </>}
+          </div>
+          {viewing.caption && <figcaption className="pt-3 text-sm text-[var(--muted)]">{viewing.caption}</figcaption>}
         </figure>
       </WorkspaceDialog>}
       <PublicAiConcierge />
